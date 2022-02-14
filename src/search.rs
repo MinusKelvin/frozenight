@@ -4,6 +4,7 @@ use std::sync::Arc;
 use cozy_chess::{Board, Move};
 use nohash::IntSet;
 
+use crate::nnue::NnueAccumulator;
 use crate::{Eval, SharedState, Statistics};
 
 pub(crate) struct Searcher {
@@ -13,11 +14,13 @@ pub(crate) struct Searcher {
     history: IntSet<u64>,
     target_depth: i16,
     valid: bool,
+    nnue: NnueAccumulator,
 }
 
 impl Searcher {
     pub fn new(abort: Arc<AtomicBool>, shared: Arc<SharedState>, history: IntSet<u64>) -> Self {
         Searcher {
+            nnue: NnueAccumulator::new(&shared.nnue),
             shared,
             abort,
             history,
@@ -68,7 +71,7 @@ impl Searcher {
 
         let result = if depth_remain == 0 {
             self.stats.nodes += 1;
-            Some(static_eval(board))
+            Some(self.nnue.calculate(&self.shared.nnue, board))
         } else {
             self.alpha_beta(board, alpha, beta, depth_remain)
                 .map(|(e, _)| e)
@@ -111,8 +114,4 @@ impl Searcher {
 
         Some(best_move)
     }
-}
-
-fn static_eval(board: &Board) -> Eval {
-    Eval::new(board.hash() as i16 % 8192)
 }

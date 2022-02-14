@@ -4,9 +4,11 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move};
+use nnue::Nnue;
 use nohash::{IntMap, IntSet};
 
 mod eval;
+mod nnue;
 mod search;
 
 pub use eval::Eval;
@@ -19,14 +21,16 @@ pub struct Frozenight {
     abort: Arc<AtomicBool>,
 }
 
-struct SharedState {}
+struct SharedState {
+    nnue: Nnue,
+}
 
 impl Frozenight {
     pub fn new() -> Self {
         Frozenight {
             board: Default::default(),
             history: Default::default(),
-            shared_state: Arc::new(SharedState {}),
+            shared_state: Arc::new(SharedState { nnue: Nnue::new() }),
             abort: Default::default(),
         }
     }
@@ -147,4 +151,8 @@ pub trait Listener: Send + 'static {
         board: &Board,
         pv: &[Move],
     );
+}
+
+impl Listener for () {
+    fn info(&mut self, _: i16, _: i16, _: u64, _: Eval, _: &Board, _: &[Move]) {}
 }
