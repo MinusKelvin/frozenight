@@ -54,6 +54,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "frozenight-uci"
+version = "0.1.0"
+dependencies = [
+ "cozy-chess",
+ "frozenight",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,11 @@
+[package]
+name = "frozenight-uci"
+version = "0.1.0"
+edition = "2021"
+default-run = "frozenight-uci"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cozy-chess = "0.2.1"
+frozenight = { path = "../frozenight" }
