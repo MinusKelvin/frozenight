@@ -16,7 +16,7 @@ pub struct Frozenight {
     board: Board,
     history: IntSet<u64>,
     shared_state: Arc<SharedState>,
-    running: Arc<AtomicBool>,
+    abort: Arc<AtomicBool>,
 }
 
 struct SharedState {}
@@ -27,7 +27,7 @@ impl Frozenight {
             board: Default::default(),
             history: Default::default(),
             shared_state: Arc::new(SharedState {}),
-            running: Default::default(),
+            abort: Default::default(),
         }
     }
 
@@ -53,19 +53,19 @@ impl Frozenight {
     pub fn start_search(
         &mut self,
         alarm: Option<Instant>,
-        depth_limit: u16,
+        depth_limit: i16,
         info: impl Listener,
         conclude: impl FnOnce(Eval, Move) + Send + 'static,
     ) {
         self.stop_search();
 
-        // Create a new running search variable
-        self.running = Arc::new(AtomicBool::new(true));
+        // Create a new abort search variable
+        self.abort = Arc::new(AtomicBool::new(false));
 
         // Start main search thread
         spawn_search_thread(
             Searcher::new(
-                self.running.clone(),
+                self.abort.clone(),
                 self.shared_state.clone(),
                 self.history.clone(),
             ),
@@ -77,21 +77,21 @@ impl Frozenight {
 
         // Spawn timeout thread
         if let Some(alarm) = alarm {
-            let running = self.running.clone();
+            let abort = self.abort.clone();
             std::thread::spawn(move || {
                 while let Some(to_go) = alarm.checked_duration_since(Instant::now()) {
                     std::thread::sleep(to_go.min(Duration::from_secs(1)));
-                    if !running.load(Ordering::Relaxed) {
+                    if abort.load(Ordering::Relaxed) {
                         return;
                     }
                 }
-                running.store(false, Ordering::Relaxed);
+                abort.store(true, Ordering::Relaxed);
             });
         }
     }
 
     pub fn stop_search(&mut self) {
-        self.running.store(false, Ordering::Relaxed);
+        self.abort.store(true, Ordering::Relaxed);
     }
 }
 
@@ -104,17 +104,17 @@ impl Drop for Frozenight {
 fn spawn_search_thread(
     mut searcher: Searcher,
     board: &Board,
-    depth_limit: u16,
+    depth_limit: i16,
     mut listener: impl Listener,
     conclude: impl FnOnce(Eval, Move) + Send + 'static,
 ) -> JoinHandle<()> {
     let board = board.clone();
     let mut best_move = None;
     std::thread::spawn(move || {
-        for depth in 0..depth_limit {
+        for depth in 1..depth_limit + 1 {
             if let Some(result) = searcher.search(&board, depth) {
                 listener.info(
-                    depth + 1,
+                    depth,
                     searcher.stats.selective_depth,
                     searcher.stats.nodes,
                     result.0,
@@ -126,21 +126,22 @@ fn spawn_search_thread(
                 break;
             }
         }
-        best_move.map(|(e, m)| conclude(e, m));
+        let (e, m) = best_move.unwrap();
+        conclude(e, m);
     })
 }
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Statistics {
-    pub selective_depth: u16,
+    pub selective_depth: i16,
     pub nodes: u64,
 }
 
 pub trait Listener: Send + 'static {
     fn info(
         &mut self,
-        depth: u16,
-        seldepth: u16,
+        depth: i16,
+        seldepth: i16,
         nodes: u64,
         eval: Eval,
         board: &Board,

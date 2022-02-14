@@ -1,4 +1,4 @@
-use std::io::stdin;
+use std::io::{stdin, stdout, Write};
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Color, File, Move, Piece, Square};
@@ -18,6 +18,7 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        let now = Instant::now();
         let mut stream = buf.split_ascii_whitespace().peekable();
 
         let _: Option<()> = (|| {
@@ -81,7 +82,7 @@ fn main() {
                             }
                             "movetime" => {
                                 time_limit = Some(Duration::from_millis(
-                                    stream.next().unwrap().parse::<u64>().unwrap() - 1,
+                                    stream.next().unwrap().parse().unwrap(),
                                 ))
                             }
                             "depth" => depth = stream.next().unwrap().parse().unwrap(),
@@ -90,11 +91,12 @@ fn main() {
                     }
 
                     frozenight.start_search(
-                        time_limit.map(|d| Instant::now() + d),
+                        time_limit.map(|d| now + d),
                         depth,
-                        UciListener(Instant::now()),
+                        UciListener(now),
                         |_, bestmove| {
                             println!("bestmove {bestmove}");
+                            stdout().flush().unwrap();
                         },
                     );
                 }
@@ -135,8 +137,8 @@ struct UciListener(Instant);
 impl Listener for UciListener {
     fn info(
         &mut self,
-        depth: u16,
-        seldepth: u16,
+        depth: i16,
+        seldepth: i16,
         nodes: u64,
         eval: Eval,
         board: &Board,
