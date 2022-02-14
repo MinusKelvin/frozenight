@@ -1,23 +1,25 @@
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use cozy_chess::{Board, Move};
 use nohash::IntSet;
-use rand::prelude::*;
 
 use crate::{Eval, SharedState, Statistics};
 
 pub(crate) struct Searcher {
     pub stats: Statistics,
     shared: Arc<SharedState>,
+    running: Arc<AtomicBool>,
     history: IntSet<u64>,
     target_depth: u16,
     valid: bool,
 }
 
 impl Searcher {
-    pub fn new(shared: Arc<SharedState>, history: IntSet<u64>) -> Self {
+    pub fn new(running: Arc<AtomicBool>, shared: Arc<SharedState>, history: IntSet<u64>) -> Self {
         Searcher {
             shared,
+            running,
             history,
             target_depth: 0,
             valid: true,
@@ -62,8 +64,7 @@ impl Searcher {
         let result = if current_depth > self.target_depth {
             self.stats.selective_depth = self.stats.selective_depth.max(current_depth);
             self.stats.nodes += 1;
-            self.shared
-                .running
+            self.running
                 .load(std::sync::atomic::Ordering::Relaxed)
                 .then(|| static_eval(board))
         } else {
@@ -109,8 +110,6 @@ impl Searcher {
     }
 }
 
-fn static_eval(_board: &Board) -> Eval {
-    Eval::new(thread_rng().gen_range(
-        bytemuck::cast(-Eval::MAX_INCONCLUSIVE)..=bytemuck::cast(Eval::MAX_INCONCLUSIVE),
-    ))
+fn static_eval(board: &Board) -> Eval {
+    Eval::new(board.hash() as i16 % 8192)
 }

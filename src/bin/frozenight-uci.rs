@@ -61,25 +61,28 @@ fn main() {
                     });
                 }
                 "go" => {
-                    let mut time_limit = Duration::MAX;
+                    let mut time_limit = None;
                     let mut depth = 250;
 
                     let stm = frozenight.board().side_to_move();
                     while let Some(param) = stream.next() {
                         match param {
                             "wtime" if stm == Color::White => {
-                                time_limit =
+                                time_limit = Some(
                                     Duration::from_millis(stream.next().unwrap().parse().unwrap())
-                                        / 30
+                                        / 30,
+                                )
                             }
                             "btime" if stm == Color::Black => {
-                                time_limit =
+                                time_limit = Some(
                                     Duration::from_millis(stream.next().unwrap().parse().unwrap())
-                                        / 30
+                                        / 30,
+                                )
                             }
                             "movetime" => {
-                                time_limit =
-                                    Duration::from_millis(stream.next().unwrap().parse().unwrap())
+                                time_limit = Some(Duration::from_millis(
+                                    stream.next().unwrap().parse::<u64>().unwrap() - 1,
+                                ))
                             }
                             "depth" => depth = stream.next().unwrap().parse().unwrap(),
                             _ => {}
@@ -87,7 +90,7 @@ fn main() {
                     }
 
                     frozenight.start_search(
-                        time_limit,
+                        time_limit.map(|d| Instant::now() + d),
                         depth,
                         UciListener(Instant::now()),
                         |_, bestmove| {

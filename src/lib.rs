@@ -1,7 +1,7 @@
-use std::sync::atomic::AtomicBool;
-use std::sync::mpsc::{sync_channel, SyncSender};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move};
 use nohash::{IntMap, IntSet};
@@ -16,24 +16,18 @@ pub struct Frozenight {
     board: Board,
     history: IntSet<u64>,
     shared_state: Arc<SharedState>,
-    stopper: SyncSender<()>,
-    workers: Vec<JoinHandle<()>>,
+    running: Arc<AtomicBool>,
 }
 
-struct SharedState {
-    running: AtomicBool,
-}
+struct SharedState {}
 
 impl Frozenight {
     pub fn new() -> Self {
         Frozenight {
             board: Default::default(),
             history: Default::default(),
-            shared_state: Arc::new(SharedState {
-                running: Default::default(),
-            }),
-            workers: Default::default(),
-            stopper: sync_channel(0).0,
+            shared_state: Arc::new(SharedState {}),
+            running: Default::default(),
         }
     }
 
@@ -58,42 +52,46 @@ impl Frozenight {
 
     pub fn start_search(
         &mut self,
-        time_limit: std::time::Duration,
+        alarm: Option<Instant>,
         depth_limit: u16,
         info: impl Listener,
         conclude: impl FnOnce(Eval, Move) + Send + 'static,
     ) {
         self.stop_search();
 
-        let state = Arc::get_mut(&mut self.shared_state).unwrap();
-        *state.running.get_mut() = true;
+        // Create a new running search variable
+        self.running = Arc::new(AtomicBool::new(true));
 
         // Start main search thread
-        self.workers.push(spawn_search_thread(
-            Searcher::new(self.shared_state.clone(), self.history.clone()),
+        spawn_search_thread(
+            Searcher::new(
+                self.running.clone(),
+                self.shared_state.clone(),
+                self.history.clone(),
+            ),
             &self.board,
             depth_limit.min(5000),
             info,
             conclude,
-        ));
+        );
 
         // Spawn timeout thread
-        let (s, r) = sync_channel(0);
-        self.stopper = s;
-        let state = self.shared_state.clone();
-        self.workers.push(std::thread::spawn(move || {
-            let _ = r.recv_timeout(time_limit);
-            state
-                .running
-                .store(false, std::sync::atomic::Ordering::Relaxed);
-        }));
+        if let Some(alarm) = alarm {
+            let running = self.running.clone();
+            std::thread::spawn(move || {
+                while let Some(to_go) = alarm.checked_duration_since(Instant::now()) {
+                    std::thread::sleep(to_go.min(Duration::from_secs(1)));
+                    if !running.load(Ordering::Relaxed) {
+                        return;
+                    }
+                }
+                running.store(false, Ordering::Relaxed);
+            });
+        }
     }
 
     pub fn stop_search(&mut self) {
-        let _ = self.stopper.send(());
-        for worker in self.workers.drain(..) {
-            worker.join().unwrap();
-        }
+        self.running.store(false, Ordering::Relaxed);
     }
 }
 
