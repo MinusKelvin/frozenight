@@ -1,5 +1,4 @@
 use cozy_chess::{BitBoard, Board, Color, Piece, Square};
-use rand::prelude::*;
 
 use crate::Eval;
 
@@ -25,15 +24,7 @@ pub struct NnueAccumulator {
 
 impl Nnue {
     pub fn new() -> Nnue {
-        Nnue {
-            input_layer: [(); 2].map(|_| {
-                [(); 6]
-                    .map(|_| [(); 64].map(|_| [(); 16].map(|_| thread_rng().gen_range(-128..128))))
-            }),
-            input_layer_bias: [(); 16].map(|_| thread_rng().gen_range(-128..128)),
-            hidden_layer: [(); 16].map(|_| thread_rng().gen_range(-128..128)),
-            hidden_layer_bias: thread_rng().gen_range(-128..128),
-        }
+        include!("../model.rs")
     }
 }
 

@@ -113,7 +113,6 @@ dependencies = [
  "bytemuck",
  "cozy-chess",
  "nohash",
- "rand",
 ]
 
 [[package]]
