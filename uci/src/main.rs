@@ -7,6 +7,8 @@ use frozenight::{Eval, Frozenight, Listener};
 fn main() {
     let mut frozenight = Frozenight::new();
 
+    let mut move_overhead = Duration::from_millis(1);
+
     let mut buf = String::new();
     loop {
         buf.clear();
@@ -26,6 +28,7 @@ fn main() {
                 "uci" => {
                     println!("id name Frozenight {}", env!("CARGO_PKG_VERSION"));
                     println!("id author MinusKelvin <mark.carlson@minuskelvin.net>");
+                    println!("option name Move Overhead type spin default 1 min 0 max 5000");
                     println!("uciok");
                 }
                 "quit" => {
@@ -33,6 +36,25 @@ fn main() {
                 }
                 "isready" => {
                     println!("readyok");
+                }
+                "setoption" => {
+                    stream.find(|&tok| tok == "name")?;
+                    let mut opt = String::new();
+                    while let Some(tok) = stream.next() {
+                        if tok == "value" {
+                            break;
+                        }
+                        if !opt.is_empty() {
+                            opt.push(' ');
+                        }
+                        opt.push_str(tok);
+                    }
+                    match &*opt {
+                        "Move Overhead" => {
+                            move_overhead = Duration::from_millis(stream.next()?.parse().ok()?)
+                        }
+                        _ => {}
+                    }
                 }
                 "position" => {
                     let board = match stream.next()? {
@@ -91,7 +113,7 @@ fn main() {
                     }
 
                     frozenight.start_search(
-                        time_limit.map(|d| now + d),
+                        time_limit.map(|d| now + d - move_overhead),
                         depth,
                         UciListener(now),
                         |_, bestmove| {
