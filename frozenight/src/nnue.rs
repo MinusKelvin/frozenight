@@ -5,8 +5,10 @@ use crate::Eval;
 
 type Vector = [i32; 16];
 
+const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
+
 pub struct Nnue {
-    input_layer: [[[Vector; Square::NUM]; Piece::NUM]; Color::NUM],
+    input_layer: [Vector; NUM_FEATURES],
     input_layer_bias: Vector,
     hidden_layer: Vector,
     hidden_layer_bias: i32,
@@ -62,21 +64,21 @@ impl NnueAccumulator {
                 for sq in previous & !new {
                     self.inputs[Color::White as usize] = vsub(
                         self.inputs[Color::White as usize],
-                        nn.input_layer[color as usize][piece as usize][sq as usize],
+                        nn.input_layer[feature(color, piece, sq)],
                     );
                     self.inputs[Color::Black as usize] = vsub(
                         self.inputs[Color::Black as usize],
-                        nn.input_layer[(!color) as usize][piece as usize][sq.flip_rank() as usize],
+                        nn.input_layer[feature(!color, piece, sq.flip_rank())],
                     );
                 }
                 for sq in new & !previous {
                     self.inputs[Color::White as usize] = vadd(
                         self.inputs[Color::White as usize],
-                        nn.input_layer[color as usize][piece as usize][sq as usize],
+                        nn.input_layer[feature(color, piece, sq)],
                     );
                     self.inputs[Color::Black as usize] = vadd(
                         self.inputs[Color::Black as usize],
-                        nn.input_layer[(!color) as usize][piece as usize][sq.flip_rank() as usize],
+                        nn.input_layer[feature(!color, piece, sq.flip_rank())],
                     );
                 }
             }
@@ -118,4 +120,8 @@ fn vdot(a: Vector, b: Vector) -> i32 {
         result += (a * b) / 64;
     }
     result
+}
+
+fn feature(color: Color, piece: Piece, sq: Square) -> usize {
+    sq as usize + Square::NUM * (piece as usize + Piece::NUM * color as usize)
 }

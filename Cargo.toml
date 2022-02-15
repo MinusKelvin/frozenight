@@ -3,4 +3,5 @@
 members = [
     "frozenight",
     "uci",
+    "gen-data",
 ]
