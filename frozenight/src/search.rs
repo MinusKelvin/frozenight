@@ -51,17 +51,17 @@ impl Searcher {
         board: &Board,
         alpha: Eval,
         beta: Eval,
-        current_depth: u16,
-        depth_remain: u16,
+        ply_index: u16,
+        depth: u16,
     ) -> Option<Eval> {
         self.stats.nodes += 1;
         match board.status() {
             cozy_chess::GameStatus::Drawn => return Some(Eval::DRAW),
-            cozy_chess::GameStatus::Won => return Some(-Eval::MATE),
+            cozy_chess::GameStatus::Won => return Some(-Eval::MATE.add_time(ply_index)),
             cozy_chess::GameStatus::Ongoing => {}
         }
 
-        if depth_remain == 1 && self.abort.load(Ordering::Relaxed) {
+        if depth == 1 && self.abort.load(Ordering::Relaxed) {
             return None;
         }
 
@@ -69,11 +69,11 @@ impl Searcher {
             return Some(Eval::DRAW);
         }
 
-        let result = if depth_remain == 0 {
-            self.stats.selective_depth = self.stats.selective_depth.max(current_depth);
+        let result = if depth == 0 {
+            self.stats.selective_depth = self.stats.selective_depth.max(ply_index);
             Some(self.nnue.calculate(&self.shared.nnue, board))
         } else {
-            self.alpha_beta(board, alpha, beta, current_depth, depth_remain)
+            self.alpha_beta(board, alpha, beta, ply_index, depth)
                 .map(|(e, _)| e)
         };
 
@@ -88,8 +88,8 @@ impl Searcher {
         board: &Board,
         mut alpha: Eval,
         beta: Eval,
-        current_depth: u16,
-        depth_remain: u16,
+        ply_index: u16,
+        depth: u16,
     ) -> Option<(Eval, Move)> {
         // It is impossible to accidentally return this move because the worst move that could
         // possibly be returned by visit_node is -Eval::MATE.add(1) which is better than this
@@ -106,9 +106,9 @@ impl Searcher {
         // try hash move first
         let mut skip = None;
         if let Some(entry) = self.shared.tt.get(board) {
-            if entry.search_depth >= depth_remain {
+            if entry.search_depth >= depth {
                 // already have better data for this node; provide TT move and eval
-                return Some((entry.eval, entry.mv));
+                return Some((entry.eval.add_time(ply_index), entry.mv));
             }
 
             let mut new_board = board.clone();
@@ -118,17 +118,16 @@ impl Searcher {
                     &new_board,
                     -beta,
                     -alpha,
-                    current_depth + 1,
-                    depth_remain - 1,
+                    ply_index + 1,
+                    depth - 1,
                 )?;
-                let v = v.add_time(1);
                 if v >= beta {
                     self.shared.tt.store(
                         board,
                         TableEntry {
                             mv: entry.mv,
-                            eval: v,
-                            search_depth: depth_remain,
+                            eval: v.sub_time(ply_index),
+                            search_depth: depth,
                             kind: NodeKind::Cut,
                         },
                     );
@@ -156,17 +155,16 @@ impl Searcher {
                 &new_board,
                 -beta,
                 -alpha,
-                current_depth + 1,
-                depth_remain - 1,
+                ply_index + 1,
+                depth - 1,
             )?;
-            let v = v.add_time(1);
             if v >= beta {
                 self.shared.tt.store(
                     board,
                     TableEntry {
                         mv,
-                        eval: v,
-                        search_depth: depth_remain,
+                        eval: v.sub_time(ply_index),
+                        search_depth: depth,
                         kind: NodeKind::Cut,
                     },
                 );
@@ -184,8 +182,8 @@ impl Searcher {
             board,
             TableEntry {
                 mv: best_move.1,
-                eval: best_move.0,
-                search_depth: depth_remain,
+                eval: best_move.0.sub_time(ply_index),
+                search_depth: depth,
                 kind: match best_move.0 == alpha {
                     true => NodeKind::Pv,
                     false => NodeKind::All,
