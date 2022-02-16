@@ -9,7 +9,7 @@ const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
 pub struct Nnue {
     input_layer: [Vector; NUM_FEATURES],
     input_layer_bias: Vector,
-    hidden_layer: Vector,
+    hidden_layer: [i32; 32],
     hidden_layer_bias: i32,
 }
 
@@ -78,39 +78,42 @@ impl NnueAccumulator {
         self.colors = new_colors;
         self.pieces = new_pieces;
 
-        let clipped = clipped_relu(self.inputs[board.side_to_move() as usize]);
-        let output = vdot(clipped, nn.hidden_layer);
+        let l1_input = bytemuck::cast([
+            clipped_relu(self.inputs[board.side_to_move() as usize]),
+            clipped_relu(self.inputs[!board.side_to_move() as usize]),
+        ]);
+        let output = vdot(l1_input, nn.hidden_layer);
 
         Eval::new((nn.hidden_layer_bias + output) as i16)
     }
 }
 
-fn vadd(a: Vector, b: Vector) -> Vector {
-    let mut result = Vector::default();
-    for i in 0..result.len() {
+fn vadd<const N: usize>(a: [i32; N], b: [i32; N]) -> [i32; N] {
+    let mut result = [0; N];
+    for i in 0..N {
         result[i] = a[i] + b[i];
     }
     result
 }
 
-fn vsub(a: Vector, b: Vector) -> Vector {
-    let mut result = Vector::default();
-    for i in 0..result.len() {
+fn vsub<const N: usize>(a: [i32; N], b: [i32; N]) -> [i32; N] {
+    let mut result = [0; N];
+    for i in 0..N {
         result[i] = a[i] - b[i];
     }
     result
 }
 
-fn clipped_relu(a: Vector) -> Vector {
+fn clipped_relu<const N: usize>(a: [i32; N]) -> [i32; N] {
     a.map(|v| v.clamp(0, 127))
 }
 
-fn vdot(a: Vector, b: Vector) -> i32 {
+fn vdot<const N: usize>(a: [i32; N], b: [i32; N]) -> i32 {
     let mut result = 0;
-    for (&a, &b) in a.iter().zip(b.iter()) {
-        result += (a * b) / 64;
+    for i in 0..N {
+        result += a[i] * b[i];
     }
-    result
+    result / 64
 }
 
 fn feature(color: Color, piece: Piece, sq: Square) -> usize {

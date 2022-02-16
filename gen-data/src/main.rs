@@ -153,13 +153,25 @@ fn sample_game(tb: Option<&Tablebase>, output: &Mutex<BufWriter<File>>) -> usize
 }
 
 fn emit_sample(mut out: impl Write, board: &Board, winner: Option<Color>) {
-    let color_flip = |c: Color| match board.side_to_move() {
-        Color::White => c,
-        Color::Black => !c,
+    write_features(&mut out, board, board.side_to_move() == Color::Black);
+    write_features(&mut out, board, board.side_to_move() == Color::White);
+    out.write_all(match (winner, board.side_to_move()) {
+        (Some(win), stm) if win == stm => &[2, 0],
+        (Some(win), stm) if win != stm => &[0, 0],
+        (None, _) => &[1, 0],
+        _ => unreachable!(),
+    })
+    .unwrap();
+}
+
+fn write_features(mut out: impl Write, board: &Board, flip: bool) {
+    let color_flip = |c: Color| match flip {
+        false => c,
+        true => !c,
     };
-    let sq_flip = |sq: Square| match board.side_to_move() {
-        Color::White => sq,
-        Color::Black => sq.flip_rank(),
+    let sq_flip = |sq: Square| match flip {
+        false => sq,
+        true => sq.flip_rank(),
     };
     for sq in board.occupied() {
         let index = feature(
@@ -173,12 +185,6 @@ fn emit_sample(mut out: impl Write, board: &Board, winner: Option<Color>) {
     for _ in board.occupied().popcnt()..32 {
         out.write_all(&u16::MAX.to_le_bytes()).unwrap();
     }
-    out.write_all(match winner.map(color_flip) {
-        Some(Color::White) => &[2, 0],
-        None => &[1, 0],
-        Some(Color::Black) => &[0, 0],
-    })
-    .unwrap();
 }
 
 // note: duplicate of function in /frozenight/src/nnue.rs

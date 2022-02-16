@@ -5,7 +5,6 @@ from torch import nn
 import pytorch_lightning as pl
 
 import struct, sys, json
-from typing import Tuple
 
 NUM_FEATURES = 2 * 6 * 64
 LAYER_1 = 16
@@ -15,10 +14,11 @@ class Nnue(pl.LightningModule):
         super(Nnue, self).__init__()
 
         self.features = nn.Linear(NUM_FEATURES, LAYER_1)
-        self.layer1 = nn.Linear(LAYER_1, 1)
+        self.layer1 = nn.Linear(2 * LAYER_1, 1)
 
     def forward(self, features):
-        l1_input = torch.clamp(self.features(features), 0.0, 1.0)
+        acc = torch.cat([self.features(features[0]), self.features(features[1])], dim=1)
+        l1_input = torch.clamp(acc, 0.0, 1.0)
         return self.layer1(l1_input)
 
     def training_step(self, batch, batch_idx):
@@ -34,15 +34,18 @@ class PositionSet(torch.utils.data.Dataset):
         self.data = data
 
     def __len__(self) -> int:
-        return len(self.data) // 66
+        return len(self.data) // 130
 
-    def __getitem__(self, index: int) -> Tuple[torch.sparse.Tensor, torch.Tensor]:
-        content = struct.unpack("<" + "H" * 33, self.data[index*66:index*66+66])
+    def __getitem__(self, index: int):
+        content = struct.unpack("<" + "H" * 65, self.data[index*130:index*130+130])
         for i in range(33):
             if content[i] == 65535: break
-        tensor = torch.sparse_coo_tensor([content[:i]], [1.0] * i, [NUM_FEATURES])
-        outcome = content[32] / 2
-        return tensor, torch.tensor([outcome])
+        stm = torch.sparse_coo_tensor([content[:i]], [1.0] * i, [NUM_FEATURES])
+        for i in range(33):
+            if content[32 + i] == 65535: break
+        sntm = torch.sparse_coo_tensor([content[32:32+i]], [1.0] * i, [NUM_FEATURES])
+        outcome = content[64] / 2
+        return [stm, sntm], torch.tensor([outcome])
 
 if sys.argv[1] == "train":
     with open("data.bin", "rb") as f:
