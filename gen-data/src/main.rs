@@ -117,7 +117,7 @@ fn sample_game(tb: Option<&Tablebase>, output: &Mutex<BufWriter<File>>) -> usize
             5000,
             (),
             move |_, mv| mvsend.send(mv).unwrap(),
-        );
+        ).forget();
 
         let mv = mvrecv.recv().unwrap();
         game.push(mv);

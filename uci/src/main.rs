@@ -8,6 +8,7 @@ fn main() {
     let mut frozenight = Frozenight::new();
 
     let mut move_overhead = Duration::from_millis(1);
+    let mut abort = None;
 
     let mut buf = String::new();
     loop {
@@ -112,7 +113,7 @@ fn main() {
                         }
                     }
 
-                    frozenight.start_search(
+                    abort = Some(frozenight.start_search(
                         time_limit.map(|d| now + d - move_overhead),
                         depth,
                         UciListener(now),
@@ -120,10 +121,10 @@ fn main() {
                             println!("bestmove {bestmove}");
                             stdout().flush().unwrap();
                         },
-                    );
+                    ));
                 }
                 "stop" => {
-                    frozenight.stop_search();
+                    abort = None;
                 }
                 _ => {}
             }

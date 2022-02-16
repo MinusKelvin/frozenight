@@ -60,8 +60,8 @@ impl Frozenight {
         depth_limit: u16,
         info: impl Listener,
         conclude: impl FnOnce(Eval, Move) + Send + 'static,
-    ) {
-        self.stop_search();
+    ) -> Abort {
+        self.abort.store(true, Ordering::Relaxed);
 
         // Create a new abort search variable
         self.abort = Arc::new(AtomicBool::new(false));
@@ -92,16 +92,25 @@ impl Frozenight {
                 abort.store(true, Ordering::Relaxed);
             });
         }
-    }
 
-    pub fn stop_search(&mut self) {
-        self.abort.store(true, Ordering::Relaxed);
+        Abort(Some(self.abort.clone()))
     }
 }
 
-impl Drop for Frozenight {
+pub struct Abort(Option<Arc<AtomicBool>>);
+
+impl Abort {
+    pub fn abort(self) {}
+    pub fn forget(mut self) {
+        self.0.take();
+    }
+}
+
+impl Drop for Abort {
     fn drop(&mut self) {
-        self.stop_search();
+        if let Some(abort) = self.0.as_ref() {
+            abort.store(true, Ordering::Relaxed);
+        }
     }
 }
 
