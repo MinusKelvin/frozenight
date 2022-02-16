@@ -65,12 +65,11 @@ fn main() {
                     let board = match stream.next()? {
                         "startpos" => Board::default(),
                         "fen" => {
-                            let mut fen = String::new();
-                            while !matches!(stream.peek(), None | Some(&"moves")) {
-                                fen.push(' ');
-                                fen.push_str(stream.next().unwrap());
-                            }
-                            match fen.trim().parse() {
+                            let fen_start = stream.next().unwrap().to_owned();
+                            let fen = (&mut stream)
+                                .take_while(|&tok| tok != "moves")
+                                .fold(fen_start, |a, b| a + " " + b);
+                            match fen.parse() {
                                 Ok(b) => b,
                                 Err(e) => {
                                     eprintln!("Invalid FEN: {e:?}");
@@ -81,7 +80,9 @@ fn main() {
                         _ => return None,
                     };
 
-                    while !matches!(stream.next(), None | Some("moves")) {}
+                    if stream.peek() == Some(&&"moves") {
+                        stream.next();
+                    }
 
                     frozenight.set_position(board, |board| {
                         let mv = stream.peek()?.parse().ok()?;
