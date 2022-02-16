@@ -57,7 +57,7 @@ impl Frozenight {
     pub fn start_search(
         &mut self,
         alarm: Option<Instant>,
-        depth_limit: i16,
+        depth_limit: u16,
         info: impl Listener,
         conclude: impl FnOnce(Eval, Move) + Send + 'static,
     ) {
@@ -108,7 +108,7 @@ impl Drop for Frozenight {
 fn spawn_search_thread(
     mut searcher: Searcher,
     board: &Board,
-    depth_limit: i16,
+    depth_limit: u16,
     mut listener: impl Listener,
     conclude: impl FnOnce(Eval, Move) + Send + 'static,
 ) -> JoinHandle<()> {
@@ -137,15 +137,15 @@ fn spawn_search_thread(
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Statistics {
-    pub selective_depth: i16,
+    pub selective_depth: u16,
     pub nodes: u64,
 }
 
 pub trait Listener: Send + 'static {
     fn info(
         &mut self,
-        depth: i16,
-        seldepth: i16,
+        depth: u16,
+        seldepth: u16,
         nodes: u64,
         eval: Eval,
         board: &Board,
@@ -154,5 +154,5 @@ pub trait Listener: Send + 'static {
 }
 
 impl Listener for () {
-    fn info(&mut self, _: i16, _: i16, _: u64, _: Eval, _: &Board, _: &[Move]) {}
+    fn info(&mut self, _: u16, _: u16, _: u64, _: Eval, _: &Board, _: &[Move]) {}
 }

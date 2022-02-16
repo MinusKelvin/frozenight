@@ -159,8 +159,8 @@ struct UciListener(Instant);
 impl Listener for UciListener {
     fn info(
         &mut self,
-        depth: i16,
-        seldepth: i16,
+        depth: u16,
+        seldepth: u16,
         nodes: u64,
         eval: Eval,
         board: &Board,

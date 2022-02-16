@@ -12,7 +12,6 @@ pub(crate) struct Searcher {
     shared: Arc<SharedState>,
     abort: Arc<AtomicBool>,
     history: IntSet<u64>,
-    target_depth: i16,
     valid: bool,
     nnue: NnueAccumulator,
 }
@@ -24,7 +23,6 @@ impl Searcher {
             shared,
             abort,
             history,
-            target_depth: 0,
             valid: true,
             stats: Default::default(),
         }
@@ -34,7 +32,7 @@ impl Searcher {
     ///
     /// Invariant: `self` is unchanged if this function returns `Some`. If it returns none, then
     /// calling this function again will result in a panic.
-    pub fn search(&mut self, root: &Board, depth: i16) -> Option<(Eval, Move)> {
+    pub fn search(&mut self, root: &Board, depth: u16) -> Option<(Eval, Move)> {
         assert!(depth > 0);
         if !self.valid {
             panic!("attempt to search using an invalid searcher");
@@ -42,8 +40,7 @@ impl Searcher {
         if !root.generate_moves(|_| true) {
             panic!("root position has no legal moves");
         }
-        self.target_depth = depth;
-        let result = self.alpha_beta(root, -Eval::MATE, Eval::MATE, depth);
+        let result = self.alpha_beta(root, -Eval::MATE, Eval::MATE, 0, depth);
         self.valid = result.is_some();
         result
     }
@@ -53,8 +50,10 @@ impl Searcher {
         board: &Board,
         alpha: Eval,
         beta: Eval,
-        depth_remain: i16,
+        current_depth: u16,
+        depth_remain: u16,
     ) -> Option<Eval> {
+        self.stats.nodes += 1;
         match board.status() {
             cozy_chess::GameStatus::Drawn => return Some(Eval::DRAW),
             cozy_chess::GameStatus::Won => return Some(-Eval::MATE),
@@ -70,10 +69,10 @@ impl Searcher {
         }
 
         let result = if depth_remain == 0 {
-            self.stats.nodes += 1;
+            self.stats.selective_depth = self.stats.selective_depth.max(current_depth);
             Some(self.nnue.calculate(&self.shared.nnue, board))
         } else {
-            self.alpha_beta(board, alpha, beta, depth_remain)
+            self.alpha_beta(board, alpha, beta, current_depth, depth_remain)
                 .map(|(e, _)| e)
         };
 
@@ -87,7 +86,8 @@ impl Searcher {
         board: &Board,
         mut alpha: Eval,
         beta: Eval,
-        depth_remain: i16,
+        current_depth: u16,
+        depth_remain: u16,
     ) -> Option<(Eval, Move)> {
         let mut moves = Vec::with_capacity(64);
         board.generate_moves(|mvset| {
@@ -99,7 +99,13 @@ impl Searcher {
         for mv in moves {
             let mut new_board = board.clone();
             new_board.play_unchecked(mv);
-            let v = -self.visit_node(&new_board, -beta, -alpha, depth_remain - 1)?;
+            let v = -self.visit_node(
+                &new_board,
+                -beta,
+                -alpha,
+                current_depth + 1,
+                depth_remain - 1,
+            )?;
             let v = v.add_time(1);
             if v >= beta {
                 return Some((v, mv));
