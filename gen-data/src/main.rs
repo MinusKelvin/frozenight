@@ -112,12 +112,13 @@ fn sample_game(tb: Option<&Tablebase>, output: &Mutex<BufWriter<File>>) -> usize
         engine.set_position(Board::default(), |_| moves.next());
 
         let mvsend = mvsend.clone();
-        engine.start_search(
-            Some(Instant::now() + Duration::from_millis(10)),
-            5000,
-            (),
-            move |_, mv| mvsend.send(mv).unwrap(),
-        ).forget();
+        engine
+            .start_search(
+                Some(Instant::now() + Duration::from_millis(10)),
+                5000,
+                move |mv, _| mvsend.send(mv).unwrap(),
+            )
+            .forget();
 
         let mv = mvrecv.recv().unwrap();
         game.push(mv);

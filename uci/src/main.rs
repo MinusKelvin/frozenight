@@ -2,7 +2,7 @@ use std::io::{stdin, stdout, Write};
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Color, File, Move, Piece, Square};
-use frozenight::{Eval, Frozenight, Listener};
+use frozenight::{Eval, Frozenight, Listener, Statistics};
 
 fn main() {
     let mut frozenight = Frozenight::new(32);
@@ -123,10 +123,6 @@ fn main() {
                         time_limit.map(|d| now + d - move_overhead),
                         depth,
                         UciListener(now),
-                        |_, bestmove| {
-                            println!("bestmove {bestmove}");
-                            stdout().flush().unwrap();
-                        },
                     ));
                 }
                 "stop" => {
@@ -164,20 +160,14 @@ fn from_uci_castling(board: &Board, mut mv: Move) -> Move {
 struct UciListener(Instant);
 
 impl Listener for UciListener {
-    fn info(
-        &mut self,
-        depth: u16,
-        seldepth: u16,
-        nodes: u64,
-        eval: Eval,
-        board: &Board,
-        pv: &[Move],
-    ) {
+    fn info(&mut self, depth: u16, stats: Statistics, eval: Eval, board: &Board, pv: &[Move]) {
         let time = self.0.elapsed();
         print!(
-            "info depth {depth} seldepth {seldepth} nodes {nodes} nps {} score {eval} time {} pv",
-            (nodes as f64 / time.as_secs_f64()).round() as u64,
-            self.0.elapsed().as_millis()
+            "info depth {depth} seldepth {seldepth} nodes {nodes} nps {nps} score {eval} time {time} pv",
+            seldepth = stats.selective_depth,
+            nodes = stats.nodes,
+            nps = (stats.nodes as f64 / time.as_secs_f64()).round() as u64,
+            time = self.0.elapsed().as_millis()
         );
         let mut board = board.clone();
         for &mv in pv {
@@ -185,5 +175,10 @@ impl Listener for UciListener {
             board.play(mv);
         }
         println!();
+    }
+
+    fn best_move(self, mv: Move, _: Eval) {
+        println!("bestmove {mv}");
+        stdout().flush().unwrap();
     }
 }

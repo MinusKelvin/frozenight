@@ -65,7 +65,6 @@ impl Frozenight {
         alarm: Option<Instant>,
         depth_limit: u16,
         info: impl Listener,
-        conclude: impl FnOnce(Eval, Move) + Send + 'static,
     ) -> Abort {
         self.abort.store(true, Ordering::Relaxed);
 
@@ -82,7 +81,6 @@ impl Frozenight {
             &self.board,
             depth_limit.min(5000),
             info,
-            conclude,
         );
 
         // Spawn timeout thread
@@ -125,28 +123,20 @@ fn spawn_search_thread(
     board: &Board,
     depth_limit: u16,
     mut listener: impl Listener,
-    conclude: impl FnOnce(Eval, Move) + Send + 'static,
 ) -> JoinHandle<()> {
     let board = board.clone();
     let mut best_move = None;
     std::thread::spawn(move || {
         for depth in 1..depth_limit + 1 {
             if let Some(result) = searcher.search(&board, depth) {
-                listener.info(
-                    depth,
-                    searcher.stats.selective_depth,
-                    searcher.stats.nodes,
-                    result.0,
-                    &board,
-                    &[result.1],
-                );
+                listener.info(depth, searcher.stats, result.0, &board, &[result.1]);
                 best_move = Some(result);
             } else {
                 break;
             }
         }
         let (e, m) = best_move.unwrap();
-        conclude(e, m);
+        listener.best_move(m, e);
     })
 }
 
@@ -157,17 +147,23 @@ pub struct Statistics {
 }
 
 pub trait Listener: Send + 'static {
-    fn info(
-        &mut self,
-        depth: u16,
-        seldepth: u16,
-        nodes: u64,
-        eval: Eval,
-        board: &Board,
-        pv: &[Move],
-    );
+    fn info(&mut self, depth: u16, stats: Statistics, eval: Eval, board: &Board, pv: &[Move]);
+
+    fn best_move(self, mv: Move, eval: Eval);
 }
 
 impl Listener for () {
-    fn info(&mut self, _: u16, _: u16, _: u64, _: Eval, _: &Board, _: &[Move]) {}
+    fn info(&mut self, _: u16, _: Statistics, _: Eval, _: &Board, _: &[Move]) {}
+    fn best_move(self, _: Move, _: Eval) {}
+}
+
+impl<F> Listener for F
+where
+    F: FnOnce(Move, Eval) + Send + 'static,
+{
+    fn info(&mut self, _: u16, _: Statistics, _: Eval, _: &Board, _: &[Move]) {}
+
+    fn best_move(self, mv: Move, eval: Eval) {
+        self(mv, eval)
+    }
 }

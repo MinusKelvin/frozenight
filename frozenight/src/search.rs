@@ -91,7 +91,8 @@ impl Searcher {
         current_depth: u16,
         depth_remain: u16,
     ) -> Option<(Eval, Move)> {
-        // It is impossible to accidentally return this move because
+        // It is impossible to accidentally return this move because the worst move that could
+        // possibly be returned by visit_node is -Eval::MATE.add(1) which is better than this
         let mut best_move = (
             -Eval::MATE,
             Move {
