@@ -64,13 +64,13 @@ fn main() {
                 "position" => {
                     let board = match stream.next()? {
                         "startpos" => Board::default(),
-                        fen_start => {
-                            let mut fen = fen_start.to_owned();
+                        "fen" => {
+                            let mut fen = String::new();
                             while !matches!(stream.peek(), None | Some(&"moves")) {
                                 fen.push(' ');
                                 fen.push_str(stream.next().unwrap());
                             }
-                            match fen.parse() {
+                            match fen.trim().parse() {
                                 Ok(b) => b,
                                 Err(e) => {
                                     eprintln!("Invalid FEN: {e:?}");
@@ -78,6 +78,7 @@ fn main() {
                                 }
                             }
                         }
+                        _ => return None,
                     };
 
                     while !matches!(stream.next(), None | Some("moves")) {}
