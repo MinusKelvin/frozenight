@@ -92,7 +92,7 @@ fn sample_game(tb: Option<&Tablebase>, output: &Mutex<BufWriter<File>>) -> usize
         return 0;
     }
 
-    let mut engine = Frozenight::new();
+    let mut engine = Frozenight::new(64);
     let (mvsend, mvrecv) = sync_channel(0);
 
     let winner = loop {

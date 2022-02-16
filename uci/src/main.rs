@@ -5,7 +5,7 @@ use cozy_chess::{Board, Color, File, Move, Piece, Square};
 use frozenight::{Eval, Frozenight, Listener};
 
 fn main() {
-    let mut frozenight = Frozenight::new();
+    let mut frozenight = Frozenight::new(32);
 
     let mut move_overhead = Duration::from_millis(1);
     let mut abort = None;
@@ -30,6 +30,7 @@ fn main() {
                     println!("id name Frozenight {}", env!("CARGO_PKG_VERSION"));
                     println!("id author MinusKelvin <mark.carlson@minuskelvin.net>");
                     println!("option name Move Overhead type spin default 1 min 0 max 5000");
+                    println!("option name Hash type spin default 32 min 1 max 65536");
                     println!("uciok");
                 }
                 "quit" => {
@@ -53,6 +54,9 @@ fn main() {
                     match &*opt {
                         "Move Overhead" => {
                             move_overhead = Duration::from_millis(stream.next()?.parse().ok()?)
+                        }
+                        "Hash" => {
+                            frozenight = Frozenight::new(stream.next()?.parse().ok()?);
                         }
                         _ => {}
                     }

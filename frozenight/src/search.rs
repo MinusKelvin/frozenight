@@ -1,10 +1,11 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use cozy_chess::{Board, Move};
+use cozy_chess::{Board, Move, Square};
 use nohash::IntSet;
 
 use crate::nnue::NnueAccumulator;
+use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, SharedState, Statistics};
 
 pub(crate) struct Searcher {
@@ -81,6 +82,7 @@ impl Searcher {
     }
 
     /// Invariant: `self` is unchanged if this function returns `Some`.
+    /// The board must have legal moves.
     fn alpha_beta(
         &mut self,
         board: &Board,
@@ -89,13 +91,63 @@ impl Searcher {
         current_depth: u16,
         depth_remain: u16,
     ) -> Option<(Eval, Move)> {
+        // It is impossible to accidentally return this move because
+        let mut best_move = (
+            -Eval::MATE,
+            Move {
+                from: Square::A1,
+                to: Square::A1,
+                promotion: None,
+            },
+        );
+
+        // TODO: Factor move ordering code out so we don't duplicate stuff
+        // try hash move first
+        let mut skip = None;
+        if let Some(entry) = self.shared.tt.get(board) {
+            if entry.search_depth >= depth_remain {
+                // already have better data for this node; provide TT move and eval
+                return Some((entry.eval, entry.mv));
+            }
+
+            let mut new_board = board.clone();
+            if new_board.try_play(entry.mv).unwrap() {
+                skip = Some(entry.mv);
+                let v = -self.visit_node(
+                    &new_board,
+                    -beta,
+                    -alpha,
+                    current_depth + 1,
+                    depth_remain - 1,
+                )?;
+                let v = v.add_time(1);
+                if v >= beta {
+                    self.shared.tt.store(
+                        board,
+                        TableEntry {
+                            mv: entry.mv,
+                            eval: v,
+                            search_depth: depth_remain,
+                            kind: NodeKind::Cut,
+                        },
+                    );
+                    return Some((v, entry.mv));
+                }
+                if v > alpha {
+                    alpha = v;
+                }
+                if v > best_move.0 {
+                    best_move = (v, entry.mv);
+                }
+            }
+        }
+
         let mut moves = Vec::with_capacity(64);
         board.generate_moves(|mvset| {
-            moves.extend(mvset);
+            moves.extend(mvset.into_iter().filter(|&mv| Some(mv) != skip));
             false
         });
 
-        let mut best_move = (-Eval::MATE, moves[0]);
         for mv in moves {
             let mut new_board = board.clone();
             new_board.play_unchecked(mv);
@@ -108,6 +160,15 @@ impl Searcher {
             )?;
             let v = v.add_time(1);
             if v >= beta {
+                self.shared.tt.store(
+                    board,
+                    TableEntry {
+                        mv,
+                        eval: v,
+                        search_depth: depth_remain,
+                        kind: NodeKind::Cut,
+                    },
+                );
                 return Some((v, mv));
             }
             if v > alpha {
@@ -117,6 +178,19 @@ impl Searcher {
                 best_move = (v, mv);
             }
         }
+
+        self.shared.tt.store(
+            board,
+            TableEntry {
+                mv: best_move.1,
+                eval: best_move.0,
+                search_depth: depth_remain,
+                kind: match best_move.0 == alpha {
+                    true => NodeKind::Pv,
+                    false => NodeKind::All,
+                },
+            },
+        );
 
         Some(best_move)
     }

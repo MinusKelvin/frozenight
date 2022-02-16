@@ -4,15 +4,17 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move};
-use nnue::Nnue;
 use nohash::{IntMap, IntSet};
 
 mod eval;
 mod nnue;
 mod search;
+mod tt;
 
 pub use eval::Eval;
+use nnue::Nnue;
 use search::Searcher;
+use tt::TranspositionTable;
 
 pub struct Frozenight {
     board: Board,
@@ -23,14 +25,18 @@ pub struct Frozenight {
 
 struct SharedState {
     nnue: Nnue,
+    tt: TranspositionTable,
 }
 
 impl Frozenight {
-    pub fn new() -> Self {
+    pub fn new(hash_mb: usize) -> Self {
         Frozenight {
             board: Default::default(),
             history: Default::default(),
-            shared_state: Arc::new(SharedState { nnue: Nnue::new() }),
+            shared_state: Arc::new(SharedState {
+                nnue: Nnue::new(),
+                tt: TranspositionTable::new(hash_mb),
+            }),
             abort: Default::default(),
         }
     }
