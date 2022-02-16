@@ -54,7 +54,6 @@ impl Searcher {
         ply_index: u16,
         depth: u16,
     ) -> Option<Eval> {
-        self.stats.nodes += 1;
         match board.status() {
             cozy_chess::GameStatus::Drawn => return Some(Eval::DRAW),
             cozy_chess::GameStatus::Won => return Some(-Eval::MATE.add_time(ply_index)),
@@ -70,8 +69,7 @@ impl Searcher {
         }
 
         let result = if depth == 0 {
-            self.stats.selective_depth = self.stats.selective_depth.max(ply_index);
-            Some(self.nnue.calculate(&self.shared.nnue, board))
+            Some(self.qsearch(board, alpha, beta, ply_index))
         } else {
             self.alpha_beta(board, alpha, beta, ply_index, depth)
                 .map(|(e, _)| e)
@@ -91,6 +89,7 @@ impl Searcher {
         ply_index: u16,
         depth: u16,
     ) -> Option<(Eval, Move)> {
+        self.stats.nodes += 1;
         // It is impossible to accidentally return this move because the worst move that could
         // possibly be returned by visit_node is -Eval::MATE.add(1) which is better than this
         let mut best_move = (
@@ -192,5 +191,34 @@ impl Searcher {
         );
 
         Some(best_move)
+    }
+
+    fn qsearch(&mut self, board: &Board, mut alpha: Eval, beta: Eval, ply_index: u16) -> Eval {
+        self.stats.selective_depth = self.stats.selective_depth.max(ply_index);
+        self.stats.nodes += 1;
+
+        alpha = alpha.max(self.nnue.calculate(&self.shared.nnue, board));
+        if alpha >= beta {
+            return alpha;
+        }
+
+        let capture_squares = board.colors(!board.side_to_move());
+        board.generate_moves(|mut mvs| {
+            mvs.to &= capture_squares;
+            for mv in mvs {
+                let mut new_board = board.clone();
+                new_board.play_unchecked(mv);
+                let v = -self.qsearch(&new_board, -beta, -alpha, ply_index + 1);
+                if v > alpha {
+                    alpha = v;
+                    if v >= beta {
+                        return true;
+                    }
+                }
+            }
+            false
+        });
+
+        alpha
     }
 }
