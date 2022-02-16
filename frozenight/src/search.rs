@@ -61,7 +61,7 @@ impl Searcher {
             cozy_chess::GameStatus::Ongoing => {}
         }
 
-        if depth == 1 && self.abort.load(Ordering::Relaxed) {
+        if depth > 0 && self.abort.load(Ordering::Relaxed) {
             return None;
         }
 

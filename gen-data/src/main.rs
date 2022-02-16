@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{stdout, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::sync_channel;
@@ -41,6 +41,7 @@ fn main() {
         println!("Using tablebase adjudication with {} men", tb.max_pieces());
     }
     let game_counter = Arc::new(AtomicUsize::new(0));
+    let start = Instant::now();
     let handles: Vec<_> = (0..options.concurrency)
         .map(|_| {
             let tb = tb.clone();
@@ -51,8 +52,11 @@ fn main() {
                 let samples = sample_game(tb.as_deref(), &output);
                 let old = game_counter.fetch_add(samples, Ordering::SeqCst);
                 if old * 100 / count < (old + samples) * 100 / count {
-                    print!("\r{}%", (old + samples) * 100 / count);
-                    stdout().flush().unwrap()
+                    println!(
+                        "{}% complete. speed: {:.1} samples/sec",
+                        (old + samples) * 100 / count,
+                        (old + samples) as f64 / start.elapsed().as_secs_f64()
+                    );
                 }
                 if old + samples >= count {
                     break;
@@ -112,12 +116,9 @@ fn sample_game(tb: Option<&Tablebase>, output: &Mutex<BufWriter<File>>) -> usize
         engine.set_position(Board::default(), |_| moves.next());
 
         let mvsend = mvsend.clone();
+        let alarm = Instant::now() + Duration::from_millis(10);
         engine
-            .start_search(
-                Some(Instant::now() + Duration::from_millis(10)),
-                5000,
-                move |mv, _| mvsend.send(mv).unwrap(),
-            )
+            .start_search(Some(alarm), 5000, move |mv, _| mvsend.send(mv).unwrap())
             .forget();
 
         let mv = mvrecv.recv().unwrap();
