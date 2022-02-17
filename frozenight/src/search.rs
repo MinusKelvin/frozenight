@@ -113,13 +113,7 @@ impl Searcher {
             let mut new_board = board.clone();
             if new_board.try_play(entry.mv).unwrap() {
                 skip = Some(entry.mv);
-                let v = -self.visit_node(
-                    &new_board,
-                    -beta,
-                    -alpha,
-                    ply_index + 1,
-                    depth - 1,
-                )?;
+                let v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, depth - 1)?;
                 if v >= beta {
                     self.shared.tt.store(
                         board,
@@ -150,13 +144,7 @@ impl Searcher {
         for mv in moves {
             let mut new_board = board.clone();
             new_board.play_unchecked(mv);
-            let v = -self.visit_node(
-                &new_board,
-                -beta,
-                -alpha,
-                ply_index + 1,
-                depth - 1,
-            )?;
+            let v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, depth - 1)?;
             if v >= beta {
                 self.shared.tt.store(
                     board,
@@ -197,9 +185,13 @@ impl Searcher {
         self.stats.selective_depth = self.stats.selective_depth.max(ply_index);
         self.stats.nodes += 1;
 
-        alpha = alpha.max(self.nnue.calculate(&self.shared.nnue, board));
-        if alpha >= beta {
-            return alpha;
+        let mut best = self.nnue.calculate(&self.shared.nnue, board);
+
+        if best > alpha {
+            alpha = best;
+            if alpha >= beta {
+                return alpha;
+            }
         }
 
         let capture_squares = board.colors(!board.side_to_move());
@@ -209,6 +201,9 @@ impl Searcher {
                 let mut new_board = board.clone();
                 new_board.play_unchecked(mv);
                 let v = -self.qsearch(&new_board, -beta, -alpha, ply_index + 1);
+                if v > best {
+                    best = v;
+                }
                 if v > alpha {
                     alpha = v;
                     if v >= beta {
@@ -219,6 +214,6 @@ impl Searcher {
             false
         });
 
-        alpha
+        best
     }
 }
