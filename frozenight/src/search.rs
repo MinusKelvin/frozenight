@@ -8,6 +8,11 @@ use crate::nnue::NnueAccumulator;
 use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, SharedState, Statistics};
 
+use self::ordering::MoveOrdering;
+
+mod ordering;
+mod qsearch;
+
 pub(crate) struct Searcher {
     pub stats: Statistics,
     shared: Arc<SharedState>,
@@ -101,47 +106,7 @@ impl Searcher {
             },
         );
 
-        // TODO: Factor move ordering code out so we don't duplicate stuff
-        // try hash move first
-        let mut skip = None;
-        if let Some(entry) = self.shared.tt.get(board) {
-            if entry.search_depth >= depth {
-                // already have better data for this node; provide TT move and eval
-                return Some((entry.eval.add_time(ply_index), entry.mv));
-            }
-
-            let mut new_board = board.clone();
-            if new_board.try_play(entry.mv).unwrap() {
-                skip = Some(entry.mv);
-                let v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, depth - 1)?;
-                if v >= beta {
-                    self.shared.tt.store(
-                        board,
-                        TableEntry {
-                            mv: entry.mv,
-                            eval: v.sub_time(ply_index),
-                            search_depth: depth,
-                            kind: NodeKind::Cut,
-                        },
-                    );
-                    return Some((v, entry.mv));
-                }
-                if v > alpha {
-                    alpha = v;
-                }
-                if v > best_move.0 {
-                    best_move = (v, entry.mv);
-                }
-            }
-        }
-
-        let mut moves = Vec::with_capacity(64);
-        board.generate_moves(|mvset| {
-            moves.extend(mvset.into_iter().filter(|&mv| Some(mv) != skip));
-            false
-        });
-
-        for mv in moves {
+        for mv in MoveOrdering::new(board, &self.shared.tt) {
             let mut new_board = board.clone();
             new_board.play_unchecked(mv);
             let v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, depth - 1)?;
@@ -179,41 +144,5 @@ impl Searcher {
         );
 
         Some(best_move)
-    }
-
-    fn qsearch(&mut self, board: &Board, mut alpha: Eval, beta: Eval, ply_index: u16) -> Eval {
-        self.stats.selective_depth = self.stats.selective_depth.max(ply_index);
-        self.stats.nodes += 1;
-
-        let mut best = self.nnue.calculate(&self.shared.nnue, board);
-
-        if best > alpha {
-            alpha = best;
-            if alpha >= beta {
-                return alpha;
-            }
-        }
-
-        let capture_squares = board.colors(!board.side_to_move());
-        board.generate_moves(|mut mvs| {
-            mvs.to &= capture_squares;
-            for mv in mvs {
-                let mut new_board = board.clone();
-                new_board.play_unchecked(mv);
-                let v = -self.qsearch(&new_board, -beta, -alpha, ply_index + 1);
-                if v > best {
-                    best = v;
-                }
-                if v > alpha {
-                    alpha = v;
-                    if v >= beta {
-                        return true;
-                    }
-                }
-            }
-            false
-        });
-
-        best
     }
 }
