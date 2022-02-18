@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::{stdout, BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::sync_channel;
@@ -50,15 +50,18 @@ fn main() {
             let count = options.count;
             std::thread::spawn(move || loop {
                 let samples = sample_game(tb.as_deref(), &output);
-                let old = game_counter.fetch_add(samples, Ordering::SeqCst);
-                if old * 100 / count < (old + samples) * 100 / count {
-                    println!(
-                        "{}% complete. speed: {:.1} samples/sec",
-                        (old + samples) * 100 / count,
-                        (old + samples) as f64 / start.elapsed().as_secs_f64()
-                    );
-                }
-                if old + samples >= count {
+                let total = samples + game_counter.fetch_add(samples, Ordering::SeqCst);
+                let completion = total as f64 / count as f64;
+                let time = start.elapsed().as_secs_f64();
+                let eta = time / completion - time;
+                print!(
+                    "\r\x1b[K{:>6.2}% complete. {:.0} samples/sec. Estimated time remaining: {} minutes",
+                    completion * 100.0,
+                    total as f64 / time,
+                    eta as i64 / 60,
+                );
+                stdout().flush().unwrap();
+                if total >= count {
                     break;
                 }
             })
@@ -138,9 +141,15 @@ fn sample_game(tb: Option<&Tablebase>, output: &Mutex<BufWriter<File>>) -> usize
     };
 
     let mut output = output.lock().unwrap();
+    let mut moves = game.into_iter();
     let mut board = Board::default();
+    for mv in (&mut moves).take(8) {
+        board.play(mv);
+    }
     let mut samples = 0;
-    for mv in game {
+    for mv in moves {
+        // Don't sample positions in check or where the "best" move is a capture
+        // These are noisy positions that the search is supposed to take care of
         if board.checkers().is_empty() && board.color_on(mv.to) != Some(!board.side_to_move()) {
             emit_sample(&mut *output, &board, winner);
             samples += 1;
