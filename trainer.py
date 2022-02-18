@@ -3,6 +3,7 @@ import torch
 from torch import nn
 
 import pytorch_lightning as pl
+import numpy as np
 
 import struct, sys, json
 
@@ -24,7 +25,7 @@ class Nnue(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         features, target = batch
         value = torch.sigmoid(self(features) / 500)
-        return (value - target)**2
+        return torch.sum((value - target)**2) / len(target)
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters())
@@ -38,19 +39,23 @@ class PositionSet(torch.utils.data.Dataset):
 
     def __getitem__(self, index: int):
         content = struct.unpack("<" + "H" * 65, self.data[index*130:index*130+130])
+        stm = np.zeros(NUM_FEATURES, dtype=np.float32)
         for i in range(33):
             if content[i] == 65535: break
-        stm = torch.sparse_coo_tensor([content[:i]], [1.0] * i, [NUM_FEATURES])
+            stm[content[i]] = 1
+        sntm = np.zeros(NUM_FEATURES, dtype=np.float32)
         for i in range(33):
             if content[32 + i] == 65535: break
-        sntm = torch.sparse_coo_tensor([content[32:32+i]], [1.0] * i, [NUM_FEATURES])
+            sntm[content[32 + i]] = 1
         outcome = content[64] / 2
-        return [stm, sntm], torch.tensor([outcome])
+        return [torch.as_tensor(stm), torch.as_tensor(sntm)], torch.tensor([outcome])
 
-if sys.argv[1] == "train":
+if __name__ != "__main__":
+    pass
+elif sys.argv[1] == "train":
     with open("data.bin", "rb") as f:
         dataset = PositionSet(f.read())
-    dataloader = torch.utils.data.DataLoader(dataset)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
 
     nnue = Nnue()
     trainer = pl.Trainer()
