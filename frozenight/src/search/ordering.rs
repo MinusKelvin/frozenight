@@ -1,7 +1,5 @@
 use cozy_chess::{Board, Move, Piece, PieceMovesIter};
 
-use crate::tt::TranspositionTable;
-
 pub struct MoveOrdering<'a> {
     board: &'a Board,
     stage: MoveOrderingStage,
@@ -21,13 +19,14 @@ enum MoveOrderingStage {
 }
 
 impl<'a> MoveOrdering<'a> {
-    pub fn new(board: &'a Board, tt: &TranspositionTable) -> Self {
+    pub fn new(board: &'a Board, hashmove: Option<Move>) -> Self {
         MoveOrdering {
             board,
-            stage: MoveOrderingStage::Hashmove,
-            hashmove: tt
-                .get(board)
-                .and_then(|entry| board.is_legal(entry.mv).then(|| entry.mv)),
+            stage: match hashmove {
+                Some(_) => MoveOrderingStage::Hashmove,
+                None => MoveOrderingStage::PrepareCaptures,
+            },
+            hashmove,
             captures: vec![],
             quiets: vec![],
             underpromotions: vec![],
@@ -36,11 +35,7 @@ impl<'a> MoveOrdering<'a> {
 
     fn hashmove(&mut self) -> Option<Move> {
         self.stage = MoveOrderingStage::PrepareCaptures;
-        if self.hashmove.is_some() {
-            self.hashmove
-        } else {
-            self.prepare_captures()
-        }
+        self.hashmove
     }
 
     fn prepare_captures(&mut self) -> Option<Move> {

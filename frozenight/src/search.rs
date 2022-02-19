@@ -106,7 +106,13 @@ impl Searcher {
             },
         );
 
-        for mv in MoveOrdering::new(board, &self.shared.tt) {
+        let hashmove = self
+            .shared
+            .tt
+            .get(board)
+            .and_then(|entry| board.is_legal(entry.mv).then(|| entry.mv));
+
+        for mv in MoveOrdering::new(board, hashmove) {
             let mut new_board = board.clone();
             new_board.play_unchecked(mv);
             let v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, depth - 1)?;
