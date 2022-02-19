@@ -19,6 +19,8 @@ enum MoveOrderingStage {
     Underpromotions,
 }
 
+const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
+
 impl<'a> MoveOrdering<'a> {
     pub fn new(board: &'a Board, hashmove: Option<Move>, killer: Move) -> Self {
         MoveOrdering {
@@ -70,8 +72,8 @@ impl<'a> MoveOrdering<'a> {
                 if Some(mv) == self.hashmove {
                     continue;
                 }
-                let attacker = mvs.piece as i8;
-                let victim = self.board.piece_on(mv.to).unwrap() as i8;
+                let attacker = PIECE_ORDINALS[mvs.piece as usize];
+                let victim = PIECE_ORDINALS[self.board.piece_on(mv.to).unwrap() as usize] * 4;
                 if matches!(mv.promotion, None | Some(Piece::Queen)) {
                     self.captures.push((mv, victim - attacker));
                 } else {
