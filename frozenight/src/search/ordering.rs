@@ -15,9 +15,8 @@ pub struct MoveOrdering<'a> {
 enum MoveOrderingStage {
     Hashmove,
     PrepareCaptures,
-    GoodCaptures,
+    Captures,
     Quiets,
-    BadCaptures,
     Underpromotions,
 }
 
@@ -45,7 +44,7 @@ impl<'a> MoveOrdering<'a> {
     }
 
     fn prepare_captures(&mut self) -> Option<Move> {
-        self.stage = MoveOrderingStage::GoodCaptures;
+        self.stage = MoveOrderingStage::Captures;
         let theirs = self.board.colors(!self.board.side_to_move());
         self.board.generate_moves(|mut mvs| {
             let mut quiets = mvs;
@@ -66,10 +65,10 @@ impl<'a> MoveOrdering<'a> {
             }
             false
         });
-        self.good_captures()
+        self.captures()
     }
 
-    fn good_captures(&mut self) -> Option<Move> {
+    fn captures(&mut self) -> Option<Move> {
         if self.captures.is_empty() {
             self.stage = MoveOrderingStage::Quiets;
             return self.quiets();
@@ -82,11 +81,6 @@ impl<'a> MoveOrdering<'a> {
             }
         }
 
-        if self.captures[index].1 < 0 {
-            self.stage = MoveOrderingStage::Quiets;
-            return self.quiets();
-        }
-
         Some(self.captures.swap_remove(index).0)
     }
 
@@ -95,8 +89,8 @@ impl<'a> MoveOrdering<'a> {
             let iter = match self.quiets.last_mut() {
                 Some(iter) => iter,
                 None => {
-                    self.stage = MoveOrderingStage::BadCaptures;
-                    return self.bad_captures();
+                    self.stage = MoveOrderingStage::Underpromotions;
+                    return self.underpromotions();
                 }
             };
 
@@ -121,22 +115,6 @@ impl<'a> MoveOrdering<'a> {
         }
     }
 
-    fn bad_captures(&mut self) -> Option<Move> {
-        if self.captures.is_empty() {
-            self.stage = MoveOrderingStage::Underpromotions;
-            return self.underpromotions();
-        }
-
-        let mut index = 0;
-        for i in 1..self.captures.len() {
-            if self.captures[i].1 > self.captures[index].1 {
-                index = i;
-            }
-        }
-
-        Some(self.captures.swap_remove(index).0)
-    }
-
     fn underpromotions(&mut self) -> Option<Move> {
         self.underpromotions.pop()
     }
@@ -149,9 +127,8 @@ impl Iterator for MoveOrdering<'_> {
         match self.stage {
             MoveOrderingStage::Hashmove => self.hashmove(),
             MoveOrderingStage::PrepareCaptures => self.prepare_captures(),
-            MoveOrderingStage::GoodCaptures => self.good_captures(),
+            MoveOrderingStage::Captures => self.captures(),
             MoveOrderingStage::Quiets => self.quiets(),
-            MoveOrderingStage::BadCaptures => self.bad_captures(),
             MoveOrderingStage::Underpromotions => self.underpromotions(),
         }
     }
