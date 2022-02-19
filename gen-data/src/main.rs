@@ -121,7 +121,7 @@ fn sample_game(tb: Option<&Tablebase>, output: &Mutex<BufWriter<File>>) -> usize
         let mvsend = mvsend.clone();
         let alarm = Instant::now() + Duration::from_millis(10);
         engine
-            .start_search(Some(alarm), 5000, move |mv, _| mvsend.send(mv).unwrap())
+            .start_search(None, Some(alarm), 5000, move |mv, _| mvsend.send(mv).unwrap())
             .forget();
 
         let mv = mvrecv.recv().unwrap();

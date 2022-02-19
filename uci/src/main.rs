@@ -91,26 +91,27 @@ fn main() {
                     });
                 }
                 "go" => {
-                    let mut time_limit = None;
+                    let mut deadline = None;
+                    let mut time_use_suggestion = None;
                     let mut depth = 250;
 
                     let stm = frozenight.board().side_to_move();
                     while let Some(param) = stream.next() {
                         match param {
                             "wtime" if stm == Color::White => {
-                                time_limit = Some(
-                                    Duration::from_millis(stream.next().unwrap().parse().unwrap())
-                                        / 30,
-                                )
+                                let time =
+                                    Duration::from_millis(stream.next().unwrap().parse().unwrap());
+                                deadline = Some(time / 10);
+                                time_use_suggestion = Some(time / 40);
                             }
                             "btime" if stm == Color::Black => {
-                                time_limit = Some(
-                                    Duration::from_millis(stream.next().unwrap().parse().unwrap())
-                                        / 30,
-                                )
+                                let time =
+                                    Duration::from_millis(stream.next().unwrap().parse().unwrap());
+                                deadline = Some(time / 10);
+                                time_use_suggestion = Some(time / 40);
                             }
                             "movetime" => {
-                                time_limit = Some(Duration::from_millis(
+                                deadline = Some(Duration::from_millis(
                                     stream.next().unwrap().parse().unwrap(),
                                 ))
                             }
@@ -120,7 +121,8 @@ fn main() {
                     }
 
                     abort = Some(frozenight.start_search(
-                        time_limit.map(|d| now + d - move_overhead),
+                        time_use_suggestion.map(|d| now + d),
+                        deadline.map(|d| now + d - move_overhead),
                         depth,
                         UciListener(now),
                     ));

@@ -62,7 +62,8 @@ impl Frozenight {
 
     pub fn start_search(
         &mut self,
-        alarm: Option<Instant>,
+        time_use_suggestion: Option<Instant>,
+        deadline: Option<Instant>,
         depth_limit: u16,
         info: impl Listener,
     ) -> Abort {
@@ -81,13 +82,14 @@ impl Frozenight {
             &self.board,
             depth_limit.min(5000),
             info,
+            time_use_suggestion,
         );
 
         // Spawn timeout thread
-        if let Some(alarm) = alarm {
+        if let Some(deadline) = deadline {
             let abort = self.abort.clone();
             std::thread::spawn(move || {
-                while let Some(to_go) = alarm.checked_duration_since(Instant::now()) {
+                while let Some(to_go) = deadline.checked_duration_since(Instant::now()) {
                     std::thread::sleep(to_go.min(Duration::from_secs(1)));
                     if abort.load(Ordering::Relaxed) {
                         return;
@@ -123,6 +125,7 @@ fn spawn_search_thread(
     board: &Board,
     depth_limit: u16,
     mut listener: impl Listener,
+    time_use_suggestion: Option<Instant>
 ) -> JoinHandle<()> {
     let board = board.clone();
     let mut best_move = None;
@@ -133,6 +136,12 @@ fn spawn_search_thread(
                 best_move = Some(result);
             } else {
                 break;
+            }
+
+            if let Some(time_use_suggestion) = time_use_suggestion {
+                if Instant::now() > time_use_suggestion {
+                    break;
+                }
             }
         }
         let (e, m) = best_move.unwrap();
