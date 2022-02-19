@@ -1,9 +1,10 @@
-use cozy_chess::{Board, Move, Piece, PieceMovesIter};
+use cozy_chess::{Board, Move, Piece, PieceMovesIter, Square};
 
 pub struct MoveOrdering<'a> {
     board: &'a Board,
     stage: MoveOrderingStage,
     hashmove: Option<Move>,
+    killer: Move,
     captures: Vec<(Move, i8)>,
     quiets: Vec<PieceMovesIter>,
     underpromotions: Vec<Move>,
@@ -19,7 +20,7 @@ enum MoveOrderingStage {
 }
 
 impl<'a> MoveOrdering<'a> {
-    pub fn new(board: &'a Board, hashmove: Option<Move>) -> Self {
+    pub fn new(board: &'a Board, hashmove: Option<Move>, killer: Move) -> Self {
         MoveOrdering {
             board,
             stage: match hashmove {
@@ -27,6 +28,14 @@ impl<'a> MoveOrdering<'a> {
                 None => MoveOrderingStage::PrepareCaptures,
             },
             hashmove,
+            killer: match Some(killer) != hashmove {
+                true => killer,
+                false => Move {
+                    from: Square::A1,
+                    to: Square::A1,
+                    promotion: None,
+                },
+            },
             captures: vec![],
             quiets: vec![],
             underpromotions: vec![],
@@ -42,9 +51,20 @@ impl<'a> MoveOrdering<'a> {
         self.stage = MoveOrderingStage::Captures;
         let theirs = self.board.colors(!self.board.side_to_move());
         self.board.generate_moves(|mut mvs| {
+            if self.killer.from == mvs.from && mvs.to.has(self.killer.to) {
+                // Killer is legal; give it a middle rank but in the captures list
+                self.captures.push((self.killer, 0));
+                if self.killer.promotion.is_none() {
+                    // don't accidentally prune underpromotions.
+                    // this means we might return the same move twice, but w/e
+                    mvs.to &= !self.killer.to.bitboard();
+                }
+            }
+
             let mut quiets = mvs;
             quiets.to &= !theirs;
             self.quiets.push(quiets.into_iter());
+
             mvs.to &= theirs;
             for mv in mvs {
                 if Some(mv) == self.hashmove {

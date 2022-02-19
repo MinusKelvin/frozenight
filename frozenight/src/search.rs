@@ -20,6 +20,7 @@ pub(crate) struct Searcher {
     history: IntSet<u64>,
     valid: bool,
     nnue: NnueAccumulator,
+    killers: Vec<Move>,
 }
 
 impl Searcher {
@@ -31,6 +32,14 @@ impl Searcher {
             history,
             valid: true,
             stats: Default::default(),
+            killers: vec![
+                Move {
+                    from: Square::A1,
+                    to: Square::A1,
+                    promotion: None,
+                };
+                128
+            ],
         }
     }
 
@@ -49,6 +58,18 @@ impl Searcher {
         let result = self.alpha_beta(root, -Eval::MATE, Eval::MATE, 0, depth);
         self.valid = result.is_some();
         result
+    }
+
+    fn killer(&mut self, ply_index: u16) -> &mut Move {
+        let idx = ply_index as usize;
+        if idx >= self.killers.len() {
+            self.killers.extend((self.killers.len()..=idx).map(|_| Move {
+                from: Square::A1,
+                to: Square::A1,
+                promotion: None,
+            }));
+        }
+        &mut self.killers[idx]
     }
 
     fn visit_node(
@@ -112,7 +133,7 @@ impl Searcher {
             .get(board)
             .and_then(|entry| board.is_legal(entry.mv).then(|| entry.mv));
 
-        for mv in MoveOrdering::new(board, hashmove) {
+        for mv in MoveOrdering::new(board, hashmove, *self.killer(ply_index)) {
             let mut new_board = board.clone();
             new_board.play_unchecked(mv);
             let v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, depth - 1)?;
@@ -126,6 +147,10 @@ impl Searcher {
                         kind: NodeKind::Cut,
                     },
                 );
+                // caused a beta cutoff, update the killer at this ply
+                if board.color_on(mv.to) != Some(!board.side_to_move()) {
+                    *self.killer(ply_index) = mv;
+                }
                 return Some((v, mv));
             }
             if v > alpha {
