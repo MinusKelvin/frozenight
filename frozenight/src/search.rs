@@ -130,7 +130,7 @@ impl Searcher {
     }
 
     /// Invariant: `self` is unchanged if this function returns `Some`.
-    /// The board must have legal moves.
+    /// If the side to move has no moves, this returns `-Eval::MATE` even if it is stalemate.
     fn alpha_beta(
         &mut self,
         board: &Board,
@@ -140,6 +140,17 @@ impl Searcher {
         depth: u16,
     ) -> Option<Eval> {
         self.stats.nodes += 1;
+
+        if board.checkers().is_empty() && depth >= 3 {
+            let new_board = board.null_move().unwrap();
+            // search with an empty window - we only care about if the score is high or low
+            let v = -self.visit_node(&new_board, -beta, -beta, ply_index + 1, depth - 3)?;
+            if v > beta {
+                // Null move pruning
+                return Some(beta);
+            }
+        }
+
         // It is impossible to accidentally return this score because the worst move that could
         // possibly be returned by visit_node is -Eval::MATE.add(1) which is better than this
         let mut best_score = -Eval::MATE;
