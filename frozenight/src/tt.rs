@@ -44,9 +44,9 @@ impl TranspositionTable {
                 },
             },
             kind: match data.kind {
-                0 => NodeKind::Pv,
-                1 => NodeKind::Cut,
-                2 => NodeKind::All,
+                0 => NodeKind::Exact,
+                1 => NodeKind::LowerBound,
+                2 => NodeKind::UpperBound,
                 _ => return None, // invalid
             },
             eval: data.eval,
@@ -86,9 +86,9 @@ pub struct TableEntry {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeKind {
-    Pv,
-    Cut,
-    All,
+    Exact,
+    LowerBound,
+    UpperBound,
 }
 
 #[derive(Default)]

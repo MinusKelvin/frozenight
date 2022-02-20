@@ -135,7 +135,7 @@ impl Searcher {
         &mut self,
         board: &Board,
         mut alpha: Eval,
-        beta: Eval,
+        mut beta: Eval,
         ply_index: u16,
         depth: u16,
     ) -> Option<Eval> {
@@ -155,12 +155,41 @@ impl Searcher {
         // possibly be returned by visit_node is -Eval::MATE.add(1) which is better than this
         let mut best_score = -Eval::MATE;
         let mut best_move = INVALID_MOVE;
+        let mut node_kind = NodeKind::UpperBound;
 
-        let hashmove = self
-            .shared
-            .tt
-            .get(board)
-            .and_then(|entry| board.is_legal(entry.mv).then(|| entry.mv));
+        let hashmove;
+        match self.shared.tt.get(board) {
+            None => hashmove = None,
+            Some(entry) => {
+                hashmove = board.is_legal(entry.mv).then(|| entry.mv);
+
+                let tteval = entry.eval.add_time(ply_index);
+                match entry.kind {
+                    _ if entry.search_depth < depth => {}
+                    NodeKind::Exact => return Some(tteval),
+                    NodeKind::LowerBound => {
+                        // raise alpha
+                        if tteval >= beta {
+                            // fail-high
+                            return Some(tteval);
+                        }
+                        if tteval > alpha {
+                            alpha = tteval;
+                        }
+                    }
+                    NodeKind::UpperBound => {
+                        // lower beta
+                        if tteval <= alpha {
+                            // fail-low
+                            return Some(tteval);
+                        }
+                        if tteval < beta {
+                            beta = tteval;
+                        }
+                    }
+                }
+            }
+        }
 
         for mv in MoveOrdering::new(board, hashmove, *self.killer(ply_index)) {
             let mut new_board = board.clone();
@@ -173,7 +202,7 @@ impl Searcher {
                         mv,
                         eval: v.sub_time(ply_index),
                         search_depth: depth,
-                        kind: NodeKind::Cut,
+                        kind: NodeKind::LowerBound,
                     },
                 );
                 // caused a beta cutoff, update the killer at this ply
@@ -184,6 +213,7 @@ impl Searcher {
             }
             if v > alpha {
                 alpha = v;
+                node_kind = NodeKind::Exact;
             }
             if v > best_score {
                 best_score = v;
@@ -197,10 +227,7 @@ impl Searcher {
                 mv: best_move,
                 eval: best_score.sub_time(ply_index),
                 search_depth: depth,
-                kind: match best_score == alpha {
-                    true => NodeKind::Pv,
-                    false => NodeKind::All,
-                },
+                kind: node_kind,
             },
         );
 
