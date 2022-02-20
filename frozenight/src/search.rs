@@ -13,6 +13,12 @@ use self::ordering::MoveOrdering;
 mod ordering;
 mod qsearch;
 
+const INVALID_MOVE: Move = Move {
+    from: Square::A1,
+    to: Square::A1,
+    promotion: None,
+};
+
 pub(crate) struct Searcher {
     pub stats: Statistics,
     shared: Arc<SharedState>,
@@ -52,22 +58,41 @@ impl Searcher {
         if !self.valid {
             panic!("attempt to search using an invalid searcher");
         }
-        if !root.generate_moves(|_| true) {
-            panic!("root position has no legal moves");
+        let mut alpha = -Eval::MATE;
+        let mut best_move = INVALID_MOVE;
+
+        let hashmove = self
+            .shared
+            .tt
+            .get(root)
+            .and_then(|entry| root.is_legal(entry.mv).then(|| entry.mv));
+
+        for mv in MoveOrdering::new(root, hashmove, INVALID_MOVE) {
+            let mut new_board = root.clone();
+            new_board.play_unchecked(mv);
+            let v = -self.visit_node(&new_board, -Eval::MATE, -alpha, 1, depth - 1)?;
+            if v > alpha {
+                alpha = v;
+                best_move = mv;
+            }
         }
-        let result = self.alpha_beta(root, -Eval::MATE, Eval::MATE, 0, depth);
-        self.valid = result.is_some();
-        result
+
+        if best_move == INVALID_MOVE {
+            panic!("root position has no moves");
+        }
+
+        Some((alpha, best_move))
     }
 
     fn killer(&mut self, ply_index: u16) -> &mut Move {
         let idx = ply_index as usize;
         if idx >= self.killers.len() {
-            self.killers.extend((self.killers.len()..=idx).map(|_| Move {
-                from: Square::A1,
-                to: Square::A1,
-                promotion: None,
-            }));
+            self.killers
+                .extend((self.killers.len()..=idx).map(|_| Move {
+                    from: Square::A1,
+                    to: Square::A1,
+                    promotion: None,
+                }));
         }
         &mut self.killers[idx]
     }
@@ -98,7 +123,6 @@ impl Searcher {
             Some(self.qsearch(board, alpha, beta, ply_index))
         } else {
             self.alpha_beta(board, alpha, beta, ply_index, depth)
-                .map(|(e, _)| e)
         };
 
         self.history.remove(&board.hash());
@@ -114,18 +138,12 @@ impl Searcher {
         beta: Eval,
         ply_index: u16,
         depth: u16,
-    ) -> Option<(Eval, Move)> {
+    ) -> Option<Eval> {
         self.stats.nodes += 1;
-        // It is impossible to accidentally return this move because the worst move that could
+        // It is impossible to accidentally return this score because the worst move that could
         // possibly be returned by visit_node is -Eval::MATE.add(1) which is better than this
-        let mut best_move = (
-            -Eval::MATE,
-            Move {
-                from: Square::A1,
-                to: Square::A1,
-                promotion: None,
-            },
-        );
+        let mut best_score = -Eval::MATE;
+        let mut best_move = INVALID_MOVE;
 
         let hashmove = self
             .shared
@@ -151,29 +169,30 @@ impl Searcher {
                 if board.color_on(mv.to) != Some(!board.side_to_move()) {
                     *self.killer(ply_index) = mv;
                 }
-                return Some((v, mv));
+                return Some(v);
             }
             if v > alpha {
                 alpha = v;
             }
-            if v > best_move.0 {
-                best_move = (v, mv);
+            if v > best_score {
+                best_score = v;
+                best_move = mv;
             }
         }
 
         self.shared.tt.store(
             board,
             TableEntry {
-                mv: best_move.1,
-                eval: best_move.0.sub_time(ply_index),
+                mv: best_move,
+                eval: best_score.sub_time(ply_index),
                 search_depth: depth,
-                kind: match best_move.0 == alpha {
+                kind: match best_score == alpha {
                     true => NodeKind::Pv,
                     false => NodeKind::All,
                 },
             },
         );
 
-        Some(best_move)
+        Some(best_score)
     }
 }
