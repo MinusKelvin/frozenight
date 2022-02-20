@@ -30,14 +30,7 @@ impl<'a> MoveOrdering<'a> {
                 None => MoveOrderingStage::GenerateMoves,
             },
             hashmove,
-            killer: match Some(killer) != hashmove {
-                true => killer,
-                false => Move {
-                    from: Square::A1,
-                    to: Square::A1,
-                    promotion: None,
-                },
-            },
+            killer,
             captures: vec![],
             quiets: vec![],
             underpromotions: vec![],

@@ -84,11 +84,7 @@ impl Searcher {
         let idx = ply_index as usize;
         if idx >= self.killers.len() {
             self.killers
-                .extend((self.killers.len()..=idx).map(|_| Move {
-                    from: Square::A1,
-                    to: Square::A1,
-                    promotion: None,
-                }));
+                .extend((self.killers.len()..=idx).map(|_| INVALID_MOVE));
         }
         &mut self.killers[idx]
     }
@@ -188,13 +184,36 @@ impl Searcher {
         }
 
         let mut ordering = MoveOrdering::new(board, hashmove, *self.killer(ply_index));
+        let mut quiets = 0;
         while let Some(mv) = ordering.next(&self.history) {
             let mut new_board = board.clone();
             new_board.play_unchecked(mv);
 
-            let v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, depth - 1)?;
+            let d = if quiets < 4
+                || board.color_on(mv.to) == Some(!board.side_to_move())
+                || !new_board.checkers().is_empty()
+            {
+                depth
+            } else if quiets < 12 && depth >= 2 {
+                depth - 1
+            } else if depth >= 3 {
+                depth - 2
+            } else {
+                depth
+            };
+
+            let mut v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, d - 1)?;
+
+            if v > alpha && d != depth {
+                // reduced move unexpected raised alpha; research at full depth
+                v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, depth - 1)?;
+            }
 
             let quiet = board.color_on(mv.to) != Some(!board.side_to_move());
+            if quiet {
+                quiets += 1;
+            }
+
             if v >= beta {
                 self.shared.tt.store(
                     board,
