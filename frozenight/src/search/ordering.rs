@@ -1,4 +1,4 @@
-use cozy_chess::{Board, Move, Piece, PieceMovesIter, Square};
+use cozy_chess::{Board, Move, Piece, Square};
 
 pub struct MoveOrdering<'a> {
     board: &'a Board,
@@ -6,14 +6,14 @@ pub struct MoveOrdering<'a> {
     hashmove: Option<Move>,
     killer: Move,
     captures: Vec<(Move, i8)>,
-    quiets: Vec<PieceMovesIter>,
+    quiets: Vec<(Move, i32)>,
     underpromotions: Vec<Move>,
 }
 
 #[derive(Clone, Copy)]
 enum MoveOrderingStage {
     Hashmove,
-    PrepareCaptures,
+    GenerateMoves,
     Captures,
     Quiets,
     Underpromotions,
@@ -27,7 +27,7 @@ impl<'a> MoveOrdering<'a> {
             board,
             stage: match hashmove {
                 Some(_) => MoveOrderingStage::Hashmove,
-                None => MoveOrderingStage::PrepareCaptures,
+                None => MoveOrderingStage::GenerateMoves,
             },
             hashmove,
             killer: match Some(killer) != hashmove {
@@ -44,40 +44,46 @@ impl<'a> MoveOrdering<'a> {
         }
     }
 
+    pub fn next(&mut self, history: &HistoryTable) -> Option<Move> {
+        match self.stage {
+            MoveOrderingStage::Hashmove => self.hashmove(),
+            MoveOrderingStage::GenerateMoves => self.generate_moves(history),
+            MoveOrderingStage::Captures => self.captures(),
+            MoveOrderingStage::Quiets => self.quiets(),
+            MoveOrderingStage::Underpromotions => self.underpromotions(),
+        }
+    }
+
     fn hashmove(&mut self) -> Option<Move> {
-        self.stage = MoveOrderingStage::PrepareCaptures;
+        self.stage = MoveOrderingStage::GenerateMoves;
         self.hashmove
     }
 
-    fn prepare_captures(&mut self) -> Option<Move> {
+    fn generate_moves(&mut self, history: &HistoryTable) -> Option<Move> {
         self.stage = MoveOrderingStage::Captures;
-        let theirs = self.board.colors(!self.board.side_to_move());
-        self.board.generate_moves(|mut mvs| {
-            if self.killer.from == mvs.from && mvs.to.has(self.killer.to) {
-                // Killer is legal; give it a middle rank but in the captures list
-                self.captures.push((self.killer, 0));
-                if self.killer.promotion.is_none() {
-                    // don't accidentally prune underpromotions.
-                    // this means we might return the same move twice, but w/e
-                    mvs.to &= !self.killer.to.bitboard();
-                }
-            }
-
-            let mut quiets = mvs;
-            quiets.to &= !theirs;
-            self.quiets.push(quiets.into_iter());
-
-            mvs.to &= theirs;
+        self.board.generate_moves(|mvs| {
             for mv in mvs {
                 if Some(mv) == self.hashmove {
                     continue;
                 }
-                let attacker = PIECE_ORDINALS[mvs.piece as usize];
-                let victim = PIECE_ORDINALS[self.board.piece_on(mv.to).unwrap() as usize] * 4;
-                if matches!(mv.promotion, None | Some(Piece::Queen)) {
-                    self.captures.push((mv, victim - attacker));
-                } else {
+                if matches!(mv.promotion, Some(Piece::Knight | Piece::Bishop | Piece::Rook)) {
                     self.underpromotions.push(mv);
+                    continue;
+                }
+
+                match self.board.piece_on(mv.to) {
+                    Some(victim) => {
+                        let attacker = PIECE_ORDINALS[mvs.piece as usize];
+                        let victim = PIECE_ORDINALS[victim as usize] * 4;
+                        self.captures.push((mv, victim - attacker));
+                    }
+                    _ if mv == self.killer => {
+                        // Killer is legal; give it the same rank as PxP
+                        self.captures.push((mv, 0));
+                    }
+                    _ => {
+                        self.quiets.push((mv, history.rank(mvs.piece, mv)));
+                    }
                 }
             }
             false
@@ -102,34 +108,19 @@ impl<'a> MoveOrdering<'a> {
     }
 
     fn quiets(&mut self) -> Option<Move> {
-        loop {
-            let iter = match self.quiets.last_mut() {
-                Some(iter) => iter,
-                None => {
-                    self.stage = MoveOrderingStage::Underpromotions;
-                    return self.underpromotions();
-                }
-            };
+        if self.quiets.is_empty() {
+            self.stage = MoveOrderingStage::Underpromotions;
+            return self.underpromotions();
+        }
 
-            let mv = match iter.next() {
-                Some(mv) => mv,
-                None => {
-                    self.quiets.pop();
-                    continue;
-                }
-            };
-
-            if Some(mv) == self.hashmove {
-                continue;
-            }
-
-            if matches!(mv.promotion, None | Some(Piece::Queen)) {
-                return Some(mv);
-            } else {
-                self.underpromotions.push(mv);
-                continue;
+        let mut index = 0;
+        for i in 1..self.quiets.len() {
+            if self.quiets[i].1 > self.quiets[index].1 {
+                index = i;
             }
         }
+
+        Some(self.quiets.swap_remove(index).0)
     }
 
     fn underpromotions(&mut self) -> Option<Move> {
@@ -137,16 +128,32 @@ impl<'a> MoveOrdering<'a> {
     }
 }
 
-impl Iterator for MoveOrdering<'_> {
-    type Item = Move;
+pub struct HistoryTable {
+    to_sq: [[(i32, i32); Square::NUM]; Piece::NUM],
+}
 
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.stage {
-            MoveOrderingStage::Hashmove => self.hashmove(),
-            MoveOrderingStage::PrepareCaptures => self.prepare_captures(),
-            MoveOrderingStage::Captures => self.captures(),
-            MoveOrderingStage::Quiets => self.quiets(),
-            MoveOrderingStage::Underpromotions => self.underpromotions(),
+impl HistoryTable {
+    pub fn new() -> Self {
+        HistoryTable {
+            to_sq: [[(0, 0); Square::NUM]; Piece::NUM],
         }
+    }
+
+    pub fn caused_cutoff(&mut self, piece: Piece, mv: Move) {
+        let (average, total) = &mut self.to_sq[piece as usize][mv.to as usize];
+        let diff = 2_000_000_000 - *average;
+        *total += 1;
+        *average += diff / *total;
+    }
+
+    pub fn did_not_cause_cutoff(&mut self, piece: Piece, mv: Move) {
+        let (average, total) = &mut self.to_sq[piece as usize][mv.to as usize];
+        *total += 1;
+        *average -= *average / *total;
+    }
+
+    fn rank(&self, piece: Piece, mv: Move) -> i32 {
+        let (average, _) = self.to_sq[piece as usize][mv.to as usize];
+        average
     }
 }

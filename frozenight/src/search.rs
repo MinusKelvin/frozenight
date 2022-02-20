@@ -8,7 +8,7 @@ use crate::nnue::NnueAccumulator;
 use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, SharedState, Statistics};
 
-use self::ordering::MoveOrdering;
+use self::ordering::{HistoryTable, MoveOrdering};
 
 mod ordering;
 mod qsearch;
@@ -23,29 +23,24 @@ pub(crate) struct Searcher {
     pub stats: Statistics,
     shared: Arc<SharedState>,
     abort: Arc<AtomicBool>,
-    history: IntSet<u64>,
+    repetition: IntSet<u64>,
     valid: bool,
     nnue: NnueAccumulator,
     killers: Vec<Move>,
+    history: HistoryTable,
 }
 
 impl Searcher {
-    pub fn new(abort: Arc<AtomicBool>, shared: Arc<SharedState>, history: IntSet<u64>) -> Self {
+    pub fn new(abort: Arc<AtomicBool>, shared: Arc<SharedState>, repetition: IntSet<u64>) -> Self {
         Searcher {
             nnue: NnueAccumulator::new(&shared.nnue),
             shared,
             abort,
-            history,
+            repetition,
             valid: true,
             stats: Default::default(),
-            killers: vec![
-                Move {
-                    from: Square::A1,
-                    to: Square::A1,
-                    promotion: None,
-                };
-                128
-            ],
+            killers: vec![INVALID_MOVE; 128],
+            history: HistoryTable::new(),
         }
     }
 
@@ -67,7 +62,8 @@ impl Searcher {
             .get(root)
             .and_then(|entry| root.is_legal(entry.mv).then(|| entry.mv));
 
-        for mv in MoveOrdering::new(root, hashmove, INVALID_MOVE) {
+        let mut orderer = MoveOrdering::new(root, hashmove, INVALID_MOVE);
+        while let Some(mv) = orderer.next(&self.history) {
             let mut new_board = root.clone();
             new_board.play_unchecked(mv);
             let v = -self.visit_node(&new_board, -Eval::MATE, -alpha, 1, depth - 1)?;
@@ -115,7 +111,7 @@ impl Searcher {
             return None;
         }
 
-        if !self.history.insert(board.hash()) {
+        if !self.repetition.insert(board.hash()) {
             return Some(Eval::DRAW);
         }
 
@@ -125,7 +121,7 @@ impl Searcher {
             self.alpha_beta(board, alpha, beta, ply_index, depth)
         };
 
-        self.history.remove(&board.hash());
+        self.repetition.remove(&board.hash());
         result
     }
 
@@ -191,10 +187,14 @@ impl Searcher {
             }
         }
 
-        for mv in MoveOrdering::new(board, hashmove, *self.killer(ply_index)) {
+        let mut ordering = MoveOrdering::new(board, hashmove, *self.killer(ply_index));
+        while let Some(mv) = ordering.next(&self.history) {
             let mut new_board = board.clone();
             new_board.play_unchecked(mv);
+
             let v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, depth - 1)?;
+
+            let quiet = board.color_on(mv.to) != Some(!board.side_to_move());
             if v >= beta {
                 self.shared.tt.store(
                     board,
@@ -206,10 +206,17 @@ impl Searcher {
                     },
                 );
                 // caused a beta cutoff, update the killer at this ply
-                if board.color_on(mv.to) != Some(!board.side_to_move()) {
+                if quiet {
+                    // quiet move - update killer and history
                     *self.killer(ply_index) = mv;
+                    self.history
+                        .caused_cutoff(board.piece_on(mv.from).unwrap(), mv);
                 }
                 return Some(v);
+            } else if quiet {
+                // quiet move did not cause cutoff - update history
+                self.history
+                    .did_not_cause_cutoff(board.piece_on(mv.from).unwrap(), mv);
             }
             if v > alpha {
                 alpha = v;
