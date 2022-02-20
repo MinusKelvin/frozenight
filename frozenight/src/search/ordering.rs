@@ -61,6 +61,8 @@ impl<'a> MoveOrdering<'a> {
 
     fn generate_moves(&mut self, history: &HistoryTable) -> Option<Move> {
         self.stage = MoveOrderingStage::Captures;
+        self.captures.reserve(16);
+        self.quiets.reserve(64);
         self.board.generate_moves(|mvs| {
             for mv in mvs {
                 if Some(mv) == self.hashmove {

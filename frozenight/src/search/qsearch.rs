@@ -21,7 +21,7 @@ impl Searcher {
         }
 
         let capture_squares = board.colors(!board.side_to_move());
-        let mut moves = vec![];
+        let mut moves = Vec::with_capacity(16);
         board.generate_moves(|mut mvs| {
             mvs.to &= capture_squares;
             for mv in mvs {
