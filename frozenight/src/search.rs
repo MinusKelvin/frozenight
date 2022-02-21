@@ -21,7 +21,7 @@ const INVALID_MOVE: Move = Move {
 
 pub(crate) struct Searcher {
     pub stats: Statistics,
-    shared: Arc<SharedState>,
+    pub shared: Arc<SharedState>,
     abort: Arc<AtomicBool>,
     repetition: IntSet<u64>,
     valid: bool,

@@ -130,9 +130,23 @@ fn spawn_search_thread(
     let board = board.clone();
     let mut best_move = None;
     std::thread::spawn(move || {
+        let mut pv = Vec::with_capacity(32);
         for depth in 1..depth_limit + 1 {
             if let Some(result) = searcher.search(&board, depth) {
-                listener.info(depth, searcher.stats, result.0, &board, &[result.1]);
+                pv.clear();
+                pv.push(result.1);
+                let mut b = board.clone();
+                b.play(result.1);
+                let mut mvs = 0;
+                while let Some(entry) = searcher.shared.tt.get(&b) {
+                    mvs += 1;
+                    if mvs < depth && b.try_play(entry.mv).unwrap() {
+                        pv.push(entry.mv);
+                    } else {
+                        break;
+                    }
+                }
+                listener.info(depth, searcher.stats, result.0, &board, &pv);
                 best_move = Some(result);
             } else {
                 break;
