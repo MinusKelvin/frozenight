@@ -74,7 +74,7 @@ impl Searcher {
         }
 
         if best_move == INVALID_MOVE {
-            panic!("root position (FEN: {root}) has no moves");
+            panic!("root position (FEN: {}) has no moves", root);
         }
 
         Some((alpha, best_move))

@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{stdout, BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::sync_channel;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use cozy_chess::{Board, Color, GameStatus, Piece, Square};
 use cozy_syzygy::{Tablebase, Wdl};
@@ -26,12 +26,12 @@ struct Options {
 fn main() {
     let options = Options::from_args();
 
-    let output = File::options()
+    let output = OpenOptions::new()
         .create_new(true)
         .write(true)
         .open("data.bin")
         .unwrap_or_else(|e| {
-            eprintln!("Could not create data.bin: {e}");
+            eprintln!("Could not create data.bin: {}", e);
             std::process::exit(1)
         });
     let output = Arc::new(Mutex::new(BufWriter::new(output)));

@@ -2,6 +2,8 @@
 
 NNUE chess engine written in Rust. [Play against it on lichess.org][lichess]
 
+The current minimum supported Rust version is 1.57.0.
+
 ## Features
 
 - [`cozy-chess`] for move generation

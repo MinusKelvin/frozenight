@@ -17,7 +17,7 @@ fn main() {
             Ok(0) => return,
             Ok(_) => {}
             Err(e) => {
-                eprintln!("Failed to read command: {e}");
+                eprintln!("Failed to read command: {}", e);
                 std::process::exit(1);
             }
         }
@@ -72,7 +72,7 @@ fn main() {
                             match fen.parse() {
                                 Ok(b) => b,
                                 Err(e) => {
-                                    eprintln!("Invalid FEN: {e:?}");
+                                    eprintln!("Invalid FEN: {:?}", e);
                                     return None;
                                 }
                             }
@@ -165,11 +165,13 @@ impl Listener for UciListener {
     fn info(&mut self, depth: u16, stats: Statistics, eval: Eval, board: &Board, pv: &[Move]) {
         let time = self.0.elapsed();
         print!(
-            "info depth {depth} seldepth {seldepth} nodes {nodes} nps {nps} score {eval} time {time} pv",
-            seldepth = stats.selective_depth,
-            nodes = stats.nodes,
-            nps = (stats.nodes as f64 / time.as_secs_f64()).round() as u64,
-            time = self.0.elapsed().as_millis()
+            "info depth {} seldepth {} nodes {} nps {} score {} time {} pv",
+            depth,
+            stats.selective_depth,
+            stats.nodes,
+            (stats.nodes as f64 / time.as_secs_f64()).round() as u64,
+            eval,
+            self.0.elapsed().as_millis()
         );
         let mut board = board.clone();
         for &mv in pv {
@@ -180,7 +182,7 @@ impl Listener for UciListener {
     }
 
     fn best_move(self, mv: Move, _: Eval) {
-        println!("bestmove {mv}");
+        println!("bestmove {}", mv);
         stdout().flush().unwrap();
     }
 }
