@@ -2,6 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use bytemuck::{Pod, Zeroable};
 use cozy_chess::{Board, Move, Piece, Square};
+use rand::prelude::*;
 
 use crate::Eval;
 
@@ -9,7 +10,7 @@ pub struct TranspositionTable {
     entries: Box<[TtEntry]>,
 }
 
-const ENTRIES_PER_MB: usize = 1024 * 1024/ std::mem::size_of::<TtEntry>();
+const ENTRIES_PER_MB: usize = 1024 * 1024 / std::mem::size_of::<TtEntry>();
 
 impl TranspositionTable {
     pub fn new(hash_mb: usize) -> Self {
@@ -20,7 +21,7 @@ impl TranspositionTable {
         }
     }
 
-    pub fn get(&self, board: &Board) -> Option<TableEntry> {
+    pub fn get(&self, board: &Board, ply_index: u16) -> Option<TableEntry> {
         let index = board.hash() as usize % self.entries.len();
         let data = self.entries[index].data.load(Ordering::Relaxed);
         let hxd = self.entries[index].hash.load(Ordering::Relaxed);
@@ -49,13 +50,22 @@ impl TranspositionTable {
                 2 => NodeKind::UpperBound,
                 _ => return None, // invalid
             },
-            eval: data.eval,
+            eval: data.eval.add_time(ply_index),
             search_depth: data.depth,
         })
     }
 
-    pub fn store(&self, board: &Board, data: TableEntry) {
+    pub fn store(&self, rng: &mut impl Rng, board: &Board, ply_index: u16, data: TableEntry) {
         let index = board.hash() as usize % self.entries.len();
+
+        let existing: TtData = bytemuck::cast(self.entries[index].data.load(Ordering::Relaxed));
+        if existing.depth > data.search_depth {
+            let diff = existing.depth - data.search_depth;
+            if rng.gen_bool(0.2 / diff as f64) {
+                return;
+            }
+        }
+
         let promo = match data.mv.promotion {
             None => 0,
             Some(Piece::Knight) => 1,
@@ -66,13 +76,15 @@ impl TranspositionTable {
         };
         let data = bytemuck::cast(TtData {
             mv: data.mv.from as u16 | (data.mv.to as u16) << 6 | promo << 12,
-            eval: data.eval,
+            eval: data.eval.sub_time(ply_index),
             depth: data.search_depth,
             kind: data.kind as u8,
             _padding: 0,
         });
         self.entries[index].data.store(data, Ordering::Relaxed);
-        self.entries[index].hash.store(board.hash() ^ data, Ordering::Relaxed);
+        self.entries[index]
+            .hash
+            .store(board.hash() ^ data, Ordering::Relaxed);
     }
 }
 

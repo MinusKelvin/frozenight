@@ -10,3 +10,5 @@ rust-version = "1.57"
 bytemuck = { version = "1.7.3", features = ["derive"] }
 cozy-chess = "0.2.1"
 nohash = "0.2.0"
+rand = "0.8.5"
+rand_pcg = "0.3.1"

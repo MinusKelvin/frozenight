@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use cozy_chess::{Board, Move, Square};
 use nohash::IntSet;
+use rand_pcg::Pcg32;
 
 use crate::nnue::NnueAccumulator;
 use crate::tt::{NodeKind, TableEntry};
@@ -22,6 +23,7 @@ const INVALID_MOVE: Move = Move {
 pub(crate) struct Searcher {
     pub stats: Statistics,
     pub shared: Arc<SharedState>,
+    rng: Pcg32,
     abort: Arc<AtomicBool>,
     repetition: IntSet<u64>,
     valid: bool,
@@ -31,12 +33,18 @@ pub(crate) struct Searcher {
 }
 
 impl Searcher {
-    pub fn new(abort: Arc<AtomicBool>, shared: Arc<SharedState>, repetition: IntSet<u64>) -> Self {
+    pub fn new(
+        abort: Arc<AtomicBool>,
+        shared: Arc<SharedState>,
+        repetition: IntSet<u64>,
+        rng: Pcg32,
+    ) -> Self {
         Searcher {
             nnue: NnueAccumulator::new(&shared.nnue),
             shared,
             abort,
             repetition,
+            rng,
             valid: true,
             stats: Default::default(),
             killers: vec![INVALID_MOVE; 128],
@@ -59,7 +67,7 @@ impl Searcher {
         let hashmove = self
             .shared
             .tt
-            .get(root)
+            .get(root, 0)
             .and_then(|entry| root.is_legal(entry.mv).then(|| entry.mv));
 
         let mut orderer = MoveOrdering::new(root, hashmove, INVALID_MOVE);
@@ -150,12 +158,12 @@ impl Searcher {
         let mut node_kind = NodeKind::UpperBound;
 
         let hashmove;
-        match self.shared.tt.get(board) {
+        match self.shared.tt.get(board, ply_index) {
             None => hashmove = None,
             Some(entry) => {
                 hashmove = board.is_legal(entry.mv).then(|| entry.mv);
 
-                let tteval = entry.eval.add_time(ply_index);
+                let tteval = entry.eval;
                 match entry.kind {
                     _ if entry.search_depth < depth => {}
                     NodeKind::Exact => return Some(tteval),
@@ -205,7 +213,7 @@ impl Searcher {
             let mut v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, d - 1)?;
 
             if v > alpha && d != depth {
-                // reduced move unexpected raised alpha; research at full depth
+                // reduced move unexpectedly raised alpha; research at full depth
                 v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, depth - 1)?;
             }
 
@@ -216,10 +224,12 @@ impl Searcher {
 
             if v >= beta {
                 self.shared.tt.store(
+                    &mut self.rng,
                     board,
+                    ply_index,
                     TableEntry {
                         mv,
-                        eval: v.sub_time(ply_index),
+                        eval: v,
                         search_depth: depth,
                         kind: NodeKind::LowerBound,
                     },
@@ -248,10 +258,12 @@ impl Searcher {
         }
 
         self.shared.tt.store(
+            &mut self.rng,
             board,
+            ply_index,
             TableEntry {
                 mv: best_move,
-                eval: best_score.sub_time(ply_index),
+                eval: best_score,
                 search_depth: depth,
                 kind: node_kind,
             },

@@ -13,6 +13,7 @@ mod tt;
 
 pub use eval::Eval;
 use nnue::Nnue;
+use rand_pcg::Pcg32;
 use search::Searcher;
 use tt::TranspositionTable;
 
@@ -78,6 +79,7 @@ impl Frozenight {
                 self.abort.clone(),
                 self.shared_state.clone(),
                 self.history.clone(),
+                Pcg32::new(0xcafef00dd15ea5e5 ^ self.board.hash(), 0xa02bdbf7bb3c0a7),
             ),
             &self.board,
             depth_limit.min(5000),
@@ -125,7 +127,7 @@ fn spawn_search_thread(
     board: &Board,
     depth_limit: u16,
     mut listener: impl Listener,
-    time_use_suggestion: Option<Instant>
+    time_use_suggestion: Option<Instant>,
 ) -> JoinHandle<()> {
     let board = board.clone();
     let mut best_move = None;
@@ -138,7 +140,7 @@ fn spawn_search_thread(
                 let mut b = board.clone();
                 b.play(result.1);
                 let mut mvs = 0;
-                while let Some(entry) = searcher.shared.tt.get(&b) {
+                while let Some(entry) = searcher.shared.tt.get(&b, 0) {
                     mvs += 1;
                     if mvs < depth && b.try_play(entry.mv).unwrap() {
                         pv.push(entry.mv);
