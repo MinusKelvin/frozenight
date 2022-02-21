@@ -133,6 +133,15 @@ impl Searcher {
     ) -> Option<Eval> {
         self.stats.nodes += 1;
 
+        // reverse futility pruning
+        if depth <= 5 {
+            let margin = 150 * depth as i16;
+            let eval = self.nnue.calculate(&self.shared.nnue, board);
+            if eval.raw() - margin >= beta.raw() {
+                return Some(eval);
+            }
+        }
+
         if board.checkers().is_empty() && depth >= 3 {
             let new_board = board.null_move().unwrap();
             // search with an empty window - we only care about if the score is high or low
