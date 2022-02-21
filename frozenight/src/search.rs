@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use cozy_chess::{Board, Move, Square};
+use cozy_chess::{Board, Move, Piece, Square};
 use nohash::IntSet;
 
 use crate::nnue::NnueAccumulator;
@@ -143,12 +143,19 @@ impl Searcher {
         }
 
         if board.checkers().is_empty() && depth >= 3 {
-            let new_board = board.null_move().unwrap();
-            // search with an empty window - we only care about if the score is high or low
-            let v = -self.visit_node(&new_board, -beta, -beta, ply_index + 1, depth - 3)?;
-            if v > beta {
-                // Null move pruning
-                return Some(beta);
+            let sliders = board.pieces(Piece::Rook)
+                | board.pieces(Piece::Bishop)
+                | board.pieces(Piece::Queen);
+            let our_sliders = sliders & board.colors(board.side_to_move());
+
+            if !our_sliders.is_empty() {
+                let new_board = board.null_move().unwrap();
+                // search with an empty window - we only care about if the score is high or low
+                let v = -self.visit_node(&new_board, -beta, -beta, ply_index + 1, depth - 3)?;
+                if v > beta {
+                    // Null move pruning
+                    return Some(beta);
+                }
             }
         }
 
