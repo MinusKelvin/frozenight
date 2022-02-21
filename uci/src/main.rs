@@ -4,7 +4,14 @@ use std::time::{Duration, Instant};
 use cozy_chess::{Board, Color, File, Move, Piece, Square};
 use frozenight::{Eval, Frozenight, Listener, Statistics};
 
+mod bench;
+
 fn main() {
+    if std::env::args().any(|arg| arg == "bench") {
+        bench::bench();
+        return;
+    }
+
     let mut frozenight = Frozenight::new(32);
 
     let mut move_overhead = Duration::from_millis(1);
