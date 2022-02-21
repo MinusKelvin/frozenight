@@ -51,7 +51,7 @@ impl Searcher {
     pub fn search(&mut self, root: &Board, depth: u16) -> Option<(Eval, Move)> {
         assert!(depth > 0);
         if !self.valid {
-            panic!("attempt to search using an invalid searcher");
+            panic!("attempt to search using an aborted searcher");
         }
         let mut alpha = -Eval::MATE;
         let mut best_move = INVALID_MOVE;
@@ -74,7 +74,7 @@ impl Searcher {
         }
 
         if best_move == INVALID_MOVE {
-            panic!("root position has no moves");
+            panic!("root position (FEN: {root}) has no moves");
         }
 
         Some((alpha, best_move))

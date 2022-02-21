@@ -38,6 +38,18 @@ impl NnueAccumulator {
     }
 
     pub fn calculate(&mut self, nn: &Nnue, board: &Board) -> Eval {
+        self.update_features(nn, board);
+
+        let l1_input = bytemuck::cast([
+            clipped_relu(self.inputs[board.side_to_move() as usize]),
+            clipped_relu(self.inputs[!board.side_to_move() as usize]),
+        ]);
+        let output = vdot(l1_input, nn.hidden_layer);
+
+        Eval::new((nn.hidden_layer_bias + output) as i16)
+    }
+
+    fn update_features(&mut self, nn: &Nnue, board: &Board) {
         let mut new_colors = [BitBoard::EMPTY; Color::NUM];
         for color in Color::ALL {
             new_colors[color as usize] = board.colors(color);
@@ -77,14 +89,6 @@ impl NnueAccumulator {
 
         self.colors = new_colors;
         self.pieces = new_pieces;
-
-        let l1_input = bytemuck::cast([
-            clipped_relu(self.inputs[board.side_to_move() as usize]),
-            clipped_relu(self.inputs[!board.side_to_move() as usize]),
-        ]);
-        let output = vdot(l1_input, nn.hidden_layer);
-
-        Eval::new((nn.hidden_layer_bias + output) as i16)
     }
 }
 
