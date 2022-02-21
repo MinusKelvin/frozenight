@@ -82,6 +82,30 @@ impl std::ops::Neg for Eval {
     }
 }
 
+impl std::ops::Add<i16> for Eval {
+    type Output = Eval;
+
+    fn add(self, rhs: i16) -> Self::Output {
+        if self.is_conclusive() {
+            self
+        } else {
+            Eval::new(self.0 + rhs)
+        }
+    }
+}
+
+impl std::ops::Sub<i16> for Eval {
+    type Output = Eval;
+
+    fn sub(self, rhs: i16) -> Self::Output {
+        if self.is_conclusive() {
+            self
+        } else {
+            Eval::new(self.0 - rhs)
+        }
+    }
+}
+
 impl std::fmt::Display for Eval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.plys_to_conclusion() {
