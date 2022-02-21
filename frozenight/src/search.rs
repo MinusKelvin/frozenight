@@ -133,11 +133,11 @@ impl Searcher {
     ) -> Option<Eval> {
         self.stats.nodes += 1;
 
-        // reverse futility pruning
+        // reverse futility pruning... but with qsearch
         if depth <= 5 {
             let margin = 150 * depth as i16;
-            let eval = self.nnue.calculate(&self.shared.nnue, board);
-            if eval.raw() - margin >= beta.raw() {
+            let eval = self.qsearch(board, beta + margin, beta + margin, ply_index);
+            if eval - margin >= beta {
                 return Some(eval);
             }
         }
