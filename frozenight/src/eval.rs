@@ -68,6 +68,10 @@ impl Eval {
             self
         }
     }
+
+    pub fn raw(self) -> i16 {
+        self.0
+    }
 }
 
 impl std::ops::Neg for Eval {
