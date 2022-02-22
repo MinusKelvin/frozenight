@@ -170,6 +170,8 @@ struct UciListener(Instant);
 
 impl Listener for UciListener {
     fn info(&mut self, depth: u16, stats: Statistics, eval: Eval, board: &Board, pv: &[Move]) {
+        #[cfg(feature = "ob-no-adjudicate")]
+        let eval = Eval::new(100);
         let time = self.0.elapsed();
         print!(
             "info depth {} seldepth {} nodes {} nps {} score {} time {} pv",
