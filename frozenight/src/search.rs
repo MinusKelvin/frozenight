@@ -142,7 +142,7 @@ impl Searcher {
         // reverse futility pruning... but with qsearch
         if depth <= 5 {
             let margin = 250 * depth as i16;
-            let eval = self.qsearch(board, beta + margin, beta + margin, ply_index);
+            let eval = self.qsearch(board, beta + margin - 1, beta + margin, ply_index);
             if eval - margin >= beta {
                 return Some(eval);
             }
@@ -151,7 +151,7 @@ impl Searcher {
         if board.checkers().is_empty() && depth >= 3 {
             let new_board = board.null_move().unwrap();
             // search with an empty window - we only care about if the score is high or low
-            let v = -self.visit_node(&new_board, -beta, -beta, ply_index + 1, depth - 3)?;
+            let v = -self.visit_node(&new_board, -beta - 1, -beta, ply_index + 1, depth - 3)?;
             if v > beta {
                 // Null move pruning
                 return Some(v);
