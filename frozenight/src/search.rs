@@ -133,31 +133,6 @@ impl Searcher {
     ) -> Option<Eval> {
         self.stats.nodes += 1;
 
-        // reverse futility pruning... but with qsearch
-        if depth <= 5 {
-            let margin = 150 * depth as i16;
-            let eval = self.qsearch(board, beta + margin, beta + margin, ply_index);
-            if eval - margin >= beta {
-                return Some(eval);
-            }
-        }
-
-        if board.checkers().is_empty() && depth >= 3 {
-            let new_board = board.null_move().unwrap();
-            // search with an empty window - we only care about if the score is high or low
-            let v = -self.visit_node(&new_board, -beta, -beta, ply_index + 1, depth - 3)?;
-            if v > beta {
-                // Null move pruning
-                return Some(beta);
-            }
-        }
-
-        // It is impossible to accidentally return this score because the worst move that could
-        // possibly be returned by visit_node is -Eval::MATE.add(1) which is better than this
-        let mut best_score = -Eval::MATE;
-        let mut best_move = INVALID_MOVE;
-        let mut node_kind = NodeKind::UpperBound;
-
         let hashmove;
         match self.shared.tt.get(board) {
             None => hashmove = None,
@@ -191,6 +166,31 @@ impl Searcher {
                 }
             }
         }
+
+        // reverse futility pruning... but with qsearch
+        if depth <= 5 {
+            let margin = 150 * depth as i16;
+            let eval = self.qsearch(board, beta + margin, beta + margin, ply_index);
+            if eval - margin >= beta {
+                return Some(eval);
+            }
+        }
+
+        if board.checkers().is_empty() && depth >= 3 {
+            let new_board = board.null_move().unwrap();
+            // search with an empty window - we only care about if the score is high or low
+            let v = -self.visit_node(&new_board, -beta, -beta, ply_index + 1, depth - 3)?;
+            if v > beta {
+                // Null move pruning
+                return Some(beta);
+            }
+        }
+
+        // It is impossible to accidentally return this score because the worst move that could
+        // possibly be returned by visit_node is -Eval::MATE.add(1) which is better than this
+        let mut best_score = -Eval::MATE;
+        let mut best_move = INVALID_MOVE;
+        let mut node_kind = NodeKind::UpperBound;
 
         let mut ordering = MoveOrdering::new(board, hashmove, *self.killer(ply_index));
         let mut quiets = 0;
