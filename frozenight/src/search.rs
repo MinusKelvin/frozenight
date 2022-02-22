@@ -112,13 +112,19 @@ impl Searcher {
         }
 
         let result = if depth == 0 {
-            Some(self.qsearch(board, alpha, beta, ply_index))
+            self.qsearch(board, alpha, beta, ply_index)
         } else {
-            self.alpha_beta(board, alpha, beta, ply_index, depth)
+            self.alpha_beta(board, alpha, beta, ply_index, depth)?
         };
 
+        // Sanity check that conclusive scores are valid
+        #[cfg(debug_assertions)]
+        if let Some(plys) = result.plys_to_conclusion() {
+            debug_assert!(plys.abs() >= ply_index as i16);
+        }
+
         self.repetition.remove(&board.hash());
-        result
+        Some(result)
     }
 
     /// Invariant: `self` is unchanged if this function returns `Some`.
@@ -148,7 +154,7 @@ impl Searcher {
             let v = -self.visit_node(&new_board, -beta, -beta, ply_index + 1, depth - 3)?;
             if v > beta {
                 // Null move pruning
-                return Some(beta);
+                return Some(v);
             }
         }
 
