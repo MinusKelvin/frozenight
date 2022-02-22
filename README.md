@@ -17,6 +17,7 @@ The current minimum supported Rust version is 1.57.0.
   - Width limiting to prevent search explosion
 - Late move reductions
 - Null move pruning
+- Reverse futility pruning, except using qsearch instead of static eval
 - Transposition Table
   - Always replace
 - Move ordering
