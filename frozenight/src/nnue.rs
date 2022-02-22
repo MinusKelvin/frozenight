@@ -109,7 +109,11 @@ fn vsub<const N: usize>(a: [i32; N], b: [i32; N]) -> [i32; N] {
 }
 
 fn clipped_relu<const N: usize>(a: [i32; N]) -> [i32; N] {
-    a.map(|v| v.clamp(0, 127))
+    let mut result = [0; N];
+    for i in 0..N {
+        result[i] = a[i].clamp(0, 127);
+    }
+    result
 }
 
 fn vdot<const N: usize>(a: [i32; N], b: [i32; N]) -> i32 {
