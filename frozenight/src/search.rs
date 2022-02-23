@@ -204,24 +204,31 @@ impl Searcher {
         let mut quiets = 0;
         while let Some(mv) = ordering.next(&self.history) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
+            let v;
 
-            let d = if quiets < 4
-                || position.board.color_on(mv.to) == Some(!position.board.side_to_move())
-                || !new_pos.board.checkers().is_empty()
-            {
-                depth
-            } else if quiets < 12 && depth >= 2 {
-                depth - 1
-            } else if depth >= 3 {
-                depth - 2
+            let do_lmr = new_pos.board.checkers().is_empty()
+                && position.board.color_on(mv.to) != Some(new_pos.board.side_to_move())
+                && quiets > 3
+                && depth > 1;
+
+            if do_lmr {
+                let reduction = (64 - ((depth - 1) as u64 * quiets).leading_zeros() as u16) / 2;
+
+                let d = match reduction >= depth {
+                    true => 1,
+                    false => depth - reduction,
+                };
+
+                // search with null window to test if value is > alpha
+                let test = -self.visit_node(new_pos, -alpha, -alpha + 1, d - 1)?;
+
+                if test > alpha {
+                    // reduced move unexepectedly raised alpha; re-search at full depth
+                    v = -self.visit_node(new_pos, -beta, -alpha, depth - 1)?;
+                } else {
+                    v = test;
+                }
             } else {
-                depth
-            };
-
-            let mut v = -self.visit_node(new_pos, -beta, -alpha, d - 1)?;
-
-            if v > alpha && d != depth {
-                // reduced move unexpected raised alpha; research at full depth
                 v = -self.visit_node(new_pos, -beta, -alpha, depth - 1)?;
             }
 
