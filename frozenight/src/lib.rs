@@ -3,19 +3,25 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use cozy_chess::{Board, Move};
+use cozy_chess::{Board, Move, Square};
 use nohash::{IntMap, IntSet};
 
 mod eval;
 mod nnue;
+mod position;
 mod search;
 mod tt;
-mod position;
 
 pub use eval::Eval;
 use nnue::Nnue;
 use search::Searcher;
 use tt::TranspositionTable;
+
+const INVALID_MOVE: Move = Move {
+    from: Square::A1,
+    to: Square::A1,
+    promotion: None,
+};
 
 pub struct Frozenight {
     board: Board,
@@ -126,7 +132,7 @@ fn spawn_search_thread(
     board: &Board,
     depth_limit: u16,
     mut listener: impl Listener,
-    time_use_suggestion: Option<Instant>
+    time_use_suggestion: Option<Instant>,
 ) -> JoinHandle<()> {
     let board = board.clone();
     let mut best_move = None;

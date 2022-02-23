@@ -1,23 +1,17 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use cozy_chess::{Board, Move, Square};
+use cozy_chess::{Board, Move};
 use nohash::IntSet;
 
 use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
-use crate::{Eval, SharedState, Statistics};
+use crate::{Eval, SharedState, Statistics, INVALID_MOVE};
 
 use self::ordering::{HistoryTable, MoveOrdering};
 
 mod ordering;
 mod qsearch;
-
-const INVALID_MOVE: Move = Move {
-    from: Square::A1,
-    to: Square::A1,
-    promotion: None,
-};
 
 pub(crate) struct Searcher {
     pub stats: Statistics,
@@ -56,11 +50,7 @@ impl Searcher {
 
         let position = Position::from_root(root.clone(), &self.shared.nnue);
 
-        let hashmove = self
-            .shared
-            .tt
-            .get(&position)
-            .and_then(|entry| root.is_legal(entry.mv).then(|| entry.mv));
+        let hashmove = self.shared.tt.get_move(&position.board);
 
         let mut orderer = MoveOrdering::new(root, hashmove, INVALID_MOVE);
         while let Some(mv) = orderer.next(&self.history) {
@@ -167,34 +157,29 @@ impl Searcher {
         let mut best_move = INVALID_MOVE;
         let mut node_kind = NodeKind::UpperBound;
 
-        let hashmove;
-        match self.shared.tt.get(&position) {
-            None => hashmove = None,
-            Some(entry) => {
-                hashmove = position.board.is_legal(entry.mv).then(|| entry.mv);
-
-                match entry.kind {
-                    _ if entry.search_depth < depth => {}
-                    NodeKind::Exact => return Some(entry.eval),
-                    NodeKind::LowerBound => {
-                        // raise alpha
-                        if entry.eval >= beta {
-                            // fail-high
-                            return Some(entry.eval);
-                        }
-                        if entry.eval > alpha {
-                            alpha = entry.eval;
-                        }
+        let hashmove = self.shared.tt.get_move(&position.board);
+        if let Some(entry) = self.shared.tt.get_eval(position) {
+            match entry.kind {
+                _ if entry.depth < depth => {}
+                NodeKind::Exact => return Some(entry.eval),
+                NodeKind::LowerBound => {
+                    // raise alpha
+                    if entry.eval >= beta {
+                        // fail-high
+                        return Some(entry.eval);
                     }
-                    NodeKind::UpperBound => {
-                        // lower beta
-                        if entry.eval <= alpha {
-                            // fail-low
-                            return Some(entry.eval);
-                        }
-                        if entry.eval < beta {
-                            beta = entry.eval;
-                        }
+                    if entry.eval > alpha {
+                        alpha = entry.eval;
+                    }
+                }
+                NodeKind::UpperBound => {
+                    // lower beta
+                    if entry.eval <= alpha {
+                        // fail-low
+                        return Some(entry.eval);
+                    }
+                    if entry.eval < beta {
+                        beta = entry.eval;
                     }
                 }
             }
@@ -234,11 +219,11 @@ impl Searcher {
                 self.shared.tt.store(
                     &position,
                     TableEntry {
-                        mv,
                         eval: v,
-                        search_depth: depth,
+                        depth,
                         kind: NodeKind::LowerBound,
                     },
+                    mv,
                 );
                 // caused a beta cutoff, update the killer at this ply
                 if quiet {
@@ -266,11 +251,11 @@ impl Searcher {
         self.shared.tt.store(
             &position,
             TableEntry {
-                mv: best_move,
                 eval: best_score,
-                search_depth: depth,
+                depth,
                 kind: node_kind,
             },
+            best_move,
         );
 
         Some(best_score)
