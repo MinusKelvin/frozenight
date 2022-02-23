@@ -205,7 +205,9 @@ impl Searcher {
         while let Some(mv) = ordering.next(&self.history) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
 
-            let d = if quiets < 4
+            let d = if !position.board.checkers().is_empty() {
+                depth + 1
+            } else if quiets < 4
                 || position.board.color_on(mv.to) == Some(!position.board.side_to_move())
                 || !new_pos.board.checkers().is_empty()
             {
