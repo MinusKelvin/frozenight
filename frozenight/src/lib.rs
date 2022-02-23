@@ -10,6 +10,7 @@ mod eval;
 mod nnue;
 mod search;
 mod tt;
+mod position;
 
 pub use eval::Eval;
 use nnue::Nnue;
@@ -138,10 +139,10 @@ fn spawn_search_thread(
                 let mut b = board.clone();
                 b.play(result.1);
                 let mut mvs = 0;
-                while let Some(entry) = searcher.shared.tt.get(&b) {
+                while let Some(mv) = searcher.shared.tt.get_move(&b) {
                     mvs += 1;
-                    if mvs < depth && b.try_play(entry.mv).unwrap() {
-                        pv.push(entry.mv);
+                    if mvs < depth && b.try_play(mv).unwrap() {
+                        pv.push(mv);
                     } else {
                         break;
                     }

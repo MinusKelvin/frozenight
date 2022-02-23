@@ -3,13 +3,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use bytemuck::{Pod, Zeroable};
 use cozy_chess::{Board, Move, Piece, Square};
 
+use crate::position::Position;
 use crate::Eval;
 
 pub struct TranspositionTable {
     entries: Box<[TtEntry]>,
 }
 
-const ENTRIES_PER_MB: usize = 1024 * 1024/ std::mem::size_of::<TtEntry>();
+const ENTRIES_PER_MB: usize = 1024 * 1024 / std::mem::size_of::<TtEntry>();
 
 impl TranspositionTable {
     pub fn new(hash_mb: usize) -> Self {
@@ -20,11 +21,33 @@ impl TranspositionTable {
         }
     }
 
-    pub fn get(&self, board: &Board) -> Option<TableEntry> {
+    pub fn get_move(&self, board: &Board) -> Option<Move> {
         let index = board.hash() as usize % self.entries.len();
         let data = self.entries[index].data.load(Ordering::Relaxed);
         let hxd = self.entries[index].hash.load(Ordering::Relaxed);
         if hxd ^ data != board.hash() {
+            return None;
+        }
+        let data: TtData = bytemuck::cast(data);
+        Some(Move {
+            from: Square::index(data.mv as usize & 0x3F),
+            to: Square::index(data.mv as usize >> 6 & 0x3F),
+            promotion: match data.mv as usize >> 12 {
+                0 => None,
+                1 => Some(Piece::Knight),
+                2 => Some(Piece::Bishop),
+                3 => Some(Piece::Rook),
+                4 => Some(Piece::Queen),
+                _ => return None, // invalid
+            },
+        })
+    }
+
+    pub fn get(&self, position: &Position) -> Option<TableEntry> {
+        let index = position.board.hash() as usize % self.entries.len();
+        let data = self.entries[index].data.load(Ordering::Relaxed);
+        let hxd = self.entries[index].hash.load(Ordering::Relaxed);
+        if hxd ^ data != position.board.hash() {
             return None;
         }
         // marshal between usable type and stored data
@@ -49,13 +72,13 @@ impl TranspositionTable {
                 2 => NodeKind::UpperBound,
                 _ => return None, // invalid
             },
-            eval: data.eval,
+            eval: data.eval.add_time(position.ply),
             search_depth: data.depth,
         })
     }
 
-    pub fn store(&self, board: &Board, data: TableEntry) {
-        let index = board.hash() as usize % self.entries.len();
+    pub fn store(&self, position: &Position, data: TableEntry) {
+        let index = position.board.hash() as usize % self.entries.len();
         let promo = match data.mv.promotion {
             None => 0,
             Some(Piece::Knight) => 1,
@@ -66,13 +89,15 @@ impl TranspositionTable {
         };
         let data = bytemuck::cast(TtData {
             mv: data.mv.from as u16 | (data.mv.to as u16) << 6 | promo << 12,
-            eval: data.eval,
+            eval: data.eval.sub_time(position.ply),
             depth: data.search_depth,
             kind: data.kind as u8,
             _padding: 0,
         });
         self.entries[index].data.store(data, Ordering::Relaxed);
-        self.entries[index].hash.store(board.hash() ^ data, Ordering::Relaxed);
+        self.entries[index]
+            .hash
+            .store(position.board.hash() ^ data, Ordering::Relaxed);
     }
 }
 

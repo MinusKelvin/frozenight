@@ -1,6 +1,6 @@
-use cozy_chess::{BitBoard, Board, Piece};
+use cozy_chess::{BitBoard, Piece};
 
-use crate::nnue::NnueAccumulator;
+use crate::position::Position;
 use crate::Eval;
 
 use super::Searcher;
@@ -9,40 +9,25 @@ const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
 
 impl Searcher {
-    pub fn qsearch(&mut self, nnue: &NnueAccumulator, board: &Board, alpha: Eval, beta: Eval, ply_index: u16) -> Eval {
-        self.qsearch_impl(
-            nnue,
-            board,
-            alpha,
-            beta,
-            ply_index,
-            0,
-        )
+    pub fn qsearch(&mut self, position: &Position, alpha: Eval, beta: Eval) -> Eval {
+        self.qsearch_impl(position, alpha, beta, 0)
     }
 
-    fn qsearch_impl(
-        &mut self,
-        nnue: &NnueAccumulator,
-        board: &Board,
-        mut alpha: Eval,
-        beta: Eval,
-        ply_index: u16,
-        qply: u16,
-    ) -> Eval {
-        self.stats.selective_depth = self.stats.selective_depth.max(ply_index);
+    fn qsearch_impl(&mut self, position: &Position, mut alpha: Eval, beta: Eval, qply: u16) -> Eval {
+        self.stats.selective_depth = self.stats.selective_depth.max(position.ply);
         self.stats.nodes += 1;
 
-        let in_check = !board.checkers().is_empty();
+        let in_check = !position.board.checkers().is_empty();
 
         let permitted;
         let mut best;
 
         if in_check {
-            best = -Eval::MATE.add_time(ply_index);
+            best = -Eval::MATE.add_time(position.ply);
             permitted = BitBoard::FULL;
         } else {
-            best = nnue.calculate(&self.shared.nnue);
-            permitted = board.colors(!board.side_to_move());
+            best = position.static_eval(&self.shared.nnue);
+            permitted = position.board.colors(!position.board.side_to_move());
         }
 
         if best > alpha {
@@ -54,11 +39,11 @@ impl Searcher {
 
         let mut moves = Vec::with_capacity(16);
         let mut had_moves = false;
-        board.generate_moves(|mut mvs| {
+        position.board.generate_moves(|mut mvs| {
             mvs.to &= permitted;
             had_moves = true;
             for mv in mvs {
-                match board.piece_on(mv.to) {
+                match position.board.piece_on(mv.to) {
                     Some(victim) => {
                         let attacker = PIECE_ORDINALS[mvs.piece as usize];
                         let victim = PIECE_ORDINALS[victim as usize] * 4;
@@ -88,14 +73,10 @@ impl Searcher {
             }
             let mv = moves.swap_remove(index).0;
 
-            let mut new_board = board.clone();
-            new_board.play_unchecked(mv);
             let v = -self.qsearch_impl(
-                &nnue.play_move(&self.shared.nnue, board, mv),
-                &new_board,
+                &position.play_move(&self.shared.nnue, mv),
                 -beta,
                 -alpha,
-                ply_index + 1,
                 qply + 1,
             );
             if v > best {
