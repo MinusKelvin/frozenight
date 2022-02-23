@@ -6,7 +6,7 @@ use crate::Eval;
 use super::Searcher;
 
 const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
-const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
+const BREADTH_LIMIT: [u8; 10] = [16, 8, 5, 4, 4, 3, 3, 2, 2, 2];
 
 impl Searcher {
     pub fn qsearch(&mut self, position: &Position, alpha: Eval, beta: Eval) -> Eval {
@@ -62,7 +62,7 @@ impl Searcher {
         let mut i = 0;
         let limit = match in_check {
             true => 100,
-            false => BREADTH_LIMIT.get(qply as usize).copied().unwrap_or(0),
+            false => BREADTH_LIMIT.get(qply as usize).copied().unwrap_or(1),
         };
         while !moves.is_empty() && i < limit {
             let mut index = 0;
