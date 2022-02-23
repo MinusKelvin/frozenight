@@ -208,6 +208,7 @@ impl Searcher {
             let d = if quiets < 4
                 || position.board.color_on(mv.to) == Some(!position.board.side_to_move())
                 || !new_pos.board.checkers().is_empty()
+                || !position.board.checkers().is_empty()
             {
                 depth
             } else if quiets < 12 && depth >= 2 {
