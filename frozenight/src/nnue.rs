@@ -1,4 +1,4 @@
-use cozy_chess::{BitBoard, Board, Color, Piece, Square};
+use cozy_chess::{Board, Color, File, Move, Piece, Rank, Square};
 
 use crate::Eval;
 
@@ -15,11 +15,9 @@ pub struct Nnue {
 
 #[derive(Clone, Copy, Debug)]
 pub struct NnueAccumulator {
-    inputs: [Vector; Color::NUM],
-
-    // active features
-    colors: [BitBoard; Color::NUM],
-    pieces: [BitBoard; Piece::NUM],
+    white: Vector,
+    black: Vector,
+    side_to_move: Color,
 }
 
 impl Nnue {
@@ -29,66 +27,129 @@ impl Nnue {
 }
 
 impl NnueAccumulator {
-    pub fn new(nn: &Nnue) -> Self {
+    pub fn new(board: &Board, nn: &Nnue) -> Self {
+        let mut white = nn.input_layer_bias;
+        let mut black = nn.input_layer_bias;
+        for p in Piece::ALL {
+            for sq in board.pieces(p) {
+                let color = match board.colors(Color::White).has(sq) {
+                    true => Color::White,
+                    false => Color::Black,
+                };
+                white = vadd(white, nn.input_layer[feature(color, p, sq)]);
+                black = vadd(black, nn.input_layer[feature(!color, p, sq.flip_rank())]);
+            }
+        }
         NnueAccumulator {
-            inputs: [nn.input_layer_bias; Color::NUM],
-            colors: [BitBoard::EMPTY; Color::NUM],
-            pieces: [BitBoard::EMPTY; Piece::NUM],
+            white,
+            black,
+            side_to_move: board.side_to_move(),
         }
     }
 
-    pub fn calculate(&mut self, nn: &Nnue, board: &Board) -> Eval {
-        self.update_features(nn, board);
-
-        let l1_input = bytemuck::cast([
-            clipped_relu(self.inputs[board.side_to_move() as usize]),
-            clipped_relu(self.inputs[!board.side_to_move() as usize]),
-        ]);
+    pub fn calculate(&self, nn: &Nnue) -> Eval {
+        let l1_input = clipped_relu(bytemuck::cast(match self.side_to_move {
+            Color::White => [self.white, self.black],
+            Color::Black => [self.black, self.white],
+        }));
         let output = vdot(l1_input, nn.hidden_layer);
 
         Eval::new((nn.hidden_layer_bias + output) as i16)
     }
 
-    fn update_features(&mut self, nn: &Nnue, board: &Board) {
-        let mut new_colors = [BitBoard::EMPTY; Color::NUM];
-        for color in Color::ALL {
-            new_colors[color as usize] = board.colors(color);
+    pub fn swap_sides(&self) -> Self {
+        NnueAccumulator {
+            side_to_move: !self.side_to_move,
+            ..*self
         }
-        let mut new_pieces = [BitBoard::EMPTY; Piece::NUM];
-        for piece in Piece::ALL {
-            new_pieces[piece as usize] = board.pieces(piece);
+    }
+
+    pub fn play_move(&self, nn: &Nnue, board: &Board, mv: Move) -> Self {
+        let mut result = self.swap_sides();
+
+        let us = board.side_to_move();
+        let moved = board.piece_on(mv.from).unwrap();
+
+        // remove piece on from square
+        result.white = vsub(result.white, nn.input_layer[feature(us, moved, mv.from)]);
+        result.black = vsub(
+            result.black,
+            nn.input_layer[feature(!us, moved, mv.from.flip_rank())],
+        );
+
+        // remove piece on to square
+        if let Some((color, piece)) = board.color_on(mv.to).zip(board.piece_on(mv.to)) {
+            result.white = vsub(result.white, nn.input_layer[feature(color, piece, mv.to)]);
+            result.black = vsub(
+                result.black,
+                nn.input_layer[feature(!color, piece, mv.to.flip_rank())],
+            )
         }
 
-        // TODO: there *has* to be a better way of diffing feature sets
-        for piece in Piece::ALL {
-            for color in Color::ALL {
-                let previous = self.colors[color as usize] & self.pieces[piece as usize];
-                let new = new_colors[color as usize] & new_pieces[piece as usize];
-                for sq in previous & !new {
-                    self.inputs[Color::White as usize] = vsub(
-                        self.inputs[Color::White as usize],
-                        nn.input_layer[feature(color, piece, sq)],
-                    );
-                    self.inputs[Color::Black as usize] = vsub(
-                        self.inputs[Color::Black as usize],
-                        nn.input_layer[feature(!color, piece, sq.flip_rank())],
-                    );
-                }
-                for sq in new & !previous {
-                    self.inputs[Color::White as usize] = vadd(
-                        self.inputs[Color::White as usize],
-                        nn.input_layer[feature(color, piece, sq)],
-                    );
-                    self.inputs[Color::Black as usize] = vadd(
-                        self.inputs[Color::Black as usize],
-                        nn.input_layer[feature(!color, piece, sq.flip_rank())],
-                    );
-                }
+        // remove EP-captured pawn
+        if let Some(ep_file) = board.en_passant() {
+            if moved == Piece::Pawn && mv.to == Square::new(ep_file, Rank::Sixth.relative_to(us)) {
+                result.white = vsub(
+                    result.white,
+                    nn.input_layer[feature(
+                        !us,
+                        Piece::Pawn,
+                        Square::new(ep_file, Rank::Fifth.relative_to(us)),
+                    )],
+                );
             }
         }
 
-        self.colors = new_colors;
-        self.pieces = new_pieces;
+        if board.color_on(mv.from) == board.color_on(mv.to) {
+            if mv.from.file() < mv.to.file() {
+                // castle queen-side
+                let rank = Rank::First.relative_to(us);
+                result.white = vadd(
+                    result.white,
+                    nn.input_layer[feature(us, Piece::King, Square::new(File::C, rank))],
+                );
+                result.white = vadd(
+                    result.white,
+                    nn.input_layer[feature(us, Piece::Rook, Square::new(File::D, rank))],
+                );
+                result.black = vadd(
+                    result.black,
+                    nn.input_layer[feature(!us, Piece::King, Square::new(File::C, rank.flip()))],
+                );
+                result.black = vadd(
+                    result.black,
+                    nn.input_layer[feature(!us, Piece::Rook, Square::new(File::D, rank.flip()))],
+                );
+            } else {
+                // castle king-side
+                let rank = Rank::First.relative_to(us);
+                result.white = vadd(
+                    result.white,
+                    nn.input_layer[feature(us, Piece::King, Square::new(File::G, rank))],
+                );
+                result.white = vadd(
+                    result.white,
+                    nn.input_layer[feature(us, Piece::Rook, Square::new(File::F, rank))],
+                );
+                result.black = vadd(
+                    result.black,
+                    nn.input_layer[feature(!us, Piece::King, Square::new(File::G, rank.flip()))],
+                );
+                result.black = vadd(
+                    result.black,
+                    nn.input_layer[feature(!us, Piece::Rook, Square::new(File::F, rank.flip()))],
+                );
+            }
+        } else {
+            let added = mv.promotion.unwrap_or(moved);
+            result.white = vadd(result.white, nn.input_layer[feature(us, added, mv.to)]);
+            result.black = vadd(
+                result.black,
+                nn.input_layer[feature(!us, added, mv.to.flip_rank())],
+            );
+        }
+
+        result
     }
 }
 

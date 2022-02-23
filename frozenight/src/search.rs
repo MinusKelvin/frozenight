@@ -25,7 +25,6 @@ pub(crate) struct Searcher {
     abort: Arc<AtomicBool>,
     repetition: IntSet<u64>,
     valid: bool,
-    nnue: NnueAccumulator,
     killers: Vec<Move>,
     history: HistoryTable,
 }
@@ -33,7 +32,6 @@ pub(crate) struct Searcher {
 impl Searcher {
     pub fn new(abort: Arc<AtomicBool>, shared: Arc<SharedState>, repetition: IntSet<u64>) -> Self {
         Searcher {
-            nnue: NnueAccumulator::new(&shared.nnue),
             shared,
             abort,
             repetition,
@@ -62,11 +60,20 @@ impl Searcher {
             .get(root)
             .and_then(|entry| root.is_legal(entry.mv).then(|| entry.mv));
 
+        let nnue = NnueAccumulator::new(root, &self.shared.nnue);
+
         let mut orderer = MoveOrdering::new(root, hashmove, INVALID_MOVE);
         while let Some(mv) = orderer.next(&self.history) {
             let mut new_board = root.clone();
             new_board.play_unchecked(mv);
-            let v = -self.visit_node(&new_board, -Eval::MATE, -alpha, 1, depth - 1)?;
+            let v = -self.visit_node(
+                &nnue.play_move(&self.shared.nnue, root, mv),
+                &new_board,
+                -Eval::MATE,
+                -alpha,
+                1,
+                depth - 1,
+            )?;
             if v > alpha {
                 alpha = v;
                 best_move = mv;
@@ -91,6 +98,7 @@ impl Searcher {
 
     fn visit_node(
         &mut self,
+        nnue: &NnueAccumulator,
         board: &Board,
         alpha: Eval,
         beta: Eval,
@@ -112,9 +120,9 @@ impl Searcher {
         }
 
         let result = if depth == 0 {
-            self.qsearch(board, alpha, beta, ply_index)
+            self.qsearch(nnue, board, alpha, beta, ply_index)
         } else {
-            self.alpha_beta(board, alpha, beta, ply_index, depth)?
+            self.alpha_beta(nnue, board, alpha, beta, ply_index, depth)?
         };
 
         // Sanity check that conclusive scores are valid
@@ -131,6 +139,7 @@ impl Searcher {
     /// If the side to move has no moves, this returns `-Eval::MATE` even if it is stalemate.
     fn alpha_beta(
         &mut self,
+        nnue: &NnueAccumulator,
         board: &Board,
         mut alpha: Eval,
         mut beta: Eval,
@@ -142,7 +151,7 @@ impl Searcher {
         // reverse futility pruning... but with qsearch
         if depth <= 5 {
             let margin = 250 * depth as i16;
-            let eval = self.qsearch(board, beta + margin - 1, beta + margin, ply_index);
+            let eval = self.qsearch(nnue, board, beta + margin - 1, beta + margin, ply_index);
             if eval - margin >= beta {
                 return Some(eval);
             }
@@ -151,7 +160,14 @@ impl Searcher {
         if board.checkers().is_empty() && depth >= 3 {
             let new_board = board.null_move().unwrap();
             // search with an empty window - we only care about if the score is high or low
-            let v = -self.visit_node(&new_board, -beta - 1, -beta, ply_index + 1, depth - 3)?;
+            let v = -self.visit_node(
+                &nnue.swap_sides(),
+                &new_board,
+                -beta - 1,
+                -beta,
+                ply_index + 1,
+                depth - 3,
+            )?;
             if v > beta {
                 // Null move pruning
                 return Some(v);
@@ -217,11 +233,25 @@ impl Searcher {
                 depth
             };
 
-            let mut v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, d - 1)?;
+            let mut v = -self.visit_node(
+                &nnue.play_move(&self.shared.nnue, board, mv),
+                &new_board,
+                -beta,
+                -alpha,
+                ply_index + 1,
+                d - 1,
+            )?;
 
             if v > alpha && d != depth {
                 // reduced move unexpected raised alpha; research at full depth
-                v = -self.visit_node(&new_board, -beta, -alpha, ply_index + 1, depth - 1)?;
+                v = -self.visit_node(
+                    &nnue.play_move(&self.shared.nnue, board, mv),
+                    &new_board,
+                    -beta,
+                    -alpha,
+                    ply_index + 1,
+                    depth - 1,
+                )?;
             }
 
             let quiet = board.color_on(mv.to) != Some(!board.side_to_move());

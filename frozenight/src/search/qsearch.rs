@@ -1,5 +1,6 @@
 use cozy_chess::{BitBoard, Board, Piece};
 
+use crate::nnue::NnueAccumulator;
 use crate::Eval;
 
 use super::Searcher;
@@ -8,12 +9,20 @@ const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
 
 impl Searcher {
-    pub fn qsearch(&mut self, board: &Board, alpha: Eval, beta: Eval, ply_index: u16) -> Eval {
-        self.qsearch_impl(board, alpha, beta, ply_index, 0)
+    pub fn qsearch(&mut self, nnue: &NnueAccumulator, board: &Board, alpha: Eval, beta: Eval, ply_index: u16) -> Eval {
+        self.qsearch_impl(
+            nnue,
+            board,
+            alpha,
+            beta,
+            ply_index,
+            0,
+        )
     }
 
     fn qsearch_impl(
         &mut self,
+        nnue: &NnueAccumulator,
         board: &Board,
         mut alpha: Eval,
         beta: Eval,
@@ -32,7 +41,7 @@ impl Searcher {
             best = -Eval::MATE.add_time(ply_index);
             permitted = BitBoard::FULL;
         } else {
-            best = self.nnue.calculate(&self.shared.nnue, board);
+            best = nnue.calculate(&self.shared.nnue);
             permitted = board.colors(!board.side_to_move());
         }
 
@@ -81,7 +90,14 @@ impl Searcher {
 
             let mut new_board = board.clone();
             new_board.play_unchecked(mv);
-            let v = -self.qsearch_impl(&new_board, -beta, -alpha, ply_index + 1, qply + 1);
+            let v = -self.qsearch_impl(
+                &nnue.play_move(&self.shared.nnue, board, mv),
+                &new_board,
+                -beta,
+                -alpha,
+                ply_index + 1,
+                qply + 1,
+            );
             if v > best {
                 best = v;
             }
