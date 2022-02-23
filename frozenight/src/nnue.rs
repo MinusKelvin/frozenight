@@ -13,7 +13,7 @@ pub struct Nnue {
     hidden_layer_bias: i32,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NnueAccumulator {
     white: Vector,
     black: Vector,
@@ -97,13 +97,21 @@ impl NnueAccumulator {
                         Square::new(ep_file, Rank::Fifth.relative_to(us)),
                     )],
                 );
+                result.black = vsub(
+                    result.black,
+                    nn.input_layer[feature(
+                        us,
+                        Piece::Pawn,
+                        Square::new(ep_file, Rank::Fifth.relative_to(!us)),
+                    )],
+                );
             }
         }
 
-        if board.color_on(mv.from) == board.color_on(mv.to) {
-            if mv.from.file() < mv.to.file() {
+        if Some(us) == board.color_on(mv.to) {
+            let rank = Rank::First.relative_to(us);
+            if mv.from.file() > mv.to.file() {
                 // castle queen-side
-                let rank = Rank::First.relative_to(us);
                 result.white = vadd(
                     result.white,
                     nn.input_layer[feature(us, Piece::King, Square::new(File::C, rank))],
@@ -122,7 +130,6 @@ impl NnueAccumulator {
                 );
             } else {
                 // castle king-side
-                let rank = Rank::First.relative_to(us);
                 result.white = vadd(
                     result.white,
                     nn.input_layer[feature(us, Piece::King, Square::new(File::G, rank))],
