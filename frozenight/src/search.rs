@@ -244,14 +244,14 @@ impl Searcher {
                 if quiet {
                     // quiet move - update killer and history
                     *self.killer(position.ply) = mv;
+                    for mv in ordering.yielded_quiets() {
+                        self.history
+                            .did_not_cause_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
+                    }
                     self.history
                         .caused_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
                 }
                 return Some(v);
-            } else if quiet {
-                // quiet move did not cause cutoff - update history
-                self.history
-                    .did_not_cause_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
             }
             if v > alpha {
                 alpha = v;
