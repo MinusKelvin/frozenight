@@ -144,7 +144,7 @@ impl Searcher {
 
         // reverse futility pruning... but with qsearch
         if depth <= 5 {
-            let margin = 250 * depth as i16;
+            let margin = 300 * depth as i16;
             let eval = self.qsearch(position, beta + margin - 1, beta + margin);
             if eval - margin >= beta {
                 return Some(eval);
