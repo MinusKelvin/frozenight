@@ -9,6 +9,9 @@ import struct, sys, json
 
 NUM_FEATURES = 2 * 6 * 64
 LAYER_1 = 16
+SCALE = 64
+MIN = -128 / SCALE
+MAX = 127 / SCALE
 
 class Nnue(pl.LightningModule):
     def __init__(self):
@@ -24,8 +27,13 @@ class Nnue(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         features, target = batch
-        value = torch.sigmoid(self(features) / 500)
-        return torch.sum((value - target)**2) / len(target)
+        value = torch.sigmoid(self(features))
+        return torch.nn.functional.binary_cross_entropy(value, target)
+
+    def optimizer_step(self, *args, **kwargs):
+        super().optimizer_step(*args, **kwargs)
+        for p in self.parameters():
+            p.data = p.data.clamp(MIN, MAX)
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters())
@@ -79,11 +87,11 @@ elif sys.argv[1] == "dump":
     with open("frozenight/model.rs", "w") as file:
         file.write("Nnue {")
         file.write("input_layer:")
-        save_tensor(file, state["features.weight"].cpu().numpy().transpose(), 64)
+        save_tensor(file, state["features.weight"].cpu().numpy().transpose(), SCALE)
         file.write(",input_layer_bias:")
-        save_tensor(file, state["features.bias"].cpu().numpy(), 64)
+        save_tensor(file, state["features.bias"].cpu().numpy(), SCALE)
         file.write(",hidden_layer:")
-        save_tensor(file, state["layer1.weight"].cpu().numpy()[0], 1)
+        save_tensor(file, state["layer1.weight"].cpu().numpy()[0], SCALE)
         file.write(",hidden_layer_bias:")
-        file.write(f"{round(state['layer1.bias'].cpu().numpy()[0])},")
+        file.write(f"{round(state['layer1.bias'].cpu().numpy()[0] * SCALE * SCALE)},")
         file.write("}")
