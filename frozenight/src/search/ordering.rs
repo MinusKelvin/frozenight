@@ -6,6 +6,7 @@ pub struct MoveOrdering<'a> {
     hashmove: Option<Move>,
     killer: Move,
     captures: Vec<(Move, i8)>,
+    yielded_quiets: usize,
     quiets: Vec<(Move, i32)>,
     underpromotions: Vec<Move>,
 }
@@ -31,10 +32,15 @@ impl<'a> MoveOrdering<'a> {
             },
             hashmove,
             killer,
+            yielded_quiets: 0,
             captures: vec![],
             quiets: vec![],
             underpromotions: vec![],
         }
+    }
+
+    pub fn yielded_quiets(&self) -> impl Iterator<Item = Move> + '_ {
+        self.quiets[..self.yielded_quiets].iter().map(|&(mv, _)| mv)
     }
 
     pub fn next(&mut self, history: &HistoryTable) -> Option<Move> {
@@ -61,7 +67,10 @@ impl<'a> MoveOrdering<'a> {
                 if Some(mv) == self.hashmove {
                     continue;
                 }
-                if matches!(mv.promotion, Some(Piece::Knight | Piece::Bishop | Piece::Rook)) {
+                if matches!(
+                    mv.promotion,
+                    Some(Piece::Knight | Piece::Bishop | Piece::Rook)
+                ) {
                     self.underpromotions.push(mv);
                     continue;
                 }
@@ -103,19 +112,22 @@ impl<'a> MoveOrdering<'a> {
     }
 
     fn quiets(&mut self) -> Option<Move> {
-        if self.quiets.is_empty() {
+        if self.yielded_quiets == self.quiets.len() {
             self.stage = MoveOrderingStage::Underpromotions;
             return self.underpromotions();
         }
 
-        let mut index = 0;
-        for i in 1..self.quiets.len() {
+        let mut index = self.yielded_quiets;
+        for i in index + 1..self.quiets.len() {
             if self.quiets[i].1 > self.quiets[index].1 {
                 index = i;
             }
         }
 
-        Some(self.quiets.swap_remove(index).0)
+        self.quiets.swap(self.yielded_quiets, index);
+        let r = Some(self.quiets[self.yielded_quiets].0);
+        self.yielded_quiets += 1;
+        r
     }
 
     fn underpromotions(&mut self) -> Option<Move> {
