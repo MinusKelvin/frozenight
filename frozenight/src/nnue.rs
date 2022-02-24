@@ -52,9 +52,9 @@ impl NnueAccumulator {
             Color::White => [self.white, self.black],
             Color::Black => [self.black, self.white],
         }));
-        let output = vdot(l1_input, nn.hidden_layer);
+        let output = vdot(l1_input, nn.hidden_layer) + nn.hidden_layer_bias;
 
-        Eval::new((nn.hidden_layer_bias + output) as i16)
+        Eval::new((output / 8) as i16)
     }
 
     pub fn swap_sides(&self) -> Self {
@@ -189,7 +189,7 @@ fn vdot<const N: usize>(a: [i32; N], b: [i32; N]) -> i32 {
     for i in 0..N {
         result += a[i] * b[i];
     }
-    result / 64
+    result
 }
 
 fn feature(color: Color, piece: Piece, sq: Square) -> usize {
