@@ -102,38 +102,59 @@ fn main() {
                     });
                 }
                 "go" => {
-                    let mut deadline = None;
-                    let mut time_use_suggestion = None;
+                    let mut time_available = None;
+                    let mut increment = Duration::ZERO;
+                    let mut budget_time = false;
+
                     let mut depth = 250;
 
                     let stm = frozenight.board().side_to_move();
                     while let Some(param) = stream.next() {
                         match param {
                             "wtime" if stm == Color::White => {
-                                let time =
-                                    Duration::from_millis(stream.next().unwrap().parse().unwrap());
-                                deadline = Some(time / 10);
-                                time_use_suggestion = Some(time / 40);
+                                time_available = Some(Duration::from_millis(
+                                    stream.next().unwrap().parse().unwrap(),
+                                ));
+                                budget_time = true;
                             }
                             "btime" if stm == Color::Black => {
-                                let time =
+                                time_available = Some(Duration::from_millis(
+                                    stream.next().unwrap().parse().unwrap(),
+                                ));
+                                budget_time = true;
+                            }
+                            "winc" if stm == Color::White => {
+                                increment =
                                     Duration::from_millis(stream.next().unwrap().parse().unwrap());
-                                deadline = Some(time / 10);
-                                time_use_suggestion = Some(time / 40);
+                            }
+                            "binc" if stm == Color::Black => {
+                                increment =
+                                    Duration::from_millis(stream.next().unwrap().parse().unwrap());
                             }
                             "movetime" => {
-                                deadline = Some(Duration::from_millis(
+                                time_available = Some(Duration::from_millis(
                                     stream.next().unwrap().parse().unwrap(),
-                                ))
+                                ));
+                                budget_time = false;
                             }
                             "depth" => depth = stream.next().unwrap().parse().unwrap(),
                             _ => {}
                         }
                     }
 
+                    let deadline = match budget_time {
+                        true => time_available.map(|d| d / 10),
+                        false => time_available,
+                    };
+
+                    let time_use_suggestion = time_available.map(|amt| match budget_time {
+                        true => amt.min((amt.saturating_sub(increment) / 50) + increment),
+                        false => amt,
+                    });
+
                     abort = Some(frozenight.start_search(
                         time_use_suggestion.map(|d| now + d),
-                        deadline.map(|d| now + d - move_overhead),
+                        deadline.map(|d| now + d.saturating_sub(move_overhead)),
                         depth,
                         UciListener(now),
                     ));
