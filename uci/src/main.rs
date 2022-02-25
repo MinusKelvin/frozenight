@@ -37,7 +37,7 @@ fn main() {
                     println!(
                         "id name Frozenight {} {}",
                         env!("CARGO_PKG_VERSION"),
-                        env!("VERGEN_GIT_SHA_SHORT")
+                        env!("GIT_HASH")
                     );
                     println!("id author MinusKelvin <mark.carlson@minuskelvin.net>");
                     println!("option name Move Overhead type spin default 1 min 0 max 5000");
