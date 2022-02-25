@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Color, File, Move, Piece, Square};
 use frozenight::{Eval, Frozenight, Listener, Statistics};
-use git_version::git_version;
 
 mod bench;
 
@@ -38,7 +37,7 @@ fn main() {
                     println!(
                         "id name Frozenight {} {}",
                         env!("CARGO_PKG_VERSION"),
-                        git_version!(fallback = "unknown")
+                        env!("VERGEN_GIT_SHA_SHORT")
                     );
                     println!("id author MinusKelvin <mark.carlson@minuskelvin.net>");
                     println!("option name Move Overhead type spin default 1 min 0 max 5000");
