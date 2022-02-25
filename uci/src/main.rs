@@ -14,7 +14,7 @@ fn main() {
 
     let mut frozenight = Frozenight::new(32);
 
-    let mut move_overhead = Duration::from_millis(1);
+    let mut move_overhead = Duration::from_millis(10);
     let mut abort = None;
 
     let mut buf = String::new();
@@ -40,7 +40,7 @@ fn main() {
                         env!("GIT_HASH")
                     );
                     println!("id author MinusKelvin <mark.carlson@minuskelvin.net>");
-                    println!("option name Move Overhead type spin default 1 min 0 max 5000");
+                    println!("option name Move Overhead type spin default 10 min 0 max 5000");
                     println!("option name Hash type spin default 32 min 1 max 65536");
                     println!("uciok");
                 }
