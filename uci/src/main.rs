@@ -143,7 +143,7 @@ fn main() {
                     }
 
                     let time_use_suggestion = time_available.map(|amt| match budget_time {
-                        true => amt.min((amt.saturating_sub(increment) / 50) + increment),
+                        true => amt.min((amt.saturating_sub(increment) / 50) + increment) / 2,
                         false => amt,
                     });
 
