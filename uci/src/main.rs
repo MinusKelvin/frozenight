@@ -3,6 +3,7 @@ use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Color, File, Move, Piece, Square};
 use frozenight::{Eval, Frozenight, Listener, Statistics};
+use git_version::git_version;
 
 mod bench;
 
@@ -34,7 +35,11 @@ fn main() {
         let _: Option<()> = (|| {
             match stream.next()? {
                 "uci" => {
-                    println!("id name Frozenight {}", env!("CARGO_PKG_VERSION"));
+                    println!(
+                        "id name Frozenight {} {}",
+                        env!("CARGO_PKG_VERSION"),
+                        git_version!(fallback = "unknown")
+                    );
                     println!("id author MinusKelvin <mark.carlson@minuskelvin.net>");
                     println!("option name Move Overhead type spin default 1 min 0 max 5000");
                     println!("option name Hash type spin default 32 min 1 max 65536");

@@ -9,6 +9,7 @@ default-run = "frozenight-uci"
 [dependencies]
 cozy-chess = "0.2.1"
 frozenight = { path = "../frozenight" }
+git-version = "0.3.5"
 
 [features]
 ob-no-adjudicate = []
