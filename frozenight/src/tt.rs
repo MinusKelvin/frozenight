@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 
 use bytemuck::{Pod, Zeroable};
 use cozy_chess::{Board, Move, Piece, Square};
@@ -8,6 +8,7 @@ use crate::Eval;
 
 pub struct TranspositionTable {
     entries: Box<[TtEntry]>,
+    search_number: AtomicU8,
 }
 
 const ENTRIES_PER_MB: usize = 1024 * 1024 / std::mem::size_of::<TtEntry>();
@@ -18,6 +19,7 @@ impl TranspositionTable {
             entries: (0..hash_mb * ENTRIES_PER_MB)
                 .map(|_| TtEntry::default())
                 .collect(),
+            search_number: AtomicU8::default(),
         }
     }
 
@@ -79,6 +81,18 @@ impl TranspositionTable {
 
     pub fn store(&self, position: &Position, data: TableEntry) {
         let index = position.board.hash() as usize % self.entries.len();
+        let entry = &self.entries[index];
+
+        let age = self.search_number.load(Ordering::Relaxed);
+        let old_data: TtData = bytemuck::cast(entry.data.load(Ordering::Relaxed));
+        if old_data.depth > data.search_depth {
+            // depth-preferred with aging out
+            let diff = age.wrapping_sub(old_data.age);
+            if diff < 2 {
+                return;
+            }
+        }
+
         let promo = match data.mv.promotion {
             None => 0,
             Some(Piece::Knight) => 1,
@@ -92,12 +106,16 @@ impl TranspositionTable {
             eval: data.eval.sub_time(position.ply),
             depth: data.search_depth,
             kind: data.kind as u8,
-            _padding: 0,
+            age,
         });
-        self.entries[index].data.store(data, Ordering::Relaxed);
-        self.entries[index]
+        entry.data.store(data, Ordering::Relaxed);
+        entry
             .hash
             .store(position.board.hash() ^ data, Ordering::Relaxed);
+    }
+
+    pub fn increment_age(&self, by: u8) {
+        self.search_number.fetch_add(by, Ordering::Relaxed);
     }
 }
 
@@ -129,5 +147,5 @@ struct TtData {
     eval: Eval,
     depth: u16,
     kind: u8,
-    _padding: u8,
+    age: u8,
 }

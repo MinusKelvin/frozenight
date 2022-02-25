@@ -47,13 +47,24 @@ impl Frozenight {
     }
 
     pub fn set_position(&mut self, start: Board, mut moves: impl FnMut(&Board) -> Option<Move>) {
+        let old_hash = self.board.hash();
+        let mut moves_since_occurance = -1;
         self.board = start;
         let mut occurances = IntMap::<_, usize>::default();
         *occurances.entry(self.board.hash()).or_default() += 1;
         while let Some(mv) = moves(&self.board) {
+            if self.board.hash() == old_hash {
+                moves_since_occurance = 0;
+            } else if moves_since_occurance >= 0 {
+                moves_since_occurance += 1;
+            }
             self.board.play(mv);
             *occurances.entry(self.board.hash()).or_default() += 1;
         }
+        self.shared_state.tt.increment_age(match moves_since_occurance {
+            0..=4 => 1,
+            _ => 2,
+        });
         self.history = occurances
             .into_iter()
             .filter(|&(_, count)| count > 1)
