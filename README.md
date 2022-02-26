@@ -19,7 +19,7 @@ The current minimum supported Rust version is 1.57.0.
 - Null move pruning
 - Reverse futility pruning, except using qsearch instead of static eval
 - Transposition Table
-  - Always replace
+  - Depth-preferred with aging
 - Move ordering
   - Hash move
   - MVV-LVA captures
@@ -27,7 +27,8 @@ The current minimum supported Rust version is 1.57.0.
   - Relative history heuristic (almost)
   - Underpromotions last
 - Time management
-  - Uses at least 2.5% and no more than 10% of remaining time, prefering to stop soon
+  - Uses at least 2% remaining + increment/2
+  - Avoids stopping in the middle of an iteration
 
 ## Thanks
 
