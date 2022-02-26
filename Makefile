@@ -15,5 +15,5 @@ endif
 export RUSTFLAGS=-C target-cpu=native
 
 all:
-	cargo build --release --bin frozenight-uci --features ob-no-adjudicate
+	cargo build --release --bin frozenight-uci
 	mv target/release/frozenight-uci $(NAME)
