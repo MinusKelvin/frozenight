@@ -154,8 +154,8 @@ impl Searcher {
         if position.board.checkers().is_empty() && depth >= 3 {
             // search with an empty window - we only care about if the score is high or low
             let v =
-                -self.visit_node(&position.null_move().unwrap(), -beta - 1, -beta, depth - 3)?;
-            if v > beta {
+                -self.visit_node(&position.null_move().unwrap(), -beta, -beta + 1, depth - 3)?;
+            if v >= beta {
                 // Null move pruning
                 return Some(v);
             }
