@@ -2,21 +2,20 @@ use cozy_chess::{Board, Color, File, Move, Piece, Rank, Square};
 
 use crate::Eval;
 
-type Vector = [i32; 16];
-
 const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
+const L1_SIZE: usize = 16;
 
 pub struct Nnue {
-    input_layer: [Vector; NUM_FEATURES],
-    input_layer_bias: Vector,
-    hidden_layer: [i32; 32],
+    input_layer: [[i16; L1_SIZE]; NUM_FEATURES],
+    input_layer_bias: [i16; L1_SIZE],
+    hidden_layer: [i8; L1_SIZE * 2],
     hidden_layer_bias: i32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NnueAccumulator {
-    white: Vector,
-    black: Vector,
+    white: [i16; L1_SIZE],
+    black: [i16; L1_SIZE],
     side_to_move: Color,
 }
 
@@ -160,7 +159,7 @@ impl NnueAccumulator {
     }
 }
 
-fn vadd<const N: usize>(a: [i32; N], b: [i32; N]) -> [i32; N] {
+fn vadd<const N: usize>(a: [i16; N], b: [i16; N]) -> [i16; N] {
     let mut result = [0; N];
     for i in 0..N {
         result[i] = a[i] + b[i];
@@ -168,7 +167,7 @@ fn vadd<const N: usize>(a: [i32; N], b: [i32; N]) -> [i32; N] {
     result
 }
 
-fn vsub<const N: usize>(a: [i32; N], b: [i32; N]) -> [i32; N] {
+fn vsub<const N: usize>(a: [i16; N], b: [i16; N]) -> [i16; N] {
     let mut result = [0; N];
     for i in 0..N {
         result[i] = a[i] - b[i];
@@ -176,18 +175,18 @@ fn vsub<const N: usize>(a: [i32; N], b: [i32; N]) -> [i32; N] {
     result
 }
 
-fn clipped_relu<const N: usize>(a: [i32; N]) -> [i32; N] {
+fn clipped_relu<const N: usize>(a: [i16; N]) -> [i8; N] {
     let mut result = [0; N];
     for i in 0..N {
-        result[i] = a[i].clamp(0, 127);
+        result[i] = a[i].clamp(0, 127) as i8;
     }
     result
 }
 
-fn vdot<const N: usize>(a: [i32; N], b: [i32; N]) -> i32 {
+fn vdot<const N: usize>(a: [i8; N], b: [i8; N]) -> i32 {
     let mut result = 0;
     for i in 0..N {
-        result += a[i] * b[i];
+        result += a[i] as i32 * b[i] as i32;
     }
     result
 }
