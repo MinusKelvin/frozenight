@@ -42,6 +42,7 @@ fn main() {
                     println!("id author MinusKelvin <mark.carlson@minuskelvin.net>");
                     println!("option name Move Overhead type spin default 10 min 0 max 5000");
                     println!("option name Hash type spin default 32 min 1 max 65536");
+                    println!("option name Threads type spin default 1 min 1 max 1");
                     println!("uciok");
                 }
                 "quit" => {
