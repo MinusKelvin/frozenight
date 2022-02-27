@@ -14,7 +14,7 @@ The current minimum supported Rust version is 1.57.0.
 - Quiescense search
   - MVV-LVA ordering
   - Check Evasions
-  - Width limiting to prevent search explosion
+  - Late move pruning to prevent search explosion
 - Late move reductions
 - Null move pruning
 - Reverse futility pruning, except using qsearch instead of static eval
