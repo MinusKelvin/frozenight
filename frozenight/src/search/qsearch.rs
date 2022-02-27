@@ -3,17 +3,18 @@ use cozy_chess::{BitBoard, Piece};
 use crate::position::Position;
 use crate::Eval;
 
+use super::window::Window;
 use super::Searcher;
 
 const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
 
 impl Searcher {
-    pub fn qsearch(&mut self, position: &Position, alpha: Eval, beta: Eval) -> Eval {
-        self.qsearch_impl(position, alpha, beta, 0)
+    pub fn qsearch(&mut self, position: &Position, window: Window) -> Eval {
+        self.qsearch_impl(position, window, 0)
     }
 
-    fn qsearch_impl(&mut self, position: &Position, mut alpha: Eval, beta: Eval, qply: u16) -> Eval {
+    fn qsearch_impl(&mut self, position: &Position, mut window: Window, qply: u16) -> Eval {
         self.stats.selective_depth = self.stats.selective_depth.max(position.ply);
         self.stats.nodes += 1;
 
@@ -30,12 +31,10 @@ impl Searcher {
             permitted = position.board.colors(!position.board.side_to_move());
         }
 
-        if best > alpha {
-            alpha = best;
-            if alpha >= beta {
-                return alpha;
-            }
+        if window.fail_high(best) {
+            return best;
         }
+        window.raise_lb(best);
 
         let mut moves = Vec::with_capacity(16);
         let mut had_moves = false;
@@ -75,18 +74,15 @@ impl Searcher {
 
             let v = -self.qsearch_impl(
                 &position.play_move(&self.shared.nnue, mv),
-                -beta,
-                -alpha,
+                -window,
                 qply + 1,
             );
+            if window.fail_high(v) {
+                return v;
+            }
+            window.raise_lb(v);
             if v > best {
                 best = v;
-            }
-            if v > alpha {
-                alpha = v;
-                if v >= beta {
-                    break;
-                }
             }
 
             i += 1;

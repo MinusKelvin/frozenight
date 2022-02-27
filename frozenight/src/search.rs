@@ -9,9 +9,11 @@ use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, SharedState, Statistics};
 
 use self::ordering::{HistoryTable, MoveOrdering};
+use self::window::Window;
 
 mod ordering;
 mod qsearch;
+mod window;
 
 const INVALID_MOVE: Move = Move {
     from: Square::A1,
@@ -51,7 +53,7 @@ impl Searcher {
         if !self.valid {
             panic!("attempt to search using an aborted searcher");
         }
-        let mut alpha = -Eval::MATE;
+        let mut window = Window::default();
         let mut best_move = INVALID_MOVE;
 
         let position = Position::from_root(root.clone(), &self.shared.nnue);
@@ -68,12 +70,10 @@ impl Searcher {
             new_board.play_unchecked(mv);
             let v = -self.visit_node(
                 &position.play_move(&self.shared.nnue, mv),
-                -Eval::MATE,
-                -alpha,
+                -window,
                 depth - 1,
             )?;
-            if v > alpha {
-                alpha = v;
+            if window.raise_lb(v) {
                 best_move = mv;
             }
         }
@@ -82,7 +82,7 @@ impl Searcher {
             panic!("root position (FEN: {}) has no moves", root);
         }
 
-        Some((alpha, best_move))
+        Some((window.lb(), best_move))
     }
 
     fn killer(&mut self, ply_index: u16) -> &mut Move {
@@ -94,13 +94,7 @@ impl Searcher {
         &mut self.killers[idx]
     }
 
-    fn visit_node(
-        &mut self,
-        position: &Position,
-        alpha: Eval,
-        beta: Eval,
-        depth: u16,
-    ) -> Option<Eval> {
+    fn visit_node(&mut self, position: &Position, window: Window, depth: u16) -> Option<Eval> {
         match position.board.status() {
             cozy_chess::GameStatus::Drawn => return Some(Eval::DRAW),
             cozy_chess::GameStatus::Won => return Some(-Eval::MATE.add_time(position.ply)),
@@ -116,9 +110,9 @@ impl Searcher {
         }
 
         let result = if depth == 0 {
-            self.qsearch(position, alpha, beta)
+            self.qsearch(position, window)
         } else {
-            self.alpha_beta(position, alpha, beta, depth)?
+            self.alpha_beta(position, window, depth)?
         };
 
         // Sanity check that conclusive scores are valid
@@ -136,8 +130,7 @@ impl Searcher {
     fn alpha_beta(
         &mut self,
         position: &Position,
-        mut alpha: Eval,
-        mut beta: Eval,
+        mut window: Window,
         depth: u16,
     ) -> Option<Eval> {
         self.stats.nodes += 1;
@@ -145,17 +138,19 @@ impl Searcher {
         // reverse futility pruning... but with qsearch
         if depth <= 6 {
             let margin = 250 * depth as i16;
-            let eval = self.qsearch(position, beta + margin - 1, beta + margin);
-            if eval - margin >= beta {
+            let rfp_window = Window::test_lower_ub(window.ub() + margin);
+            let eval = self.qsearch(position, rfp_window);
+            if rfp_window.fail_high(eval) {
                 return Some(eval);
             }
         }
 
         if position.board.checkers().is_empty() && depth >= 3 {
             // search with an empty window - we only care about if the score is high or low
+            let nmp_window = Window::test_lower_ub(window.ub());
             let v =
-                -self.visit_node(&position.null_move().unwrap(), -beta - 1, -beta, depth - 3)?;
-            if v > beta {
+                -self.visit_node(&position.null_move().unwrap(), -nmp_window, depth - 3)?;
+            if nmp_window.fail_high(v) {
                 // Null move pruning
                 return Some(v);
             }
@@ -177,24 +172,16 @@ impl Searcher {
                     _ if entry.search_depth < depth => {}
                     NodeKind::Exact => return Some(entry.eval),
                     NodeKind::LowerBound => {
-                        // raise alpha
-                        if entry.eval >= beta {
-                            // fail-high
+                        if window.fail_high(entry.eval) {
                             return Some(entry.eval);
                         }
-                        if entry.eval > alpha {
-                            alpha = entry.eval;
-                        }
+                        window.raise_lb(entry.eval);
                     }
                     NodeKind::UpperBound => {
-                        // lower beta
-                        if entry.eval <= alpha {
-                            // fail-low
+                        if window.fail_low(entry.eval) {
                             return Some(entry.eval);
                         }
-                        if entry.eval < beta {
-                            beta = entry.eval;
-                        }
+                        window.lower_ub(entry.eval);
                     }
                 }
             }
@@ -218,11 +205,11 @@ impl Searcher {
                 depth
             };
 
-            let mut v = -self.visit_node(new_pos, -beta, -alpha, d - 1)?;
+            let mut v = -self.visit_node(new_pos, -window, d - 1)?;
 
-            if v > alpha && d != depth {
-                // reduced move unexpected raised alpha; research at full depth
-                v = -self.visit_node(new_pos, -beta, -alpha, depth - 1)?;
+            if !window.fail_low(v) && d < depth {
+                // reduced move unexpectedly raised alpha; research at full depth
+                v = -self.visit_node(new_pos, -window, depth - 1)?;
             }
 
             let quiet = position.board.color_on(mv.to) != Some(!position.board.side_to_move());
@@ -230,7 +217,7 @@ impl Searcher {
                 quiets += 1;
             }
 
-            if v >= beta {
+            if window.fail_high(v) {
                 self.shared.tt.store(
                     &position,
                     TableEntry {
@@ -253,8 +240,8 @@ impl Searcher {
                 self.history
                     .did_not_cause_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
             }
-            if v > alpha {
-                alpha = v;
+
+            if window.raise_lb(v) {
                 node_kind = NodeKind::Exact;
             }
             if v > best_score {
