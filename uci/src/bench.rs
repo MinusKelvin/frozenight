@@ -1,8 +1,6 @@
-use std::sync::mpsc::{sync_channel, SyncSender};
 use std::time::{Duration, Instant};
 
-use cozy_chess::{Board, Move};
-use frozenight::{Eval, Frozenight, Listener, Statistics};
+use frozenight::Frozenight;
 
 // generated from self-play
 const POSITIONS: &[&str] = &[
@@ -32,44 +30,17 @@ pub fn bench() {
     let mut total_time = Duration::ZERO;
     let mut total_nodes = 0;
 
-    let (send, recv) = sync_channel(0);
-
     for &pos in POSITIONS {
         let mut engine = Frozenight::new(16);
         engine.set_position(pos.parse().unwrap(), |_| None);
 
+        let mut nodes = 0;
         let start = Instant::now();
-        engine
-            .start_search(
-                None,
-                None,
-                8,
-                BenchListener {
-                    sender: send.clone(),
-                    nodes: 0,
-                },
-            )
-            .forget();
-
-        total_nodes += recv.recv().unwrap();
+        engine.search_synchronous(None, 8, |_, stats, _, _, _| nodes = stats.nodes);
         total_time += start.elapsed();
+        total_nodes += nodes;
     }
 
     let nps = (total_nodes as f64 / total_time.as_secs_f64()) as u64;
     println!("{} nodes {} nps", total_nodes, nps);
-}
-
-struct BenchListener {
-    sender: SyncSender<u64>,
-    nodes: u64,
-}
-
-impl Listener for BenchListener {
-    fn info(&mut self, _: u16, stats: Statistics, _: Eval, _: &Board, _: &[Move]) {
-        self.nodes = stats.nodes;
-    }
-
-    fn best_move(self, _: Move, _: Eval) {
-        self.sender.send(self.nodes).unwrap();
-    }
 }

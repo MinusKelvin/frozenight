@@ -1,6 +1,5 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move};
@@ -8,9 +7,9 @@ use nohash::{IntMap, IntSet};
 
 mod eval;
 mod nnue;
+mod position;
 mod search;
 mod tt;
-mod position;
 
 pub use eval::Eval;
 use nnue::Nnue;
@@ -61,10 +60,12 @@ impl Frozenight {
             self.board.play(mv);
             *occurances.entry(self.board.hash()).or_default() += 1;
         }
-        self.shared_state.tt.increment_age(match moves_since_occurance {
-            0..=4 => 1,
-            _ => 2,
-        });
+        self.shared_state
+            .tt
+            .increment_age(match moves_since_occurance {
+                0..=4 => 1,
+                _ => 2,
+            });
         self.history = occurances
             .into_iter()
             .filter(|&(_, count)| count > 1)
@@ -77,7 +78,8 @@ impl Frozenight {
         time_use_suggestion: Option<Instant>,
         deadline: Option<Instant>,
         depth_limit: u16,
-        info: impl Listener,
+        info: impl FnMut(u16, Statistics, Eval, &Board, &[Move]) + Send + 'static,
+        best_move: impl FnOnce(Eval, Move) + Send + 'static
     ) -> Abort {
         self.abort.store(true, Ordering::Relaxed);
 
@@ -85,17 +87,22 @@ impl Frozenight {
         self.abort = Arc::new(AtomicBool::new(false));
 
         // Start main search thread
-        spawn_search_thread(
-            Searcher::new(
-                self.abort.clone(),
-                self.shared_state.clone(),
-                self.history.clone(),
-            ),
-            &self.board,
-            depth_limit.min(5000),
-            info,
-            time_use_suggestion,
+        let searcher = Searcher::new(
+            self.abort.clone(),
+            self.shared_state.clone(),
+            self.history.clone(),
         );
+        let board = self.board.clone();
+        std::thread::spawn(move || {
+            let (e, m) = iterative_deepening(
+                searcher,
+                &board,
+                depth_limit.min(5000),
+                info,
+                time_use_suggestion,
+            );
+            best_move(e, m);
+        });
 
         // Spawn timeout thread
         if let Some(deadline) = deadline {
@@ -112,6 +119,25 @@ impl Frozenight {
         }
 
         Abort(Some(self.abort.clone()))
+    }
+
+    pub fn search_synchronous(
+        &self,
+        time_use_suggestion: Option<Instant>,
+        depth_limit: u16,
+        info: impl FnMut(u16, Statistics, Eval, &Board, &[Move]),
+    ) -> (Eval, Move) {
+        iterative_deepening(
+            Searcher::new(
+                self.abort.clone(),
+                self.shared_state.clone(),
+                self.history.clone(),
+            ),
+            &self.board,
+            depth_limit.min(5000),
+            info,
+            time_use_suggestion,
+        )
     }
 }
 
@@ -132,47 +158,43 @@ impl Drop for Abort {
     }
 }
 
-fn spawn_search_thread(
+fn iterative_deepening(
     mut searcher: Searcher,
     board: &Board,
     depth_limit: u16,
-    mut listener: impl Listener,
-    time_use_suggestion: Option<Instant>
-) -> JoinHandle<()> {
-    let board = board.clone();
+    mut info: impl FnMut(u16, Statistics, Eval, &Board, &[Move]),
+    time_use_suggestion: Option<Instant>,
+) -> (Eval, Move) {
     let mut best_move = None;
-    std::thread::spawn(move || {
-        let mut pv = Vec::with_capacity(32);
-        for depth in 1..depth_limit + 1 {
-            if let Some(result) = searcher.search(&board, depth) {
-                pv.clear();
-                pv.push(result.1);
-                let mut b = board.clone();
-                b.play(result.1);
-                let mut mvs = 0;
-                while let Some(mv) = searcher.shared.tt.get_move(&b) {
-                    mvs += 1;
-                    if mvs < depth && b.try_play(mv).unwrap() {
-                        pv.push(mv);
-                    } else {
-                        break;
-                    }
-                }
-                listener.info(depth, searcher.stats, result.0, &board, &pv);
-                best_move = Some(result);
-            } else {
-                break;
-            }
-
-            if let Some(time_use_suggestion) = time_use_suggestion {
-                if Instant::now() > time_use_suggestion {
+    let mut pv = Vec::with_capacity(32);
+    for depth in 1..depth_limit + 1 {
+        if let Some(result) = searcher.search(&board, depth) {
+            pv.clear();
+            pv.push(result.1);
+            let mut b = board.clone();
+            b.play(result.1);
+            let mut mvs = 0;
+            while let Some(mv) = searcher.shared.tt.get_move(&b) {
+                mvs += 1;
+                if mvs < depth && b.try_play(mv).unwrap() {
+                    pv.push(mv);
+                } else {
                     break;
                 }
             }
+            info(depth, searcher.stats, result.0, &board, &pv);
+            best_move = Some(result);
+        } else {
+            break;
         }
-        let (e, m) = best_move.unwrap();
-        listener.best_move(m, e);
-    })
+
+        if let Some(time_use_suggestion) = time_use_suggestion {
+            if Instant::now() > time_use_suggestion {
+                break;
+            }
+        }
+    }
+    best_move.unwrap()
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -181,7 +203,7 @@ pub struct Statistics {
     pub nodes: u64,
 }
 
-pub trait Listener: Send + 'static {
+pub trait Listener {
     fn info(&mut self, depth: u16, stats: Statistics, eval: Eval, board: &Board, pv: &[Move]);
 
     fn best_move(self, mv: Move, eval: Eval);
@@ -190,15 +212,4 @@ pub trait Listener: Send + 'static {
 impl Listener for () {
     fn info(&mut self, _: u16, _: Statistics, _: Eval, _: &Board, _: &[Move]) {}
     fn best_move(self, _: Move, _: Eval) {}
-}
-
-impl<F> Listener for F
-where
-    F: FnOnce(Move, Eval) + Send + 'static,
-{
-    fn info(&mut self, _: u16, _: Statistics, _: Eval, _: &Board, _: &[Move]) {}
-
-    fn best_move(self, mv: Move, eval: Eval) {
-        self(mv, eval)
-    }
 }

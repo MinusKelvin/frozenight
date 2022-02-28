@@ -152,7 +152,28 @@ fn main() {
                         time_use_suggestion.map(|d| now + d.saturating_sub(move_overhead)),
                         time_available.map(|d| now + d.saturating_sub(move_overhead)),
                         depth,
-                        UciListener(now),
+                        move |depth, stats, eval, board, pv| {
+                            let time = now.elapsed();
+                            print!(
+                                "info depth {} seldepth {} nodes {} nps {} score {} time {} pv",
+                                depth,
+                                stats.selective_depth,
+                                stats.nodes,
+                                (stats.nodes as f64 / time.as_secs_f64()).round() as u64,
+                                eval,
+                                time.as_millis()
+                            );
+                            let mut board = board.clone();
+                            for &mv in pv {
+                                print!(" {}", to_uci_castling(&board, mv));
+                                board.play(mv);
+                            }
+                            println!();
+                        },
+                        |_, mv| {
+                            println!("bestmove {}", mv);
+                            stdout().flush().unwrap();
+                        },
                     ));
                 }
                 "stop" => {
