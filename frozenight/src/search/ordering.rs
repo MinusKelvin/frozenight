@@ -134,7 +134,7 @@ pub struct HistoryTable {
 impl HistoryTable {
     pub fn new() -> Self {
         HistoryTable {
-            to_sq: [[[(0, 0); Square::NUM]; Piece::NUM]; Color::NUM],
+            to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
         }
     }
 
