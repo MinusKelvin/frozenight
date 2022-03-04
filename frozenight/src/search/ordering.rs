@@ -123,6 +123,7 @@ impl<'a> MoveOrdering<'a> {
     }
 }
 
+#[derive(Clone)]
 pub struct HistoryTable {
     to_sq: [[(i32, i32); Square::NUM]; Piece::NUM],
 }

@@ -28,7 +28,7 @@ pub(crate) struct Searcher {
     repetition: IntSet<u64>,
     valid: bool,
     killers: Vec<Move>,
-    history: HistoryTable,
+    histories: Vec<HistoryTable>,
 }
 
 impl Searcher {
@@ -40,7 +40,7 @@ impl Searcher {
             valid: true,
             stats: Default::default(),
             killers: vec![INVALID_MOVE; 128],
-            history: HistoryTable::new(),
+            histories: vec![HistoryTable::new(); 32],
         }
     }
 
@@ -65,7 +65,7 @@ impl Searcher {
             .and_then(|entry| root.is_legal(entry.mv).then(|| entry.mv));
 
         let mut orderer = MoveOrdering::new(root, hashmove, INVALID_MOVE);
-        while let Some(mv) = orderer.next(&self.history) {
+        while let Some(mv) = orderer.next(&self.history(position.ply)) {
             let mut new_board = root.clone();
             new_board.play_unchecked(mv);
             let v = -self.visit_node(
@@ -92,6 +92,15 @@ impl Searcher {
                 .extend((self.killers.len()..=idx).map(|_| INVALID_MOVE));
         }
         &mut self.killers[idx]
+    }
+
+    fn history(&mut self, ply_index: u16) -> &mut HistoryTable {
+        let idx = ply_index as usize;
+        if idx >= self.histories.len() {
+            self.histories
+                .extend((self.histories.len()..=idx).map(|_| HistoryTable::new()));
+        }
+        &mut self.histories[idx]
     }
 
     fn visit_node(&mut self, position: &Position, window: Window, depth: u16) -> Option<Eval> {
@@ -127,12 +136,7 @@ impl Searcher {
 
     /// Invariant: `self` is unchanged if this function returns `Some`.
     /// If the side to move has no moves, this returns `-Eval::MATE` even if it is stalemate.
-    fn alpha_beta(
-        &mut self,
-        position: &Position,
-        mut window: Window,
-        depth: u16,
-    ) -> Option<Eval> {
+    fn alpha_beta(&mut self, position: &Position, mut window: Window, depth: u16) -> Option<Eval> {
         self.stats.nodes += 1;
 
         // reverse futility pruning... but with qsearch
@@ -148,8 +152,7 @@ impl Searcher {
         if position.board.checkers().is_empty() && depth >= 3 {
             // search with an empty window - we only care about if the score is high or low
             let nmp_window = Window::test_lower_ub(window.ub());
-            let v =
-                -self.visit_node(&position.null_move().unwrap(), -nmp_window, depth - 3)?;
+            let v = -self.visit_node(&position.null_move().unwrap(), -nmp_window, depth - 3)?;
             if nmp_window.fail_high(v) {
                 // Null move pruning
                 return Some(v);
@@ -189,7 +192,7 @@ impl Searcher {
 
         let mut ordering = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
         let mut quiets = 0;
-        while let Some(mv) = ordering.next(&self.history) {
+        while let Some(mv) = ordering.next(self.history(position.ply)) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
 
             let d = if quiets < 4
@@ -231,13 +234,13 @@ impl Searcher {
                 if quiet {
                     // quiet move - update killer and history
                     *self.killer(position.ply) = mv;
-                    self.history
+                    self.history(position.ply)
                         .caused_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
                 }
                 return Some(v);
             } else if quiet {
                 // quiet move did not cause cutoff - update history
-                self.history
+                self.history(position.ply)
                     .did_not_cause_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
             }
 
