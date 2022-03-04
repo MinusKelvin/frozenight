@@ -1,4 +1,4 @@
-use cozy_chess::{Board, Move, Piece, Square};
+use cozy_chess::{Board, Color, Move, Piece, Square};
 
 pub struct MoveOrdering<'a> {
     board: &'a Board,
@@ -61,7 +61,10 @@ impl<'a> MoveOrdering<'a> {
                 if Some(mv) == self.hashmove {
                     continue;
                 }
-                if matches!(mv.promotion, Some(Piece::Knight | Piece::Bishop | Piece::Rook)) {
+                if matches!(
+                    mv.promotion,
+                    Some(Piece::Knight | Piece::Bishop | Piece::Rook)
+                ) {
                     self.underpromotions.push(mv);
                     continue;
                 }
@@ -77,7 +80,8 @@ impl<'a> MoveOrdering<'a> {
                         self.captures.push((mv, 0));
                     }
                     _ => {
-                        self.quiets.push((mv, history.rank(mvs.piece, mv)));
+                        self.quiets
+                            .push((mv, history.rank(mvs.piece, mv, self.board.side_to_move())));
                     }
                 }
             }
@@ -124,31 +128,31 @@ impl<'a> MoveOrdering<'a> {
 }
 
 pub struct HistoryTable {
-    to_sq: [[(i32, i32); Square::NUM]; Piece::NUM],
+    to_sq: [[[(i32, i32); Square::NUM]; Piece::NUM]; Color::NUM],
 }
 
 impl HistoryTable {
     pub fn new() -> Self {
         HistoryTable {
-            to_sq: [[(0, 0); Square::NUM]; Piece::NUM],
+            to_sq: [[[(0, 0); Square::NUM]; Piece::NUM]; Color::NUM],
         }
     }
 
-    pub fn caused_cutoff(&mut self, piece: Piece, mv: Move) {
-        let (average, total) = &mut self.to_sq[piece as usize][mv.to as usize];
+    pub fn caused_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
+        let (average, total) = &mut self.to_sq[stm as usize][piece as usize][mv.to as usize];
         let diff = 2_000_000_000 - *average;
         *total += 1;
         *average += diff / *total;
     }
 
-    pub fn did_not_cause_cutoff(&mut self, piece: Piece, mv: Move) {
-        let (average, total) = &mut self.to_sq[piece as usize][mv.to as usize];
+    pub fn did_not_cause_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
+        let (average, total) = &mut self.to_sq[stm as usize][piece as usize][mv.to as usize];
         *total += 1;
         *average -= *average / *total;
     }
 
-    fn rank(&self, piece: Piece, mv: Move) -> i32 {
-        let (average, _) = self.to_sq[piece as usize][mv.to as usize];
+    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
+        let (average, _) = self.to_sq[stm as usize][piece as usize][mv.to as usize];
         average
     }
 }

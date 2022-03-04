@@ -127,12 +127,7 @@ impl Searcher {
 
     /// Invariant: `self` is unchanged if this function returns `Some`.
     /// If the side to move has no moves, this returns `-Eval::MATE` even if it is stalemate.
-    fn alpha_beta(
-        &mut self,
-        position: &Position,
-        mut window: Window,
-        depth: u16,
-    ) -> Option<Eval> {
+    fn alpha_beta(&mut self, position: &Position, mut window: Window, depth: u16) -> Option<Eval> {
         self.stats.nodes += 1;
 
         // reverse futility pruning... but with qsearch
@@ -148,8 +143,7 @@ impl Searcher {
         if position.board.checkers().is_empty() && depth >= 3 {
             // search with an empty window - we only care about if the score is high or low
             let nmp_window = Window::test_lower_ub(window.ub());
-            let v =
-                -self.visit_node(&position.null_move().unwrap(), -nmp_window, depth - 3)?;
+            let v = -self.visit_node(&position.null_move().unwrap(), -nmp_window, depth - 3)?;
             if nmp_window.fail_high(v) {
                 // Null move pruning
                 return Some(v);
@@ -231,14 +225,20 @@ impl Searcher {
                 if quiet {
                     // quiet move - update killer and history
                     *self.killer(position.ply) = mv;
-                    self.history
-                        .caused_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
+                    self.history.caused_cutoff(
+                        position.board.piece_on(mv.from).unwrap(),
+                        mv,
+                        position.board.side_to_move(),
+                    );
                 }
                 return Some(v);
             } else if quiet {
                 // quiet move did not cause cutoff - update history
-                self.history
-                    .did_not_cause_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
+                self.history.did_not_cause_cutoff(
+                    position.board.piece_on(mv.from).unwrap(),
+                    mv,
+                    position.board.side_to_move(),
+                );
             }
 
             if window.raise_lb(v) {
