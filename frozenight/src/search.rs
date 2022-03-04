@@ -235,14 +235,17 @@ impl Searcher {
                         .caused_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
                 }
                 return Some(v);
-            } else if quiet {
-                // quiet move did not cause cutoff - update history
-                self.history
-                    .did_not_cause_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
             }
 
             if window.raise_lb(v) {
                 node_kind = NodeKind::Exact;
+                if quiet {
+                self.history
+                    .caused_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
+                }
+            } else if quiet {
+                self.history
+                    .did_not_cause_cutoff(position.board.piece_on(mv.from).unwrap(), mv);
             }
             if v > best_score {
                 best_score = v;
