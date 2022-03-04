@@ -1,6 +1,6 @@
 [package]
 name = "frozenight-uci"
-version = "1.0.0"
+version = "2.0.0-dev"
 edition = "2021"
 default-run = "frozenight-uci"
 
