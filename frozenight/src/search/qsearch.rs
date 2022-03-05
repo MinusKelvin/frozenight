@@ -21,14 +21,17 @@ impl Searcher {
         let in_check = !position.board.checkers().is_empty();
 
         let permitted;
+        let can_move;
         let mut best;
 
         if in_check {
             best = -Eval::MATE.add_time(position.ply);
             permitted = BitBoard::FULL;
+            can_move = BitBoard::FULL;
         } else {
             best = position.static_eval(&self.shared.nnue);
             permitted = position.board.colors(!position.board.side_to_move());
+            can_move = !position.board.king(position.board.side_to_move()).bitboard();
         }
 
         if window.fail_high(best) {
@@ -38,7 +41,7 @@ impl Searcher {
 
         let mut moves = Vec::with_capacity(16);
         let mut had_moves = false;
-        position.board.generate_moves(|mut mvs| {
+        position.board.generate_moves_for(can_move, |mut mvs| {
             mvs.to &= permitted;
             had_moves = true;
             for mv in mvs {
