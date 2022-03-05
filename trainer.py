@@ -9,9 +9,10 @@ import struct, sys, json
 
 NUM_FEATURES = 2 * 6 * 64
 LAYER_1 = 16
-SCALE = 64
-MIN = -128 / SCALE
-MAX = 127 / SCALE
+WEIGHT_SCALE = 64
+ACTIVATION_RANGE = 127
+MIN = -128 / WEIGHT_SCALE
+MAX = 127 / WEIGHT_SCALE
 
 class Nnue(pl.LightningModule):
     def __init__(self):
@@ -87,11 +88,11 @@ elif sys.argv[1] == "dump":
     with open("frozenight/model.rs", "w") as file:
         file.write("Nnue {")
         file.write("input_layer:")
-        save_tensor(file, state["features.weight"].cpu().numpy().transpose(), SCALE)
+        save_tensor(file, state["features.weight"].cpu().numpy().transpose(), ACTIVATION_RANGE)
         file.write(",input_layer_bias:")
-        save_tensor(file, state["features.bias"].cpu().numpy(), SCALE)
+        save_tensor(file, state["features.bias"].cpu().numpy(), ACTIVATION_RANGE)
         file.write(",hidden_layer:")
-        save_tensor(file, state["layer1.weight"].cpu().numpy()[0], SCALE)
+        save_tensor(file, state["layer1.weight"].cpu().numpy()[0], WEIGHT_SCALE)
         file.write(",hidden_layer_bias:")
-        file.write(f"{round(state['layer1.bias'].cpu().numpy()[0] * SCALE * SCALE)},")
+        file.write(f"{round(state['layer1.bias'].cpu().numpy()[0] * ACTIVATION_RANGE * WEIGHT_SCALE)},")
         file.write("}")
