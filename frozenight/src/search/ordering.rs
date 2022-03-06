@@ -128,31 +128,28 @@ impl<'a> MoveOrdering<'a> {
 }
 
 pub struct HistoryTable {
-    to_sq: [[[(i32, i32); Square::NUM]; Piece::NUM]; Color::NUM],
+    to_sq: [[[i32; Square::NUM]; Piece::NUM]; Color::NUM],
 }
 
 impl HistoryTable {
     pub fn new() -> Self {
         HistoryTable {
-            to_sq: [[[(0, 0); Square::NUM]; Piece::NUM]; Color::NUM],
+            to_sq: [[[1_000_000_000; Square::NUM]; Piece::NUM]; Color::NUM],
         }
     }
 
     pub fn caused_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
-        let (average, total) = &mut self.to_sq[stm as usize][piece as usize][mv.to as usize];
+        let average = &mut self.to_sq[stm as usize][piece as usize][mv.to as usize];
         let diff = 2_000_000_000 - *average;
-        *total += 1;
-        *average += diff / *total;
+        *average += diff / 256;
     }
 
     pub fn did_not_cause_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
-        let (average, total) = &mut self.to_sq[stm as usize][piece as usize][mv.to as usize];
-        *total += 1;
-        *average -= *average / *total;
+        let average = &mut self.to_sq[stm as usize][piece as usize][mv.to as usize];
+        *average -= *average / 256;
     }
 
     fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
-        let (average, _) = self.to_sq[stm as usize][piece as usize][mv.to as usize];
-        average
+        self.to_sq[stm as usize][piece as usize][mv.to as usize]
     }
 }
