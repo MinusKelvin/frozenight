@@ -8,6 +8,8 @@ use std::time::Instant;
 use cozy_chess::{Board, Color, Piece, Square};
 use cozy_syzygy::Tablebase;
 
+use crate::Sample;
+
 pub fn generate_games(syzygy_path: Option<PathBuf>, concurrency: usize, count: usize) {
     let output = OpenOptions::new()
         .create_new(true)
@@ -56,7 +58,7 @@ pub fn generate_games(syzygy_path: Option<PathBuf>, concurrency: usize, count: u
 }
 
 fn sample_game(tb: Option<&Tablebase>, output: &Mutex<impl Write>) -> usize {
-    let (game, winner) = super::play_game(8, tb);
+    let (game, winner) = super::play_game(7, tb);
 
     let mut samples = 0;
     for sample in game {
@@ -71,16 +73,17 @@ fn sample_game(tb: Option<&Tablebase>, output: &Mutex<impl Write>) -> usize {
         }
 
         samples += 1;
-        emit_sample(&mut *output.lock().unwrap(), &sample.board, winner);
+        emit_sample(&mut *output.lock().unwrap(), &sample, winner);
     }
 
     samples
 }
 
-fn emit_sample(mut out: impl Write, board: &Board, winner: Option<Color>) {
-    write_features(&mut out, board, board.side_to_move() == Color::Black);
-    write_features(&mut out, board, board.side_to_move() == Color::White);
-    out.write_all(match (winner, board.side_to_move()) {
+fn emit_sample(mut out: impl Write, sample: &Sample, winner: Option<Color>) {
+    write_features(&mut out, &sample.board, sample.board.side_to_move() == Color::Black);
+    write_features(&mut out, &sample.board, sample.board.side_to_move() == Color::White);
+    out.write_all(&sample.eval.raw().to_le_bytes()).unwrap();
+    out.write_all(match (winner, sample.board.side_to_move()) {
         (Some(win), stm) if win == stm => &[2, 0],
         (Some(win), stm) if win != stm => &[0, 0],
         (None, _) => &[1, 0],

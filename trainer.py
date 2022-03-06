@@ -44,19 +44,22 @@ class PositionSet(torch.utils.data.Dataset):
         self.data = data
 
     def __len__(self) -> int:
-        return len(self.data) // 130
+        return len(self.data) // 132
 
     def __getitem__(self, index: int):
-        content = struct.unpack("<" + "H" * 65, self.data[index*130:index*130+130])
+        content = struct.unpack("<" + "H" * 66, self.data[index*132:index*132+132])
         stm = np.zeros(NUM_FEATURES, dtype=np.float32)
-        for i in range(33):
+        for i in range(32):
             if content[i] == 65535: break
             stm[content[i]] = 1
         sntm = np.zeros(NUM_FEATURES, dtype=np.float32)
-        for i in range(33):
+        for i in range(32):
             if content[32 + i] == 65535: break
             sntm[content[32 + i]] = 1
-        outcome = content[64] / 2
+        value = torch.sigmoid(torch.tensor([content[64] / ACTIVATION_RANGE / WEIGHT_SCALE * 8]))
+        outcome = content[65] / 2
+        t = 0.5
+        target = value * t + outcome * (1 - t)
         return [torch.as_tensor(stm), torch.as_tensor(sntm)], torch.tensor([outcome])
 
 if __name__ != "__main__":
