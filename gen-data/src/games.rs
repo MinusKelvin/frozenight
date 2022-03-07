@@ -58,7 +58,7 @@ pub fn generate_games(syzygy_path: Option<PathBuf>, concurrency: usize, count: u
 }
 
 fn sample_game(tb: Option<&Tablebase>, output: &Mutex<impl Write>) -> usize {
-    let (game, winner) = super::play_game(7, tb);
+    let (game, winner) = super::play_game(8, tb);
 
     let mut samples = 0;
     for sample in game {
