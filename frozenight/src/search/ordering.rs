@@ -7,7 +7,6 @@ pub struct MoveOrdering<'a> {
     killer: Move,
     captures: Vec<(Move, i8)>,
     quiets: Vec<(Move, i32)>,
-    underpromotions: Vec<Move>,
 }
 
 #[derive(Clone, Copy)]
@@ -16,7 +15,6 @@ enum MoveOrderingStage {
     GenerateMoves,
     Captures,
     Quiets,
-    Underpromotions,
 }
 
 const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
@@ -33,7 +31,6 @@ impl<'a> MoveOrdering<'a> {
             killer,
             captures: vec![],
             quiets: vec![],
-            underpromotions: vec![],
         }
     }
 
@@ -43,7 +40,6 @@ impl<'a> MoveOrdering<'a> {
             MoveOrderingStage::GenerateMoves => self.generate_moves(history),
             MoveOrderingStage::Captures => self.captures(),
             MoveOrderingStage::Quiets => self.quiets(),
-            MoveOrderingStage::Underpromotions => self.underpromotions(),
         }
     }
 
@@ -61,17 +57,10 @@ impl<'a> MoveOrdering<'a> {
                 if Some(mv) == self.hashmove {
                     continue;
                 }
-                if matches!(
-                    mv.promotion,
-                    Some(Piece::Knight | Piece::Bishop | Piece::Rook)
-                ) {
-                    self.underpromotions.push(mv);
-                    continue;
-                }
 
                 match self.board.piece_on(mv.to) {
                     Some(victim) => {
-                        let attacker = PIECE_ORDINALS[mvs.piece as usize];
+                        let attacker = PIECE_ORDINALS[mv.promotion.unwrap_or(mvs.piece) as usize];
                         let victim = PIECE_ORDINALS[victim as usize] * 4;
                         self.captures.push((mv, victim - attacker));
                     }
@@ -108,8 +97,7 @@ impl<'a> MoveOrdering<'a> {
 
     fn quiets(&mut self) -> Option<Move> {
         if self.quiets.is_empty() {
-            self.stage = MoveOrderingStage::Underpromotions;
-            return self.underpromotions();
+            return None;
         }
 
         let mut index = 0;
@@ -120,10 +108,6 @@ impl<'a> MoveOrdering<'a> {
         }
 
         Some(self.quiets.swap_remove(index).0)
-    }
-
-    fn underpromotions(&mut self) -> Option<Move> {
-        self.underpromotions.pop()
     }
 }
 
@@ -152,7 +136,8 @@ impl HistoryTable {
     }
 
     fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
-        let (average, _) = self.to_sq[stm as usize][piece as usize][mv.to as usize];
+        let (average, _) =
+            self.to_sq[stm as usize][mv.promotion.unwrap_or(piece) as usize][mv.to as usize];
         average
     }
 }
