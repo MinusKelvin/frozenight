@@ -6,7 +6,7 @@ pub struct MoveOrdering<'a> {
     hashmove: Option<Move>,
     killer: Move,
     captures: Vec<(Move, i8)>,
-    quiets: Vec<(Move, i32)>,
+    quiets: Vec<(Move, Piece)>,
     underpromotions: Vec<Move>,
 }
 
@@ -41,8 +41,8 @@ impl<'a> MoveOrdering<'a> {
         match self.stage {
             MoveOrderingStage::Hashmove => self.hashmove(),
             MoveOrderingStage::GenerateMoves => self.generate_moves(history),
-            MoveOrderingStage::Captures => self.captures(),
-            MoveOrderingStage::Quiets => self.quiets(),
+            MoveOrderingStage::Captures => self.captures(history),
+            MoveOrderingStage::Quiets => self.quiets(history),
             MoveOrderingStage::Underpromotions => self.underpromotions(),
         }
     }
@@ -80,20 +80,19 @@ impl<'a> MoveOrdering<'a> {
                         self.captures.push((mv, 0));
                     }
                     _ => {
-                        self.quiets
-                            .push((mv, history.rank(mvs.piece, mv, self.board.side_to_move())));
+                        self.quiets.push((mv, mvs.piece));
                     }
                 }
             }
             false
         });
-        self.captures()
+        self.captures(history)
     }
 
-    fn captures(&mut self) -> Option<Move> {
+    fn captures(&mut self, history: &HistoryTable) -> Option<Move> {
         if self.captures.is_empty() {
             self.stage = MoveOrderingStage::Quiets;
-            return self.quiets();
+            return self.quiets(history);
         }
 
         let mut index = 0;
@@ -106,16 +105,19 @@ impl<'a> MoveOrdering<'a> {
         Some(self.captures.swap_remove(index).0)
     }
 
-    fn quiets(&mut self) -> Option<Move> {
+    fn quiets(&mut self, history: &HistoryTable) -> Option<Move> {
         if self.quiets.is_empty() {
             self.stage = MoveOrderingStage::Underpromotions;
             return self.underpromotions();
         }
 
         let mut index = 0;
+        let mut rank = history.rank(self.quiets[0].1, self.quiets[0].0, self.board.side_to_move());
         for i in 1..self.quiets.len() {
-            if self.quiets[i].1 > self.quiets[index].1 {
+            let r = history.rank(self.quiets[i].1, self.quiets[i].0, self.board.side_to_move());
+            if r > rank {
                 index = i;
+                rank = r;
             }
         }
 
