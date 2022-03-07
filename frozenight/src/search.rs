@@ -199,12 +199,7 @@ impl Searcher {
                 depth
             };
 
-            let mut v = -self.visit_node(new_pos, -window, d - 1)?;
-
-            if !window.fail_low(v) && d < depth {
-                // reduced move unexpectedly raised alpha; research at full depth
-                v = -self.visit_node(new_pos, -window, depth - 1)?;
-            }
+            let v = -self.visit_node(new_pos, -window, d - 1)?;
 
             let quiet = position.board.color_on(mv.to) != Some(!position.board.side_to_move());
             if quiet {
