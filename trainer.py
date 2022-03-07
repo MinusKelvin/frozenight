@@ -33,7 +33,7 @@ class Nnue(pl.LightningModule):
 
     def optimizer_step(self, *args, **kwargs):
         super().optimizer_step(*args, **kwargs)
-        for p in self.parameters():
+        for p in self.layer1.parameters():
             p.data = p.data.clamp(MIN, MAX)
 
     def configure_optimizers(self):
