@@ -47,7 +47,7 @@ class PositionSet(torch.utils.data.Dataset):
         return len(self.data) // 132
 
     def __getitem__(self, index: int):
-        content = struct.unpack("<" + "H" * 66, self.data[index*132:index*132+132])
+        content = struct.unpack("<" + "H" * 64 + "hH", self.data[index*132:index*132+132])
         stm = np.zeros(NUM_FEATURES, dtype=np.float32)
         for i in range(32):
             if content[i] == 65535: break
@@ -58,7 +58,7 @@ class PositionSet(torch.utils.data.Dataset):
             sntm[content[32 + i]] = 1
         value = torch.sigmoid(torch.tensor([content[64] / ACTIVATION_RANGE / WEIGHT_SCALE * 8]))
         outcome = content[65] / 2
-        t = 0.5
+        t = 0.9
         target = value * t + outcome * (1 - t)
         return [torch.as_tensor(stm), torch.as_tensor(sntm)], torch.tensor([outcome])
 
@@ -67,7 +67,7 @@ if __name__ != "__main__":
 elif sys.argv[1] == "train":
     with open("data.bin", "rb") as f:
         dataset = PositionSet(f.read())
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<12, shuffle=True)
 
     nnue = Nnue()
     trainer = pl.Trainer()
