@@ -18,6 +18,8 @@ struct Options {
     syzygy_path: Option<PathBuf>,
     #[structopt(short = "c", long, default_value = "10000000")]
     count: usize,
+    #[structopt(short = "d", long, default_value = "6")]
+    depth: u16,
 
     /// One of `wdl`
     kind: Kind,
@@ -42,7 +44,7 @@ fn main() {
     let options = Options::from_args();
 
     match options.kind {
-        Kind::Wdl => games::generate_games(options.syzygy_path, options.concurrency, options.count),
+        Kind::Wdl => games::generate_games(&options),
     }
 }
 

@@ -1,6 +1,5 @@
 use std::fs::OpenOptions;
 use std::io::{stdout, BufWriter, Write};
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -8,9 +7,9 @@ use std::time::Instant;
 use cozy_chess::{Board, Color, Piece, Square};
 use cozy_syzygy::Tablebase;
 
-use crate::Sample;
+use crate::{Options, Sample};
 
-pub fn generate_games(syzygy_path: Option<PathBuf>, concurrency: usize, count: usize) {
+pub(crate) fn generate_games(options: &Options) {
     let output = OpenOptions::new()
         .create_new(true)
         .write(true)
@@ -21,19 +20,25 @@ pub fn generate_games(syzygy_path: Option<PathBuf>, concurrency: usize, count: u
         });
     let output = Arc::new(Mutex::new(BufWriter::new(output)));
 
-    let tb = syzygy_path.map(Tablebase::new).map(Arc::new);
+    let tb = options
+        .syzygy_path
+        .as_ref()
+        .map(Tablebase::new)
+        .map(Arc::new);
     if let Some(tb) = tb.as_ref() {
         println!("Using tablebase adjudication with {} men", tb.max_pieces());
     }
     let game_counter = Arc::new(AtomicUsize::new(0));
     let start = Instant::now();
-    let handles: Vec<_> = (0..concurrency)
+    let handles: Vec<_> = (0..options.concurrency)
         .map(|_| {
             let tb = tb.clone();
             let game_counter = game_counter.clone();
             let output = output.clone();
+            let count = options.count;
+            let depth = options.depth;
             std::thread::spawn(move || loop {
-                let samples = sample_game(tb.as_deref(), &output);
+                let samples = sample_game(tb.as_deref(), &output, depth);
                 let total = samples + game_counter.fetch_add(samples, Ordering::SeqCst);
                 let completion = total as f64 / count as f64;
                 let time = start.elapsed().as_secs_f64();
@@ -57,8 +62,8 @@ pub fn generate_games(syzygy_path: Option<PathBuf>, concurrency: usize, count: u
     println!();
 }
 
-fn sample_game(tb: Option<&Tablebase>, output: &Mutex<impl Write>) -> usize {
-    let (game, winner) = super::play_game(8, tb);
+fn sample_game(tb: Option<&Tablebase>, output: &Mutex<impl Write>, depth: u16) -> usize {
+    let (game, winner) = super::play_game(depth, tb);
 
     let mut samples = 0;
     for sample in game {
@@ -80,8 +85,16 @@ fn sample_game(tb: Option<&Tablebase>, output: &Mutex<impl Write>) -> usize {
 }
 
 fn emit_sample(mut out: impl Write, sample: &Sample, winner: Option<Color>) {
-    write_features(&mut out, &sample.board, sample.board.side_to_move() == Color::Black);
-    write_features(&mut out, &sample.board, sample.board.side_to_move() == Color::White);
+    write_features(
+        &mut out,
+        &sample.board,
+        sample.board.side_to_move() == Color::Black,
+    );
+    write_features(
+        &mut out,
+        &sample.board,
+        sample.board.side_to_move() == Color::White,
+    );
     out.write_all(&sample.eval.raw().to_le_bytes()).unwrap();
     out.write_all(match (winner, sample.board.side_to_move()) {
         (Some(win), stm) if win == stm => &[2, 0],
