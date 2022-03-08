@@ -153,11 +153,11 @@ impl Searcher {
     fn alpha_beta(&mut self, position: &Position, mut window: Window, depth: u16) -> Option<Eval> {
         self.stats.nodes += 1;
 
-        // reverse futility pruning... but with qsearch
+        // reverse futility pruning
         if depth <= 6 {
             let margin = 250 * depth as i16;
             let rfp_window = Window::test_lower_ub(window.ub() + margin);
-            let eval = self.qsearch(position, rfp_window);
+            let eval = position.static_eval(&self.shared.nnue);
             if rfp_window.fail_high(eval) {
                 return Some(eval);
             }
