@@ -65,16 +65,39 @@ impl Searcher {
             .and_then(|entry| root.is_legal(entry.mv).then(|| entry.mv));
 
         let mut orderer = MoveOrdering::new(root, hashmove, INVALID_MOVE);
+        let mut quiets = 0;
         while let Some(mv) = orderer.next(&self.history) {
-            let mut new_board = root.clone();
-            new_board.play_unchecked(mv);
-            let v = -self.visit_node(
-                &position.play_move(&self.shared.nnue, mv),
+            let new_pos = &position.play_move(&self.shared.nnue, mv);
+
+            let d = if quiets < 4
+                || position.board.color_on(mv.to) == Some(!position.board.side_to_move())
+                || !new_pos.board.checkers().is_empty()
+            {
+                depth
+            } else if quiets < 12 && depth >= 2 {
+                depth - 1
+            } else if depth >= 3 {
+                depth - 2
+            } else {
+                depth
+            };
+
+            let mut v = -self.visit_node(
+                new_pos,
                 -window,
-                depth - 1,
+                d - 1,
             )?;
+
+            if d != depth && v > window.lb() {
+                v = -self.visit_node(new_pos, -window, depth - 1)?;
+            }
+
             if window.raise_lb(v) {
                 best_move = mv;
+            }
+
+            if !root.colors(!root.side_to_move()).has(mv.to) {
+                quiets += 1;
             }
         }
 
