@@ -112,9 +112,17 @@ impl<'a> MoveOrdering<'a> {
         }
 
         let mut index = 0;
-        let mut rank = history.rank(self.quiets[0].1, self.quiets[0].0, self.board.side_to_move());
+        let mut rank = history.rank(
+            self.quiets[0].1,
+            self.quiets[0].0,
+            self.board.side_to_move(),
+        );
         for i in 1..self.quiets.len() {
-            let r = history.rank(self.quiets[i].1, self.quiets[i].0, self.board.side_to_move());
+            let r = history.rank(
+                self.quiets[i].1,
+                self.quiets[i].0,
+                self.board.side_to_move(),
+            );
             if r > rank {
                 index = i;
                 rank = r;
@@ -130,31 +138,34 @@ impl<'a> MoveOrdering<'a> {
 }
 
 pub struct HistoryTable {
-    to_sq: [[[(i32, i32); Square::NUM]; Piece::NUM]; Color::NUM],
+    table: [[[[(i32, i32); Square::NUM]; Square::NUM]; Piece::NUM]; Color::NUM],
 }
 
 impl HistoryTable {
     pub fn new() -> Self {
         HistoryTable {
-            to_sq: [[[(0, 0); Square::NUM]; Piece::NUM]; Color::NUM],
+            table: [[[[(0, 0); Square::NUM]; Square::NUM]; Piece::NUM]; Color::NUM],
         }
     }
 
     pub fn caused_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
-        let (average, total) = &mut self.to_sq[stm as usize][piece as usize][mv.to as usize];
+        let (average, total) =
+            &mut self.table[stm as usize][piece as usize][mv.from as usize][mv.to as usize];
         let diff = 2_000_000_000 - *average;
         *total += 1;
         *average += diff / *total;
     }
 
     pub fn did_not_cause_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
-        let (average, total) = &mut self.to_sq[stm as usize][piece as usize][mv.to as usize];
+        let (average, total) =
+            &mut self.table[stm as usize][piece as usize][mv.from as usize][mv.to as usize];
         *total += 1;
         *average -= *average / *total;
     }
 
     fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
-        let (average, _) = self.to_sq[stm as usize][piece as usize][mv.to as usize];
+        let (average, _) =
+            self.table[stm as usize][piece as usize][mv.from as usize][mv.to as usize];
         average
     }
 }
