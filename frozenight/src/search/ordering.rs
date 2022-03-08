@@ -112,9 +112,17 @@ impl<'a> MoveOrdering<'a> {
         }
 
         let mut index = 0;
-        let mut rank = history.rank(self.quiets[0].1, self.quiets[0].0, self.board.side_to_move());
+        let mut rank = history.rank(
+            self.quiets[0].1,
+            self.quiets[0].0,
+            self.board.side_to_move(),
+        );
         for i in 1..self.quiets.len() {
-            let r = history.rank(self.quiets[i].1, self.quiets[i].0, self.board.side_to_move());
+            let r = history.rank(
+                self.quiets[i].1,
+                self.quiets[i].0,
+                self.board.side_to_move(),
+            );
             if r > rank {
                 index = i;
                 rank = r;
@@ -130,31 +138,43 @@ impl<'a> MoveOrdering<'a> {
 }
 
 pub struct HistoryTable {
-    to_sq: [[[(i32, i32); Square::NUM]; Piece::NUM]; Color::NUM],
+    piece_to_sq: [[[(u32, u32); Square::NUM]; Piece::NUM]; Color::NUM],
+    from_sq_to_sq: [[[(u32, u32); Square::NUM]; Square::NUM]; Color::NUM],
 }
 
 impl HistoryTable {
     pub fn new() -> Self {
         HistoryTable {
-            to_sq: [[[(0, 0); Square::NUM]; Piece::NUM]; Color::NUM],
+            piece_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
+            from_sq_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Square::NUM]; Color::NUM],
         }
     }
 
     pub fn caused_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
-        let (average, total) = &mut self.to_sq[stm as usize][piece as usize][mv.to as usize];
-        let diff = 2_000_000_000 - *average;
+        let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+        let diff = 2_000_000_000 - *piece_to;
         *total += 1;
-        *average += diff / *total;
+        *piece_to += diff / *total;
+        let (from_to, total) =
+            &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
+        let diff = 2_000_000_000 - *from_to;
+        *total += 1;
+        *from_to += diff / *total;
     }
 
     pub fn did_not_cause_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
-        let (average, total) = &mut self.to_sq[stm as usize][piece as usize][mv.to as usize];
+        let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         *total += 1;
-        *average -= *average / *total;
+        *piece_to -= *piece_to / *total;
+        let (from_to, total) =
+            &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
+        *total += 1;
+        *from_to -= *from_to / *total;
     }
 
-    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
-        let (average, _) = self.to_sq[stm as usize][piece as usize][mv.to as usize];
-        average
+    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> u32 {
+        let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+        let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
+        piece_to + from_to
     }
 }
