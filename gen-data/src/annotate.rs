@@ -14,7 +14,7 @@ use crate::{CommonOptions, ABORT};
 
 #[derive(StructOpt)]
 pub(crate) struct Options {
-    #[structopt(short = "d", long, default_value = "8")]
+    #[structopt(short = "d", long, default_value = "5")]
     depth: u16,
     #[structopt(short = "t", long)]
     filter_captures: bool,
