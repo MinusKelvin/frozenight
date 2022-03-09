@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use once_cell::sync::Lazy;
 use structopt::StructOpt;
 
+mod annotate;
 mod games;
 
 static ABORT: AtomicBool = AtomicBool::new(false);
@@ -31,6 +32,7 @@ struct CommonOptions {
 enum Subcommand {
     /// Generate positions from self-play games
     Games(games::Options),
+    Annotate(annotate::Options),
 }
 
 fn main() {
@@ -42,6 +44,7 @@ fn main() {
 
     match options.subcommand {
         Subcommand::Games(opt) => opt.run(options.common),
+        Subcommand::Annotate(opt) => opt.run(options.common),
     }
 }
 
