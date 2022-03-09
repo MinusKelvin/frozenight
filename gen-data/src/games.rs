@@ -39,7 +39,7 @@ impl Options {
 
         crossbeam_utils::thread::scope(|s| {
             for _ in 0..opt.concurrency {
-                s.spawn(|_| loop {
+                s.spawn(|_| while !crate::ABORT.load(Ordering::SeqCst) {
                     let (start_pos, mvs, winner) = self.play_game(tb.as_ref());
 
                     output.lock().map(|mut output| {

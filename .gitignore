@@ -2,3 +2,4 @@
 /.mypy_cache
 /lightning_logs
 /data.bin
+/games.dat

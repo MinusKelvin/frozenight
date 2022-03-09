@@ -1,11 +1,14 @@
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use once_cell::sync::Lazy;
 use structopt::StructOpt;
 
 mod games;
+
+static ABORT: AtomicBool = AtomicBool::new(false);
 
 #[derive(StructOpt)]
 struct Args {
@@ -32,6 +35,10 @@ enum Subcommand {
 
 fn main() {
     let options = Args::from_args();
+
+    ctrlc::set_handler(|| {
+        ABORT.store(true, Ordering::SeqCst);
+    }).unwrap();
 
     match options.subcommand {
         Subcommand::Games(opt) => opt.run(options.common),

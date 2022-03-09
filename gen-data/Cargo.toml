@@ -14,3 +14,4 @@ structopt = "0.3.26"
 frozenight = { path = "../frozenight" }
 once_cell = "1.10.0"
 crossbeam-utils = "0.8.7"
+ctrlc = "3.2.1"
