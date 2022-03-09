@@ -29,7 +29,7 @@ class Nnue(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         features, target = batch
         value = torch.sigmoid(self(features))
-        return torch.nn.functional.binary_cross_entropy(value, target)
+        return torch.nn.functional.mse_loss(value, target)
 
     def optimizer_step(self, *args, **kwargs):
         super().optimizer_step(*args, **kwargs)
@@ -60,12 +60,12 @@ class PositionSet(torch.utils.data.Dataset):
         outcome = content[65] / 2
         t = 0.9
         target = value * t + outcome * (1 - t)
-        return [torch.as_tensor(stm), torch.as_tensor(sntm)], torch.tensor([outcome])
+        return [torch.as_tensor(stm), torch.as_tensor(sntm)], torch.tensor([target])
 
 if __name__ != "__main__":
     pass
 elif sys.argv[1] == "train":
-    with open("data.bin", "rb") as f:
+    with open(sys.argv[2], "rb") as f:
         dataset = PositionSet(f.read())
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<12, shuffle=True)
 
