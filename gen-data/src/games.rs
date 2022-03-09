@@ -111,7 +111,7 @@ impl Options {
                 GameStatus::Ongoing => {}
             }
 
-            let entry = repetitions.entry(board.clone()).or_default();
+            let entry = repetitions.entry(board.hash()).or_default();
             *entry += 1;
             if *entry >= 3 {
                 break None;
