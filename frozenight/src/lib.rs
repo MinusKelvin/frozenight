@@ -206,10 +206,10 @@ pub struct Statistics {
 pub trait Listener {
     fn info(&mut self, depth: u16, stats: Statistics, eval: Eval, board: &Board, pv: &[Move]);
 
-    fn best_move(self, mv: Move, eval: Eval);
+    fn best_move(self, board: &Board, mv: Move, eval: Eval);
 }
 
 impl Listener for () {
     fn info(&mut self, _: u16, _: Statistics, _: Eval, _: &Board, _: &[Move]) {}
-    fn best_move(self, _: Move, _: Eval) {}
+    fn best_move(self, _: &Board, _: Move, _: Eval) {}
 }
