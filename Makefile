@@ -12,8 +12,6 @@ else
 	NAME := $(EXE)
 endif
 
-export RUSTFLAGS=-C target-cpu=native
-
 all:
 	cargo build --release --bin frozenight-uci
 	mv target/release/frozenight-uci $(NAME)
