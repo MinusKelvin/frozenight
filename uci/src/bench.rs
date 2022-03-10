@@ -69,7 +69,7 @@ impl Listener for BenchListener {
         self.nodes = stats.nodes;
     }
 
-    fn best_move(self, _: Move, _: Eval) {
+    fn best_move(self, _: &Board, _: Move, _: Eval) {
         self.sender.send(self.nodes).unwrap();
     }
 }

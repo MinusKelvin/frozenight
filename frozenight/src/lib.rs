@@ -171,7 +171,7 @@ fn spawn_search_thread(
             }
         }
         let (e, m) = best_move.unwrap();
-        listener.best_move(m, e);
+        listener.best_move(&board, m, e);
     })
 }
 
@@ -184,12 +184,12 @@ pub struct Statistics {
 pub trait Listener: Send + 'static {
     fn info(&mut self, depth: u16, stats: Statistics, eval: Eval, board: &Board, pv: &[Move]);
 
-    fn best_move(self, mv: Move, eval: Eval);
+    fn best_move(self, board: &Board, mv: Move, eval: Eval);
 }
 
 impl Listener for () {
     fn info(&mut self, _: u16, _: Statistics, _: Eval, _: &Board, _: &[Move]) {}
-    fn best_move(self, _: Move, _: Eval) {}
+    fn best_move(self, _: &Board, _: Move, _: Eval) {}
 }
 
 impl<F> Listener for F
@@ -198,7 +198,7 @@ where
 {
     fn info(&mut self, _: u16, _: Statistics, _: Eval, _: &Board, _: &[Move]) {}
 
-    fn best_move(self, mv: Move, eval: Eval) {
+    fn best_move(self, _: &Board, mv: Move, eval: Eval) {
         self(mv, eval)
     }
 }

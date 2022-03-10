@@ -209,8 +209,8 @@ impl Listener for UciListener {
         println!();
     }
 
-    fn best_move(self, mv: Move, _: Eval) {
-        println!("bestmove {}", mv);
+    fn best_move(self, board: &Board, mv: Move, _: Eval) {
+        println!("bestmove {}", to_uci_castling(board, mv));
         stdout().flush().unwrap();
     }
 }
