@@ -27,6 +27,11 @@ const POSITIONS: &[&str] = &[
 ];
 
 pub fn bench() {
+    let depth = match std::env::args().any(|s| s == "--long") {
+        true => 16,
+        false => 8,
+    };
+
     let mut total_time = Duration::ZERO;
     let mut total_nodes = 0;
 
@@ -36,7 +41,7 @@ pub fn bench() {
 
         let mut nodes = 0;
         let start = Instant::now();
-        engine.search_synchronous(None, 8, |_, stats, _, _, _| nodes = stats.nodes);
+        engine.search_synchronous(None, depth, |_, stats, _, _, _| nodes = stats.nodes);
         total_time += start.elapsed();
         total_nodes += nodes;
     }
