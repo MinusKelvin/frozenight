@@ -62,7 +62,7 @@ impl Searcher {
             .shared
             .tt
             .get(&position)
-            .and_then(|entry| root.is_legal(entry.mv).then(|| entry.mv));
+            .map(|entry| entry.mv);
 
         let mut orderer = MoveOrdering::new(root, hashmove, INVALID_MOVE);
         let mut quiets = 0;
@@ -183,7 +183,7 @@ impl Searcher {
         match self.shared.tt.get(&position) {
             None => hashmove = None,
             Some(entry) => {
-                hashmove = position.board.is_legal(entry.mv).then(|| entry.mv);
+                hashmove = Some(entry.mv);
 
                 match entry.kind {
                     _ if entry.search_depth < depth => {}
