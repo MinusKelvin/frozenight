@@ -5,7 +5,7 @@ from torch import nn
 import pytorch_lightning as pl
 import numpy as np
 
-import struct, sys, json
+import struct, sys, subprocess
 
 NUM_FEATURES = 2 * 6 * 64
 LAYER_1 = 16
@@ -39,6 +39,43 @@ class Nnue(pl.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters())
 
+    def training_epoch_end(self, outputs):
+        self.export()
+        out = subprocess.run(
+            ["cargo", "run", "bench"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True
+        ).stdout
+        nodes = float(out.split()[0])
+        print(f"bench: {nodes}")
+        self.log("bench", nodes)
+
+    def export(nnue):
+        def save_tensor(file, tensor, scale):
+            file.write("[")
+            for i in range(tensor.shape[0]):
+                if len(tensor.shape) == 1:
+                    file.write(f"{round(tensor[i] * scale)},")
+                else:
+                    save_tensor(file, tensor[i], scale)
+                    file.write(",")
+            file.write("]")
+
+        state = nnue.state_dict()
+
+        with open("frozenight/model.rs", "w") as file:
+            file.write("Nnue {")
+            file.write("input_layer:")
+            save_tensor(file, state["features.weight"].cpu().numpy().transpose(), ACTIVATION_RANGE)
+            file.write(",input_layer_bias:")
+            save_tensor(file, state["features.bias"].cpu().numpy(), ACTIVATION_RANGE)
+            file.write(",hidden_layer:")
+            save_tensor(file, state["layer1.weight"].cpu().numpy()[0], WEIGHT_SCALE)
+            file.write(",hidden_layer_bias:")
+            file.write(f"{round(state['layer1.bias'].cpu().numpy()[0] * ACTIVATION_RANGE * WEIGHT_SCALE)},")
+            file.write("}")
+
 class PositionSet(torch.utils.data.Dataset):
     def __init__(self, data: bytes):
         self.data = data
@@ -67,35 +104,10 @@ if __name__ != "__main__":
 elif sys.argv[1] == "train":
     with open(sys.argv[2], "rb") as f:
         dataset = PositionSet(f.read())
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<12, shuffle=True)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<12, shuffle=True, num_workers=16)
 
     nnue = Nnue()
-    trainer = pl.Trainer()
+    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=4, monitor="bench", filename="{epoch}-{bench}"))
     trainer.fit(nnue, train_dataloaders=dataloader)
 elif sys.argv[1] == "dump":
-    nnue = Nnue.load_from_checkpoint(sys.argv[2])
-    nnue.eval()
-
-    def save_tensor(file, tensor, scale):
-        file.write("[")
-        for i in range(tensor.shape[0]):
-            if len(tensor.shape) == 1:
-                file.write(f"{round(tensor[i] * scale)},")
-            else:
-                save_tensor(file, tensor[i], scale)
-                file.write(",")
-        file.write("]")
-
-    state = nnue.state_dict()
-
-    with open("frozenight/model.rs", "w") as file:
-        file.write("Nnue {")
-        file.write("input_layer:")
-        save_tensor(file, state["features.weight"].cpu().numpy().transpose(), ACTIVATION_RANGE)
-        file.write(",input_layer_bias:")
-        save_tensor(file, state["features.bias"].cpu().numpy(), ACTIVATION_RANGE)
-        file.write(",hidden_layer:")
-        save_tensor(file, state["layer1.weight"].cpu().numpy()[0], WEIGHT_SCALE)
-        file.write(",hidden_layer_bias:")
-        file.write(f"{round(state['layer1.bias'].cpu().numpy()[0] * ACTIVATION_RANGE * WEIGHT_SCALE)},")
-        file.write("}")
+    Nnue.load_from_checkpoint(sys.argv[2]).export()
