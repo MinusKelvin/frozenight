@@ -76,7 +76,8 @@ impl<'a> Searcher<'a> {
         }
 
         let position = Position::from_root(self.root.clone(), &self.shared.nnue);
-        let (eval, best_move) = self.alpha_beta(&position, Window::default(), depth)?;
+        let hashmove = self.shared.tt.get_move(&self.root);
+        let (eval, best_move) = self.alpha_beta(&position, Window::default(), depth, hashmove)?;
 
         if best_move == INVALID_MOVE {
             panic!("root position (FEN: {}) has no moves", self.root);
@@ -126,7 +127,12 @@ impl<'a> Searcher<'a> {
         Some(result)
     }
 
-    fn search_internal(&mut self, position: &Position, window: Window, depth: u16) -> Option<Eval> {
+    fn search_internal(
+        &mut self,
+        position: &Position,
+        mut window: Window,
+        depth: u16,
+    ) -> Option<Eval> {
         // reverse futility pruning... but with qsearch
         if depth <= 6 {
             let margin = 250 * depth as i16;
@@ -147,7 +153,32 @@ impl<'a> Searcher<'a> {
             }
         }
 
-        self.alpha_beta(position, window, depth)
+        let hashmove;
+        match self.shared.tt.get(&position) {
+            Some(entry) => {
+                hashmove = Some(entry.mv);
+
+                match entry.kind {
+                    _ if entry.search_depth < depth => {}
+                    NodeKind::Exact => return Some(entry.eval),
+                    NodeKind::LowerBound => {
+                        if window.fail_high(entry.eval) {
+                            return Some(entry.eval);
+                        }
+                        window.raise_lb(entry.eval);
+                    }
+                    NodeKind::UpperBound => {
+                        if window.fail_low(entry.eval) {
+                            return Some(entry.eval);
+                        }
+                        window.lower_ub(entry.eval);
+                    }
+                }
+            }
+            _ => hashmove = None,
+        }
+
+        self.alpha_beta(position, window, depth, hashmove)
             .map(|(eval, _)| eval)
     }
 
@@ -158,6 +189,7 @@ impl<'a> Searcher<'a> {
         position: &Position,
         mut window: Window,
         depth: u16,
+        hashmove: Option<Move>,
     ) -> Option<(Eval, Move)> {
         self.stats.nodes.fetch_add(1, Ordering::Relaxed);
 
@@ -166,31 +198,6 @@ impl<'a> Searcher<'a> {
         let mut best_score = -Eval::MATE;
         let mut best_move = INVALID_MOVE;
         let mut node_kind = NodeKind::UpperBound;
-
-        let hashmove;
-        match self.shared.tt.get(&position) {
-            Some(entry) if position.board.is_legal(entry.mv) => {
-                hashmove = Some(entry.mv);
-
-                match entry.kind {
-                    _ if entry.search_depth < depth => {}
-                    NodeKind::Exact => return Some((entry.eval, entry.mv)),
-                    NodeKind::LowerBound => {
-                        if window.fail_high(entry.eval) {
-                            return Some((entry.eval, entry.mv));
-                        }
-                        window.raise_lb(entry.eval);
-                    }
-                    NodeKind::UpperBound => {
-                        if window.fail_low(entry.eval) {
-                            return Some((entry.eval, entry.mv));
-                        }
-                        window.lower_ub(entry.eval);
-                    }
-                }
-            }
-            _ => hashmove = None,
-        }
 
         let mut ordering = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
         let mut quiets = 0;

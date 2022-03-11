@@ -31,7 +31,7 @@ impl TranspositionTable {
             return None;
         }
         let data: TtData = bytemuck::cast(data);
-        Some(Move {
+        let mv = Move {
             from: Square::index(data.mv as usize & 0x3F),
             to: Square::index(data.mv as usize >> 6 & 0x3F),
             promotion: match data.mv as usize >> 12 {
@@ -42,7 +42,8 @@ impl TranspositionTable {
                 4 => Some(Piece::Queen),
                 _ => return None, // invalid
             },
-        })
+        };
+        board.is_legal(mv).then(|| mv)
     }
 
     pub fn get(&self, position: &Position) -> Option<TableEntry> {
@@ -55,19 +56,23 @@ impl TranspositionTable {
         // marshal between usable type and stored data
         // also validates the data
         let data: TtData = bytemuck::cast(data);
-        Some(TableEntry {
-            mv: Move {
-                from: Square::index(data.mv as usize & 0x3F),
-                to: Square::index(data.mv as usize >> 6 & 0x3F),
-                promotion: match data.mv as usize >> 12 {
-                    0 => None,
-                    1 => Some(Piece::Knight),
-                    2 => Some(Piece::Bishop),
-                    3 => Some(Piece::Rook),
-                    4 => Some(Piece::Queen),
-                    _ => return None, // invalid
-                },
+        let mv = Move {
+            from: Square::index(data.mv as usize & 0x3F),
+            to: Square::index(data.mv as usize >> 6 & 0x3F),
+            promotion: match data.mv as usize >> 12 {
+                0 => None,
+                1 => Some(Piece::Knight),
+                2 => Some(Piece::Bishop),
+                3 => Some(Piece::Rook),
+                4 => Some(Piece::Queen),
+                _ => return None, // invalid
             },
+        };
+        if !position.board.is_legal(mv) {
+            return None;
+        }
+        Some(TableEntry {
+            mv,
             kind: match data.kind {
                 0 => NodeKind::Exact,
                 1 => NodeKind::LowerBound,
