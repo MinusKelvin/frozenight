@@ -1,5 +1,4 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 use cozy_chess::{Board, Move, Square};
 use nohash::IntSet;
@@ -21,26 +20,47 @@ const INVALID_MOVE: Move = Move {
     promotion: None,
 };
 
-pub(crate) struct Searcher {
-    pub stats: Statistics,
-    pub shared: Arc<SharedState>,
-    abort: Arc<AtomicBool>,
-    repetition: IntSet<u64>,
-    valid: bool,
+pub(crate) struct SearchState {
     killers: Vec<Move>,
     history: HistoryTable,
 }
 
-impl Searcher {
-    pub fn new(abort: Arc<AtomicBool>, shared: Arc<SharedState>, repetition: IntSet<u64>) -> Self {
+impl Default for SearchState {
+    fn default() -> Self {
+        SearchState {
+            killers: vec![INVALID_MOVE; 128],
+            history: HistoryTable::new(),
+        }
+    }
+}
+
+pub(crate) struct Searcher<'a> {
+    pub root: Board,
+    pub stats: &'a Statistics,
+    pub shared: &'a SharedState,
+    abort: &'a AtomicBool,
+    valid: bool,
+    repetition: IntSet<u64>,
+    state: &'a mut SearchState,
+}
+
+impl<'a> Searcher<'a> {
+    pub fn new(
+        abort: &'a AtomicBool,
+        shared: &'a SharedState,
+        state: &'a mut SearchState,
+        stats: &'a Statistics,
+        repetition: IntSet<u64>,
+        root: Board,
+    ) -> Self {
         Searcher {
+            root,
             shared,
             abort,
             repetition,
+            state,
+            stats,
             valid: true,
-            stats: Default::default(),
-            killers: vec![INVALID_MOVE; 128],
-            history: HistoryTable::new(),
         }
     }
 
@@ -48,7 +68,7 @@ impl Searcher {
     ///
     /// Invariant: `self` is unchanged if this function returns `Some`. If it returns none, then
     /// calling this function again will result in a panic.
-    pub fn search(&mut self, root: &Board, depth: u16) -> Option<(Eval, Move)> {
+    pub fn search(&mut self, depth: u16) -> Option<(Eval, Move)> {
         assert!(depth > 0);
         if !self.valid {
             panic!("attempt to search using an aborted searcher");
@@ -56,17 +76,17 @@ impl Searcher {
         let mut window = Window::default();
         let mut best_move = INVALID_MOVE;
 
-        let position = Position::from_root(root.clone(), &self.shared.nnue);
+        let position = Position::from_root(self.root.clone(), &self.shared.nnue);
 
         let hashmove = self
             .shared
             .tt
             .get(&position)
-            .and_then(|entry| root.is_legal(entry.mv).then(|| entry.mv));
+            .and_then(|entry| self.root.is_legal(entry.mv).then(|| entry.mv));
 
-        let mut orderer = MoveOrdering::new(root, hashmove, INVALID_MOVE);
+        let mut orderer = MoveOrdering::new(&position.board, hashmove, INVALID_MOVE);
         let mut quiets = 0;
-        while let Some(mv) = orderer.next(&self.history) {
+        while let Some(mv) = orderer.next(&self.state.history) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
 
             let d = if quiets < 4
@@ -82,11 +102,7 @@ impl Searcher {
                 depth
             };
 
-            let mut v = -self.visit_node(
-                new_pos,
-                -window,
-                d - 1,
-            )?;
+            let mut v = -self.visit_node(new_pos, -window, d - 1)?;
 
             if d != depth && v > window.lb() {
                 v = -self.visit_node(new_pos, -window, depth - 1)?;
@@ -96,13 +112,13 @@ impl Searcher {
                 best_move = mv;
             }
 
-            if !root.colors(!root.side_to_move()).has(mv.to) {
+            if !self.root.colors(!self.root.side_to_move()).has(mv.to) {
                 quiets += 1;
             }
         }
 
         if best_move == INVALID_MOVE {
-            panic!("root position (FEN: {}) has no moves", root);
+            panic!("root position (FEN: {}) has no moves", self.root);
         }
 
         Some((window.lb(), best_move))
@@ -110,11 +126,12 @@ impl Searcher {
 
     fn killer(&mut self, ply_index: u16) -> &mut Move {
         let idx = ply_index as usize;
-        if idx >= self.killers.len() {
-            self.killers
-                .extend((self.killers.len()..=idx).map(|_| INVALID_MOVE));
+        if idx >= self.state.killers.len() {
+            self.state
+                .killers
+                .extend((self.state.killers.len()..=idx).map(|_| INVALID_MOVE));
         }
-        &mut self.killers[idx]
+        &mut self.state.killers[idx]
     }
 
     fn visit_node(&mut self, position: &Position, window: Window, depth: u16) -> Option<Eval> {
@@ -151,7 +168,7 @@ impl Searcher {
     /// Invariant: `self` is unchanged if this function returns `Some`.
     /// If the side to move has no moves, this returns `-Eval::MATE` even if it is stalemate.
     fn alpha_beta(&mut self, position: &Position, mut window: Window, depth: u16) -> Option<Eval> {
-        self.stats.nodes += 1;
+        self.stats.nodes.fetch_add(1, Ordering::Relaxed);
 
         // reverse futility pruning... but with qsearch
         if depth <= 6 {
@@ -206,7 +223,7 @@ impl Searcher {
 
         let mut ordering = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
         let mut quiets = 0;
-        while let Some(mv) = ordering.next(&self.history) {
+        while let Some(mv) = ordering.next(&self.state.history) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
 
             let d = if quiets < 4
@@ -248,7 +265,7 @@ impl Searcher {
                 if quiet {
                     // quiet move - update killer and history
                     *self.killer(position.ply) = mv;
-                    self.history.caused_cutoff(
+                    self.state.history.caused_cutoff(
                         position.board.piece_on(mv.from).unwrap(),
                         mv,
                         position.board.side_to_move(),
@@ -257,7 +274,7 @@ impl Searcher {
                 return Some(v);
             } else if quiet {
                 // quiet move did not cause cutoff - update history
-                self.history.did_not_cause_cutoff(
+                self.state.history.did_not_cause_cutoff(
                     position.board.piece_on(mv.from).unwrap(),
                     mv,
                     position.board.side_to_move(),

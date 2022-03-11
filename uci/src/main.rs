@@ -1,8 +1,9 @@
 use std::io::{stdin, stdout, Write};
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Color, File, Move, Piece, Square};
-use frozenight::{Eval, Frozenight, Listener, Statistics};
+use frozenight::Frozenight;
 
 mod bench;
 
@@ -154,12 +155,13 @@ fn main() {
                         depth,
                         move |depth, stats, eval, board, pv| {
                             let time = now.elapsed();
+                            let nodes = stats.nodes.load(Ordering::Relaxed);
                             print!(
                                 "info depth {} seldepth {} nodes {} nps {} score {} time {} pv",
                                 depth,
-                                stats.selective_depth,
-                                stats.nodes,
-                                (stats.nodes as f64 / time.as_secs_f64()).round() as u64,
+                                stats.selective_depth.load(Ordering::Relaxed),
+                                nodes,
+                                (nodes as f64 / time.as_secs_f64()).round() as u64,
                                 eval,
                                 time.as_millis()
                             );
@@ -170,8 +172,8 @@ fn main() {
                             }
                             println!();
                         },
-                        |_, mv| {
-                            println!("bestmove {}", mv);
+                        |_, mv, board| {
+                            println!("bestmove {}", to_uci_castling(board, mv));
                             stdout().flush().unwrap();
                         },
                     ));
@@ -206,32 +208,4 @@ fn from_uci_castling(board: &Board, mut mv: Move) -> Move {
         }
     }
     mv
-}
-
-struct UciListener(Instant);
-
-impl Listener for UciListener {
-    fn info(&mut self, depth: u16, stats: Statistics, eval: Eval, board: &Board, pv: &[Move]) {
-        let time = self.0.elapsed();
-        print!(
-            "info depth {} seldepth {} nodes {} nps {} score {} time {} pv",
-            depth,
-            stats.selective_depth,
-            stats.nodes,
-            (stats.nodes as f64 / time.as_secs_f64()).round() as u64,
-            eval,
-            self.0.elapsed().as_millis()
-        );
-        let mut board = board.clone();
-        for &mv in pv {
-            print!(" {}", to_uci_castling(&board, mv));
-            board.play(mv);
-        }
-        println!();
-    }
-
-    fn best_move(self, board: &Board, mv: Move, _: Eval) {
-        println!("bestmove {}", to_uci_castling(board, mv));
-        stdout().flush().unwrap();
-    }
 }

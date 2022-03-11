@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use cozy_chess::{get_king_moves, BitBoard, Move, Piece};
 
 use crate::position::Position;
@@ -9,14 +11,14 @@ use super::Searcher;
 const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
 
-impl Searcher {
+impl Searcher<'_> {
     pub fn qsearch(&mut self, position: &Position, window: Window) -> Eval {
         self.qsearch_impl(position, window, 0)
     }
 
     fn qsearch_impl(&mut self, position: &Position, mut window: Window, qply: u16) -> Eval {
-        self.stats.selective_depth = self.stats.selective_depth.max(position.ply);
-        self.stats.nodes += 1;
+        self.stats.selective_depth.fetch_max(position.ply, Ordering::Relaxed);
+        self.stats.nodes.fetch_add(1, Ordering::Relaxed);
 
         let in_check = !position.board.checkers().is_empty();
         let king = position.board.king(position.board.side_to_move());

@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use frozenight::Frozenight;
@@ -85,7 +86,9 @@ pub fn bench() {
 
         let mut nodes = 0;
         let start = Instant::now();
-        engine.search_synchronous(None, depth, |_, stats, _, _, _| nodes = stats.nodes);
+        engine.search_synchronous(None, depth, |_, stats, _, _, _| {
+            nodes = stats.nodes.load(Ordering::Relaxed)
+        });
         total_time += start.elapsed();
         total_nodes += nodes;
     }
