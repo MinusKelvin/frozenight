@@ -74,55 +74,15 @@ impl<'a> Searcher<'a> {
         if !self.valid {
             panic!("attempt to search using an aborted searcher");
         }
-        let mut window = Window::default();
-        let mut best_move = INVALID_MOVE;
 
         let position = Position::from_root(self.root.clone(), &self.shared.nnue);
-
-        let hashmove = self
-            .shared
-            .tt
-            .get(&position)
-            .and_then(|entry| self.root.is_legal(entry.mv).then(|| entry.mv));
-
-        let mut orderer = MoveOrdering::new(&position.board, hashmove, INVALID_MOVE);
-        let mut quiets = 0;
-        while let Some(mv) = orderer.next(&self.state.history) {
-            let new_pos = &position.play_move(&self.shared.nnue, mv);
-
-            let d = if quiets < 4
-                || position.board.color_on(mv.to) == Some(!position.board.side_to_move())
-                || !new_pos.board.checkers().is_empty()
-            {
-                depth
-            } else if quiets < 12 && depth >= 2 {
-                depth - 1
-            } else if depth >= 3 {
-                depth - 2
-            } else {
-                depth
-            };
-
-            let mut v = -self.visit_node(new_pos, -window, d - 1)?;
-
-            if d != depth && v > window.lb() {
-                v = -self.visit_node(new_pos, -window, depth - 1)?;
-            }
-
-            if window.raise_lb(v) {
-                best_move = mv;
-            }
-
-            if !self.root.colors(!self.root.side_to_move()).has(mv.to) {
-                quiets += 1;
-            }
-        }
+        let (eval, best_move) = self.alpha_beta(&position, Window::default(), depth)?;
 
         if best_move == INVALID_MOVE {
             panic!("root position (FEN: {}) has no moves", self.root);
         }
 
-        Some((window.lb(), best_move))
+        Some((eval, best_move))
     }
 
     fn killer(&mut self, ply_index: u16) -> &mut Move {
@@ -153,7 +113,7 @@ impl<'a> Searcher<'a> {
         let result = if depth == 0 {
             self.qsearch(position, window)
         } else {
-            self.alpha_beta(position, window, depth)?
+            self.search_internal(position, window, depth)?
         };
 
         // Sanity check that conclusive scores are valid
@@ -166,11 +126,7 @@ impl<'a> Searcher<'a> {
         Some(result)
     }
 
-    /// Invariant: `self` is unchanged if this function returns `Some`.
-    /// If the side to move has no moves, this returns `-Eval::MATE` even if it is stalemate.
-    fn alpha_beta(&mut self, position: &Position, mut window: Window, depth: u16) -> Option<Eval> {
-        self.stats.nodes.fetch_add(1, Ordering::Relaxed);
-
+    fn search_internal(&mut self, position: &Position, window: Window, depth: u16) -> Option<Eval> {
         // reverse futility pruning... but with qsearch
         if depth <= 6 {
             let margin = 250 * depth as i16;
@@ -191,6 +147,20 @@ impl<'a> Searcher<'a> {
             }
         }
 
+        self.alpha_beta(position, window, depth)
+            .map(|(eval, _)| eval)
+    }
+
+    /// Invariant: `self` is unchanged if this function returns `Some`.
+    /// If the side to move has no moves, this returns `-Eval::MATE` even if it is stalemate.
+    fn alpha_beta(
+        &mut self,
+        position: &Position,
+        mut window: Window,
+        depth: u16,
+    ) -> Option<(Eval, Move)> {
+        self.stats.nodes.fetch_add(1, Ordering::Relaxed);
+
         // It is impossible to accidentally return this score because the worst move that could
         // possibly be returned by visit_node is -Eval::MATE.add(1) which is better than this
         let mut best_score = -Eval::MATE;
@@ -199,27 +169,27 @@ impl<'a> Searcher<'a> {
 
         let hashmove;
         match self.shared.tt.get(&position) {
-            None => hashmove = None,
-            Some(entry) => {
-                hashmove = position.board.is_legal(entry.mv).then(|| entry.mv);
+            Some(entry) if position.board.is_legal(entry.mv) => {
+                hashmove = Some(entry.mv);
 
                 match entry.kind {
                     _ if entry.search_depth < depth => {}
-                    NodeKind::Exact => return Some(entry.eval),
+                    NodeKind::Exact => return Some((entry.eval, entry.mv)),
                     NodeKind::LowerBound => {
                         if window.fail_high(entry.eval) {
-                            return Some(entry.eval);
+                            return Some((entry.eval, entry.mv));
                         }
                         window.raise_lb(entry.eval);
                     }
                     NodeKind::UpperBound => {
                         if window.fail_low(entry.eval) {
-                            return Some(entry.eval);
+                            return Some((entry.eval, entry.mv));
                         }
                         window.lower_ub(entry.eval);
                     }
                 }
             }
+            _ => hashmove = None,
         }
 
         let mut ordering = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
@@ -272,7 +242,7 @@ impl<'a> Searcher<'a> {
                         position.board.side_to_move(),
                     );
                 }
-                return Some(v);
+                return Some((v, mv));
             } else if quiet {
                 // quiet move did not cause cutoff - update history
                 self.state.history.did_not_cause_cutoff(
@@ -301,6 +271,6 @@ impl<'a> Searcher<'a> {
             },
         );
 
-        Some(best_score)
+        Some((best_score, best_move))
     }
 }
