@@ -145,12 +145,10 @@ impl Frozenight {
         let repetitions = self.history.clone();
         let board = self.board.clone();
         move |f| {
-            let mut lock = tl_data.1.lock().unwrap();
-            *lock = Default::default();
             f(Searcher::new(
                 &abort,
                 &shared,
-                &mut lock,
+                &mut tl_data.1.lock().unwrap(),
                 &tl_data.0,
                 repetitions,
                 board,

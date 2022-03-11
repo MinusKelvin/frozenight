@@ -22,7 +22,7 @@ const INVALID_MOVE: Move = Move {
 
 pub(crate) struct SearchState {
     killers: Vec<Move>,
-    history: HistoryTable,
+    pub history: HistoryTable,
 }
 
 impl Default for SearchState {

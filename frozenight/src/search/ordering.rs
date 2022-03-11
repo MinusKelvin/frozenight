@@ -1,5 +1,7 @@
 use cozy_chess::{Board, Color, Move, Piece, Square};
 
+mod hh_init;
+
 pub struct MoveOrdering<'a> {
     board: &'a Board,
     stage: MoveOrderingStage,
@@ -137,44 +139,36 @@ impl<'a> MoveOrdering<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct HistoryTable {
-    piece_to_sq: [[[(u32, u32); Square::NUM]; Piece::NUM]; Color::NUM],
-    from_sq_to_sq: [[[(u32, u32); Square::NUM]; Square::NUM]; Color::NUM],
+    piece_to_sq: [[[u32; Square::NUM]; Piece::NUM]; Color::NUM],
+    from_sq_to_sq: [[[u32; Square::NUM]; Square::NUM]; Color::NUM],
 }
 
-impl HistoryTable {
-    pub fn new() -> Self {
-        HistoryTable {
-            piece_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
-            from_sq_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Square::NUM]; Color::NUM],
-        }
-    }
+const HH_FACTOR: u32 = 1024;
 
+impl HistoryTable {
     pub fn caused_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
-        let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+        let piece_to = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         let diff = 2_000_000_000 - *piece_to;
-        *total += 1;
-        *piece_to += diff / *total;
-        let (from_to, total) =
+        *piece_to += diff / HH_FACTOR;
+        let from_to =
             &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
         let diff = 2_000_000_000 - *from_to;
-        *total += 1;
-        *from_to += diff / *total;
+        *from_to += diff / HH_FACTOR;
     }
 
     pub fn did_not_cause_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
-        let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        *total += 1;
-        *piece_to -= *piece_to / *total;
-        let (from_to, total) =
+        let piece_to = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+        *piece_to -= *piece_to / HH_FACTOR;
+        let from_to =
             &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        *total += 1;
-        *from_to -= *from_to / *total;
+        *from_to -= *from_to / HH_FACTOR;
     }
 
     fn rank(&self, piece: Piece, mv: Move, stm: Color) -> u32 {
-        let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
+        let piece_to = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+        let from_to = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
         piece_to + from_to
     }
 }
