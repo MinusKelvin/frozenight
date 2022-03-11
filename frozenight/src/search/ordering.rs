@@ -150,6 +150,15 @@ impl HistoryTable {
         }
     }
 
+    pub fn decay(&mut self) {
+        for (_, total) in self.piece_to_sq.iter_mut().flatten().flatten() {
+            *total /= 64;
+        }
+        for (_, total) in self.from_sq_to_sq.iter_mut().flatten().flatten() {
+            *total /= 16;
+        }
+    }
+
     pub fn caused_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
         let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         let diff = 2_000_000_000 - *piece_to;

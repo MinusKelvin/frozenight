@@ -53,6 +53,7 @@ impl<'a> Searcher<'a> {
         repetition: IntSet<u64>,
         root: Board,
     ) -> Self {
+        state.history.decay();
         Searcher {
             root,
             shared,
