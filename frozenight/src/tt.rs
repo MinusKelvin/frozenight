@@ -83,16 +83,6 @@ impl TranspositionTable {
         let index = position.board.hash() as usize % self.entries.len();
         let entry = &self.entries[index];
 
-        let age = self.search_number.load(Ordering::Relaxed);
-        let old_data: TtData = bytemuck::cast(entry.data.load(Ordering::Relaxed));
-        if old_data.depth > data.search_depth {
-            // depth-preferred with aging out
-            let diff = age.wrapping_sub(old_data.age);
-            if diff < 2 {
-                return;
-            }
-        }
-
         let promo = match data.mv.promotion {
             None => 0,
             Some(Piece::Knight) => 1,
@@ -106,7 +96,7 @@ impl TranspositionTable {
             eval: data.eval.sub_time(position.ply),
             depth: data.search_depth,
             kind: data.kind as u8,
-            age,
+            age: 0,
         });
         entry.data.store(data, Ordering::Relaxed);
         entry
