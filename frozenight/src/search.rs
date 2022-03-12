@@ -122,6 +122,16 @@ impl<'a> Searcher<'a> {
             panic!("root position (FEN: {}) has no moves", self.root);
         }
 
+        self.shared.tt.store(
+            &position,
+            TableEntry {
+                mv: best_move,
+                eval: window.lb(),
+                search_depth: depth,
+                kind: NodeKind::Exact,
+            },
+        );
+
         Some((window.lb(), best_move))
     }
 
