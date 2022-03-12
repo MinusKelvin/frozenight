@@ -74,8 +74,6 @@ impl<'a> Searcher<'a> {
         if !self.valid {
             panic!("attempt to search using an aborted searcher");
         }
-        let mut window = Window::default();
-        let mut best_move = INVALID_MOVE;
 
         let position = Position::from_root(self.root.clone(), &self.shared.nnue);
 
@@ -87,6 +85,25 @@ impl<'a> Searcher<'a> {
 
         let mut orderer = MoveOrdering::new(&position.board, hashmove, INVALID_MOVE);
         let mut quiets = 0;
+
+        let mut best_move = orderer
+            .next(&self.state.history)
+            .unwrap_or_else(|| panic!("root position (FEN: {}) has no moves", self.root));
+        if !self
+            .root
+            .colors(!self.root.side_to_move())
+            .has(best_move.to)
+        {
+            quiets += 1;
+        }
+
+        let mut window = Window::default();
+        window.raise_lb(-self.visit_node(
+            &position.play_move(&self.shared.nnue, best_move),
+            -window,
+            depth - 1,
+        )?);
+
         while let Some(mv) = orderer.next(&self.state.history) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
 
@@ -103,9 +120,9 @@ impl<'a> Searcher<'a> {
                 depth
             };
 
-            let mut v = -self.visit_node(new_pos, -window, d - 1)?;
+            let mut v = -self.visit_node(new_pos, -Window::test_raise_lb(window.lb()), d - 1)?;
 
-            if d != depth && v > window.lb() {
+            if !window.fail_low(v) {
                 v = -self.visit_node(new_pos, -window, depth - 1)?;
             }
 
@@ -116,10 +133,6 @@ impl<'a> Searcher<'a> {
             if !self.root.colors(!self.root.side_to_move()).has(mv.to) {
                 quiets += 1;
             }
-        }
-
-        if best_move == INVALID_MOVE {
-            panic!("root position (FEN: {}) has no moves", self.root);
         }
 
         self.shared.tt.store(
@@ -234,7 +247,13 @@ impl<'a> Searcher<'a> {
 
         let mut ordering = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
         let mut quiets = 0;
+        let mut first_move = true;
         while let Some(mv) = ordering.next(&self.state.history) {
+            let quiet = position.board.color_on(mv.to) != Some(!position.board.side_to_move());
+            if quiet {
+                quiets += 1;
+            }
+
             let new_pos = &position.play_move(&self.shared.nnue, mv);
 
             let d = if quiets < 4
@@ -250,16 +269,15 @@ impl<'a> Searcher<'a> {
                 depth
             };
 
-            let mut v = -self.visit_node(new_pos, -window, d - 1)?;
+            let w = match first_move || d < 2 {
+                true => window,
+                false => Window::test_raise_lb(window.lb()),
+            };
+            let mut v = -self.visit_node(new_pos, -w, d - 1)?;
 
-            if !window.fail_low(v) && d < depth {
-                // reduced move unexpectedly raised alpha; research at full depth
+            if (!w.is_null() || d < depth) && !window.fail_low(v) {
+                // move unexpectedly raised alpha; research at full depth
                 v = -self.visit_node(new_pos, -window, depth - 1)?;
-            }
-
-            let quiet = position.board.color_on(mv.to) != Some(!position.board.side_to_move());
-            if quiet {
-                quiets += 1;
             }
 
             if window.fail_high(v) {
@@ -299,6 +317,8 @@ impl<'a> Searcher<'a> {
                 best_score = v;
                 best_move = mv;
             }
+
+            first_move = false;
         }
 
         self.shared.tt.store(

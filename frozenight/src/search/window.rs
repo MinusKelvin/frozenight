@@ -48,6 +48,10 @@ impl Window {
         }
         lowered
     }
+
+    pub fn is_null(&self) -> bool {
+        self.lb + 1 == self.ub
+    }
 }
 
 impl Default for Window {
