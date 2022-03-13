@@ -70,6 +70,6 @@ pub fn bench() {
         total_time += start_time.elapsed();
         total_nodes += handler.nodes;
     }
-    let nps = (total_nodes as f32 / total_time.as_secs_f32()) as u64;
+    let nps = (total_nodes as f32 / total_time.as_secs_f32() * 3.0) as u64;
     println!("{} nodes {} nps", total_nodes, nps);
 }
