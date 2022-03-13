@@ -204,7 +204,7 @@ impl<'a> Searcher<'a> {
                 hashmove = position.board.is_legal(entry.mv).then(|| entry.mv);
 
                 match entry.kind {
-                    _ if entry.search_depth < depth => {}
+                    _ if entry.search_depth != depth => {}
                     NodeKind::Exact => return Some(entry.eval),
                     NodeKind::LowerBound => {
                         if window.fail_high(entry.eval) {
