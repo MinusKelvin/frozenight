@@ -2,7 +2,7 @@
 
 NNUE chess engine written in Rust. [Play against it on lichess.org][lichess]
 
-The current minimum supported Rust version is 1.57.0.
+The current minimum supported Rust version for the UCI binary is 1.57.0.
 
 ## Features
 
@@ -24,7 +24,7 @@ The current minimum supported Rust version is 1.57.0.
   - Hash move
   - MVV-LVA captures
   - Killer heuristic (ordered near pawn captures pawn)
-  - Relative history heuristic (almost)
+  - Relative history heuristic (side-by-side piece-tosq and fromsq-tosq tables)
   - Underpromotions last
 - Time management
   - Uses at least 2% remaining + increment/2
