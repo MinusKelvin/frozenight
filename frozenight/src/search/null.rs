@@ -59,7 +59,8 @@ impl Searcher<'_> {
         let mut best_score = -Eval::MATE;
         let mut best_move = INVALID_MOVE;
 
-        let mut moves = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
+        let killer = *self.killer(position.ply);
+        let mut moves = MoveOrdering::new(&position.board, hashmove, killer);
 
         while let Some((i, mv)) = moves.next(&mut self.state.history) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
@@ -67,6 +68,7 @@ impl Searcher<'_> {
             let reduction = match () {
                 _ if position.is_capture(mv) => 0,
                 _ if !new_pos.board.checkers().is_empty() => 0,
+                _ if mv == killer => 0,
                 _ if i < 3 => 0,
                 _ if i < 8 => 1,
                 _ => 2,
