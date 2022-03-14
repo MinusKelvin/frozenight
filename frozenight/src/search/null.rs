@@ -1,0 +1,66 @@
+use crate::position::Position;
+use crate::search::INVALID_MOVE;
+use crate::tt::NodeKind;
+use crate::Eval;
+
+use super::ordering::MoveOrdering;
+use super::window::Window;
+use super::Searcher;
+
+impl Searcher<'_> {
+    pub fn visit_null(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+        self.visit_node(position, window, depth, |this| {
+            this.null_search(position, window, depth)
+        })
+    }
+
+    fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+        let hashmove = match self.shared.tt.get(&position) {
+            None => None,
+            Some(entry) => {
+                match entry.kind {
+                    _ if entry.depth < depth => {}
+                    NodeKind::Exact => return Some(entry.eval),
+                    NodeKind::LowerBound => {
+                        if window.fail_high(entry.eval) {
+                            return Some(entry.eval);
+                        }
+                    }
+                    NodeKind::UpperBound => {
+                        if window.fail_low(entry.eval) {
+                            return Some(entry.eval);
+                        }
+                    }
+                }
+                Some(entry.mv)
+            }
+        };
+
+        let mut best_score = -Eval::MATE;
+        let mut best_move = INVALID_MOVE;
+
+        let mut moves = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
+
+        while let Some((_, mv)) = moves.next(&mut self.state.history) {
+            let new_pos = &position.play_move(&self.shared.nnue, mv);
+
+            let v = -self.visit_null(new_pos, -window, depth - 1)?;
+
+            if window.fail_high(v) {
+                self.failed_high(position, depth, v, mv);
+                return Some(v);
+            } else if !position.is_capture(mv) {
+                self.state.history.did_not_cause_cutoff(&position.board, mv);
+            }
+
+            if v > best_score {
+                best_score = v;
+                best_move = mv;
+            }
+        }
+
+        self.failed_low(position, depth, best_score, best_move);
+
+        Some(best_score)
+    }
+}

@@ -1,7 +1,7 @@
 use cozy_chess::{Board, Move};
 
-use crate::Eval;
 use crate::nnue::{Nnue, NnueAccumulator};
+use crate::Eval;
 
 #[derive(Clone)]
 pub struct Position {
@@ -39,5 +39,9 @@ impl Position {
 
     pub fn static_eval(&self, nn: &Nnue) -> Eval {
         self.nnue.calculate(nn)
+    }
+
+    pub fn is_capture(&self, mv: Move) -> bool {
+        self.board.colors(!self.board.side_to_move()).has(mv.to)
     }
 }

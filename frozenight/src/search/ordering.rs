@@ -8,6 +8,7 @@ pub struct MoveOrdering<'a> {
     captures: Vec<(Move, i8)>,
     quiets: Vec<(Move, Piece)>,
     underpromotions: Vec<Move>,
+    count: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -34,10 +35,11 @@ impl<'a> MoveOrdering<'a> {
             captures: vec![],
             quiets: vec![],
             underpromotions: vec![],
+            count: 0,
         }
     }
 
-    pub fn next(&mut self, history: &HistoryTable) -> Option<Move> {
+    pub fn next(&mut self, history: &HistoryTable) -> Option<(usize, Move)> {
         match self.stage {
             MoveOrderingStage::Hashmove => self.hashmove(),
             MoveOrderingStage::GenerateMoves => self.generate_moves(history),
@@ -45,6 +47,11 @@ impl<'a> MoveOrdering<'a> {
             MoveOrderingStage::Quiets => self.quiets(history),
             MoveOrderingStage::Underpromotions => self.underpromotions(),
         }
+        .map(|mv| {
+            let count = self.count;
+            self.count += 1;
+            (count, mv)
+        })
     }
 
     fn hashmove(&mut self) -> Option<Move> {
@@ -159,7 +166,9 @@ impl HistoryTable {
         }
     }
 
-    pub fn caused_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
+    pub fn caused_cutoff(&mut self, board: &Board, mv: Move) {
+        let stm = board.side_to_move();
+        let piece = board.piece_on(mv.from).unwrap();
         let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         let diff = 2_000_000_000 - *piece_to;
         *total += 1;
@@ -171,7 +180,9 @@ impl HistoryTable {
         *from_to += diff / *total;
     }
 
-    pub fn did_not_cause_cutoff(&mut self, piece: Piece, mv: Move, stm: Color) {
+    pub fn did_not_cause_cutoff(&mut self, board: &Board, mv: Move) {
+        let stm = board.side_to_move();
+        let piece = board.piece_on(mv.from).unwrap();
         let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         *total += 1;
         *piece_to -= *piece_to / *total;
