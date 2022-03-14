@@ -15,6 +15,16 @@ impl Searcher<'_> {
     }
 
     fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+        // null move pruning
+        if depth >= 3 {
+            if let Some(nm) = position.null_move() {
+                let v = -self.visit_null(&nm, -window, depth - 3)?;
+                if window.fail_high(v) {
+                    return Some(v);
+                }
+            }
+        }
+
         // reverse futility pruning... but with qsearch
         if depth <= 6 {
             let margin = 250 * depth as i16;
