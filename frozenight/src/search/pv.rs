@@ -56,7 +56,7 @@ impl Searcher<'_> {
 
         while let Some((_, mv)) = moves.next(&mut self.state.history) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
-            let v = -self.visit_null(new_pos, -Window::test_raise_lb(window.lb()), depth - 1)?;
+            let v = -self.visit_null(new_pos, -Window::null(window.lb()), depth - 1)?;
 
             if window.fail_low(v) {
                 if v > best_score {

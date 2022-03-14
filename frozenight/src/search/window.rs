@@ -7,12 +7,8 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn test_raise_lb(lb: Eval) -> Self {
+    pub fn null(lb: Eval) -> Self {
         Window { lb, ub: lb + 1 }
-    }
-
-    pub fn test_lower_ub(ub: Eval) -> Self {
-        Window { lb: ub - 1, ub }
     }
 
     pub fn lb(&self) -> Eval {

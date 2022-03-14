@@ -1,4 +1,4 @@
-use cozy_chess::{Board, Move};
+use cozy_chess::{Board, Move, Piece, Rank, Square};
 
 use crate::nnue::{Nnue, NnueAccumulator};
 use crate::Eval;

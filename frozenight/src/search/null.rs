@@ -15,6 +15,16 @@ impl Searcher<'_> {
     }
 
     fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+        // reverse futility pruning... but with qsearch
+        if depth <= 6 {
+            let margin = 250 * depth as i16;
+            let rfp_window = Window::null(window.lb() + margin);
+            let eval = self.qsearch(position, rfp_window);
+            if rfp_window.fail_high(eval) {
+                return Some(eval);
+            }
+        }
+
         let hashmove = match self.shared.tt.get(&position) {
             None => None,
             Some(entry) => {
@@ -49,7 +59,7 @@ impl Searcher<'_> {
                 _ if !new_pos.board.checkers().is_empty() => 0,
                 _ if i < 3 => 0,
                 _ if i < 8 => 1,
-                _ => 2
+                _ => 2,
             };
 
             let mut v = -self.visit_null(new_pos, -window, depth - reduction - 1)?;
