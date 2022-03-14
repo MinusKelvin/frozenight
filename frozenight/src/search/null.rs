@@ -25,6 +25,16 @@ impl Searcher<'_> {
             }
         }
 
+        // null move pruning
+        if depth >= 3 {
+            if let Some(nm) = position.null_move() {
+                let v = -self.visit_null(&nm, -window, depth - 3)?;
+                if window.fail_high(v) {
+                    return Some(v);
+                }
+            }
+        }
+
         let hashmove = match self.shared.tt.get(&position) {
             None => None,
             Some(entry) => {
