@@ -15,26 +15,6 @@ impl Searcher<'_> {
     }
 
     fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
-        // reverse futility pruning... but with qsearch
-        if depth <= 6 {
-            let margin = 250 * depth as i16;
-            let rfp_window = Window::null(window.lb() + margin);
-            let eval = self.qsearch(position, rfp_window);
-            if rfp_window.fail_high(eval) {
-                return Some(eval);
-            }
-        }
-
-        // null move pruning
-        if depth >= 3 {
-            if let Some(nm) = position.null_move() {
-                let v = -self.visit_null(&nm, -window, depth - 3)?;
-                if window.fail_high(v) {
-                    return Some(v);
-                }
-            }
-        }
-
         let hashmove = match self.shared.tt.get(&position) {
             None => None,
             Some(entry) => {
@@ -55,6 +35,26 @@ impl Searcher<'_> {
                 Some(entry.mv)
             }
         };
+
+        // reverse futility pruning... but with qsearch
+        if depth <= 6 {
+            let margin = 250 * depth as i16;
+            let rfp_window = Window::null(window.lb() + margin);
+            let eval = self.qsearch(position, rfp_window);
+            if rfp_window.fail_high(eval) {
+                return Some(eval);
+            }
+        }
+
+        // null move pruning
+        if depth >= 3 {
+            if let Some(nm) = position.null_move() {
+                let v = -self.visit_null(&nm, -window, depth - 3)?;
+                if window.fail_high(v) {
+                    return Some(v);
+                }
+            }
+        }
 
         let mut best_score = -Eval::MATE;
         let mut best_move = INVALID_MOVE;
