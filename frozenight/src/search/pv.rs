@@ -66,13 +66,6 @@ impl Searcher<'_> {
                 continue;
             }
 
-            if window.fail_high(v) {
-                // null window search search returned a lower bound that exceeds beta,
-                // so there's no need to re-search
-                self.failed_high(position, depth, v, mv);
-                return Some((v, mv));
-            }
-
             let v = -self.visit_pv(new_pos, -window, depth - 1)?;
 
             if window.fail_high(v) {
