@@ -41,15 +41,29 @@ impl Searcher<'_> {
 
         let mut moves = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
 
-        while let Some((_, mv)) = moves.next(&mut self.state.history) {
+        while let Some((i, mv)) = moves.next(&mut self.state.history) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
 
-            let v = -self.visit_null(new_pos, -window, depth - 1)?;
+            let reduction = match () {
+                _ if position.is_capture(mv) => 0,
+                _ if !new_pos.board.checkers().is_empty() => 0,
+                _ if i < 3 => 0,
+                _ if i < 8 => 1,
+                _ => 2
+            };
+
+            let mut v = -self.visit_null(new_pos, -window, depth - reduction - 1)?;
+
+            if window.fail_high(v) && reduction > 0 {
+                v = -self.visit_null(new_pos, -window, depth - 1)?;
+            }
 
             if window.fail_high(v) {
                 self.failed_high(position, depth, v, mv);
                 return Some(v);
-            } else if !position.is_capture(mv) {
+            }
+
+            if !position.is_capture(mv) {
                 self.state.history.did_not_cause_cutoff(&position.board, mv);
             }
 
