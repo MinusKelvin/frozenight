@@ -171,26 +171,6 @@ impl<'a> Searcher<'a> {
     fn alpha_beta(&mut self, position: &Position, mut window: Window, depth: u16) -> Option<Eval> {
         self.stats.nodes.fetch_add(1, Ordering::Relaxed);
 
-        // reverse futility pruning... but with qsearch
-        if depth <= 6 {
-            let margin = 250 * depth as i16;
-            let rfp_window = Window::test_lower_ub(window.ub() + margin);
-            let eval = self.qsearch(position, rfp_window);
-            if rfp_window.fail_high(eval) {
-                return Some(eval);
-            }
-        }
-
-        if position.board.checkers().is_empty() && depth >= 3 {
-            // search with an empty window - we only care about if the score is high or low
-            let nmp_window = Window::test_lower_ub(window.ub());
-            let v = -self.visit_node(&position.null_move().unwrap(), -nmp_window, depth - 3)?;
-            if nmp_window.fail_high(v) {
-                // Null move pruning
-                return Some(v);
-            }
-        }
-
         // It is impossible to accidentally return this score because the worst move that could
         // possibly be returned by visit_node is -Eval::MATE.add(1) which is better than this
         let mut best_score = -Eval::MATE;
@@ -219,6 +199,26 @@ impl<'a> Searcher<'a> {
                         window.lower_ub(entry.eval);
                     }
                 }
+            }
+        }
+
+        // reverse futility pruning... but with qsearch
+        if depth <= 6 {
+            let margin = 250 * depth as i16;
+            let rfp_window = Window::test_lower_ub(window.ub() + margin);
+            let eval = self.qsearch(position, rfp_window);
+            if rfp_window.fail_high(eval) {
+                return Some(eval);
+            }
+        }
+
+        if position.board.checkers().is_empty() && depth >= 3 {
+            // search with an empty window - we only care about if the score is high or low
+            let nmp_window = Window::test_lower_ub(window.ub());
+            let v = -self.visit_node(&position.null_move().unwrap(), -nmp_window, depth - 3)?;
+            if nmp_window.fail_high(v) {
+                // Null move pruning
+                return Some(v);
             }
         }
 
