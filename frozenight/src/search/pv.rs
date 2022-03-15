@@ -28,13 +28,11 @@ impl Searcher<'_> {
                         if window.fail_high(entry.eval) {
                             return Some((entry.eval, entry.mv));
                         }
-                        window.raise_lb(entry.eval);
                     }
                     NodeKind::UpperBound => {
                         if window.fail_low(entry.eval) {
                             return Some((entry.eval, entry.mv));
                         }
-                        window.lower_ub(entry.eval);
                     }
                 }
             }
