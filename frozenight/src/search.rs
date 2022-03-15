@@ -190,13 +190,11 @@ impl<'a> Searcher<'a> {
                         if window.fail_high(entry.eval) {
                             return Some(entry.eval);
                         }
-                        window.raise_lb(entry.eval);
                     }
                     NodeKind::UpperBound => {
                         if window.fail_low(entry.eval) {
                             return Some(entry.eval);
                         }
-                        window.lower_ub(entry.eval);
                     }
                 }
             }
