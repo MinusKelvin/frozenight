@@ -69,7 +69,7 @@ impl Searcher<'_> {
                 _ if !new_pos.board.checkers().is_empty() => 0,
                 _ if i < 3 => 0,
                 _ if i < 8 => 1,
-                _ => 2,
+                _ => 2 + depth / 3,
             };
 
             let mut v = -self.visit_null(new_pos, -window, depth - reduction - 1)?;
