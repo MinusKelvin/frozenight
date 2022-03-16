@@ -52,15 +52,14 @@ impl Frozenight {
         let mut moves_since_occurance = -1;
         self.board = start;
         let mut occurances = IntMap::<_, usize>::default();
-        *occurances.entry(self.board.hash()).or_default() += 1;
         while let Some(mv) = moves(&self.board) {
+            *occurances.entry(self.board.hash()).or_default() += 1;
             if self.board.hash() == old_hash {
                 moves_since_occurance = 0;
             } else if moves_since_occurance >= 0 {
                 moves_since_occurance += 1;
             }
             self.board.play(mv);
-            *occurances.entry(self.board.hash()).or_default() += 1;
         }
         self.shared_state
             .tt
@@ -73,6 +72,7 @@ impl Frozenight {
             .filter(|&(_, count)| count > 1)
             .map(|(hash, _)| hash)
             .collect();
+        self.history.insert(self.board.hash());
     }
 
     pub fn start_search(
