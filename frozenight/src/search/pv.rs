@@ -56,8 +56,8 @@ impl Searcher<'_> {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
 
             let reduction = match () {
+                _ if !new_pos.board.checkers().is_empty() => -1,
                 _ if position.is_capture(mv) => 0,
-                _ if !new_pos.board.checkers().is_empty() => 0,
                 _ if i < 6 => 0,
                 _ => 1,
             };
