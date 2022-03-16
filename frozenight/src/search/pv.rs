@@ -55,26 +55,17 @@ impl Searcher<'_> {
         while let Some((i, mv)) = moves.next(&mut self.state.history) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
 
-            let reduction = match () {
-                _ if position.is_capture(mv) => 0,
-                _ if !new_pos.board.checkers().is_empty() => 0,
-                _ if i < 6 => 0,
-                _ => 1,
-            };
+            if depth > 1 {
+                let reduction = match () {
+                    _ if position.is_capture(mv) => 0,
+                    _ if !new_pos.board.checkers().is_empty() => 0,
+                    _ if i < 6 => 0,
+                    _ => 1,
+                };
 
-            let mut v =
-                -self.visit_null(new_pos, -Window::null(window.lb()), depth - reduction - 1)?;
+                let mut v =
+                    -self.visit_null(new_pos, -Window::null(window.lb()), depth - reduction - 1)?;
 
-            if window.fail_low(v) {
-                if v > best_score {
-                    best_score = v;
-                    best_move = mv;
-                }
-                continue;
-            }
-
-            if reduction > 0 {
-                v = -self.visit_null(new_pos, -Window::null(window.lb()), depth - 1)?;
                 if window.fail_low(v) {
                     if v > best_score {
                         best_score = v;
@@ -82,16 +73,27 @@ impl Searcher<'_> {
                     }
                     continue;
                 }
+
+                if reduction > 0 {
+                    v = -self.visit_null(new_pos, -Window::null(window.lb()), depth - 1)?;
+                    if window.fail_low(v) {
+                        if v > best_score {
+                            best_score = v;
+                            best_move = mv;
+                        }
+                        continue;
+                    }
+                }
+
+                if window.fail_high(v) {
+                    // null window search search returned a lower bound that exceeds beta,
+                    // so there's no need to re-search
+                    self.failed_high(position, depth, v, mv);
+                    return Some((v, mv));
+                }
             }
 
-            if window.fail_high(v) {
-                // null window search search returned a lower bound that exceeds beta,
-                // so there's no need to re-search
-                self.failed_high(position, depth, v, mv);
-                return Some((v, mv));
-            }
-
-            v = -self.visit_pv(new_pos, -window, depth - 1)?;
+            let v = -self.visit_pv(new_pos, -window, depth - 1)?;
 
             if window.fail_high(v) {
                 self.failed_high(position, depth, v, mv);
