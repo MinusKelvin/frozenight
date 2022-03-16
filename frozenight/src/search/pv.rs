@@ -21,19 +21,8 @@ impl Searcher<'_> {
             Some(entry) => {
                 hashmove = position.board.is_legal(entry.mv).then(|| entry.mv);
 
-                match entry.kind {
-                    _ if entry.depth < depth => {}
-                    NodeKind::Exact => return Some((entry.eval, entry.mv)),
-                    NodeKind::LowerBound => {
-                        if window.fail_high(entry.eval) {
-                            return Some((entry.eval, entry.mv));
-                        }
-                    }
-                    NodeKind::UpperBound => {
-                        if window.fail_low(entry.eval) {
-                            return Some((entry.eval, entry.mv));
-                        }
-                    }
+                if matches!(entry.kind, NodeKind::Exact if entry.depth >= depth) {
+                    return Some((entry.eval, entry.mv));
                 }
             }
         }
