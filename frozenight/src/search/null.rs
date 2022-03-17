@@ -72,6 +72,10 @@ impl Searcher<'_> {
                 _ => 2,
             };
 
+            if depth - reduction - 1 < 0 {
+                continue;
+            }
+
             let mut v = -self.visit_null(new_pos, -window, depth - reduction - 1)?;
 
             if window.fail_high(v) && reduction > 0 {
