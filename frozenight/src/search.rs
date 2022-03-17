@@ -7,10 +7,12 @@ use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, SharedState, Statistics};
 
-use self::ordering::{HistoryTable, MoveOrdering};
+use self::ordering::HistoryTable;
 use self::window::Window;
 
+mod null;
 mod ordering;
+mod pv;
 mod qsearch;
 mod window;
 
@@ -69,60 +71,21 @@ impl<'a> Searcher<'a> {
     ///
     /// Invariant: `self` is unchanged if this function returns `Some`. If it returns none, then
     /// calling this function again will result in a panic.
-    pub fn search(&mut self, depth: u16) -> Option<(Eval, Move)> {
+    pub fn search(&mut self, depth: i16) -> Option<(Eval, Move)> {
         assert!(depth > 0);
         if !self.valid {
             panic!("attempt to search using an aborted searcher");
         }
-        let mut window = Window::default();
-        let mut best_move = INVALID_MOVE;
 
-        let position = Position::from_root(self.root.clone(), &self.shared.nnue);
-
-        let hashmove = self
-            .shared
-            .tt
-            .get(&position)
-            .and_then(|entry| self.root.is_legal(entry.mv).then(|| entry.mv));
-
-        let mut orderer = MoveOrdering::new(&position.board, hashmove, INVALID_MOVE);
-        let mut quiets = 0;
-        while let Some(mv) = orderer.next(&self.state.history) {
-            let new_pos = &position.play_move(&self.shared.nnue, mv);
-
-            let d = if quiets < 4
-                || position.board.color_on(mv.to) == Some(!position.board.side_to_move())
-                || !new_pos.board.checkers().is_empty()
-            {
-                depth
-            } else if quiets < 12 && depth >= 2 {
-                depth - 1
-            } else if depth >= 3 {
-                depth - 2
-            } else {
-                depth
-            };
-
-            let mut v = -self.visit_node(new_pos, -window, d - 1)?;
-
-            if d != depth && v > window.lb() {
-                v = -self.visit_node(new_pos, -window, depth - 1)?;
-            }
-
-            if window.raise_lb(v) {
-                best_move = mv;
-            }
-
-            if !self.root.colors(!self.root.side_to_move()).has(mv.to) {
-                quiets += 1;
-            }
-        }
-
-        if best_move == INVALID_MOVE {
+        if !self.root.generate_moves(|_| true) {
             panic!("root position (FEN: {}) has no moves", self.root);
         }
 
-        Some((window.lb(), best_move))
+        self.pv_search(
+            &Position::from_root(self.root.clone(), &self.shared.nnue),
+            Window::default(),
+            depth,
+        )
     }
 
     fn killer(&mut self, ply_index: u16) -> &mut Move {
@@ -135,7 +98,13 @@ impl<'a> Searcher<'a> {
         &mut self.state.killers[idx]
     }
 
-    fn visit_node(&mut self, position: &Position, window: Window, depth: u16) -> Option<Eval> {
+    fn visit_node(
+        &mut self,
+        position: &Position,
+        window: Window,
+        depth: i16,
+        f: impl FnOnce(&mut Self) -> Option<Eval>,
+    ) -> Option<Eval> {
         match position.board.status() {
             cozy_chess::GameStatus::Drawn => return Some(Eval::DRAW),
             cozy_chess::GameStatus::Won => return Some(-Eval::MATE.add_time(position.ply)),
@@ -150,10 +119,11 @@ impl<'a> Searcher<'a> {
             return Some(Eval::DRAW);
         }
 
-        let result = if depth == 0 {
+        let result = if depth <= 0 {
             self.qsearch(position, window)
         } else {
-            self.alpha_beta(position, window, depth)?
+            self.stats.nodes.fetch_add(1, Ordering::Relaxed);
+            f(self)?
         };
 
         // Sanity check that conclusive scores are valid
@@ -166,141 +136,31 @@ impl<'a> Searcher<'a> {
         Some(result)
     }
 
-    /// Invariant: `self` is unchanged if this function returns `Some`.
-    /// If the side to move has no moves, this returns `-Eval::MATE` even if it is stalemate.
-    fn alpha_beta(&mut self, position: &Position, mut window: Window, depth: u16) -> Option<Eval> {
-        self.stats.nodes.fetch_add(1, Ordering::Relaxed);
-
-        // It is impossible to accidentally return this score because the worst move that could
-        // possibly be returned by visit_node is -Eval::MATE.add(1) which is better than this
-        let mut best_score = -Eval::MATE;
-        let mut best_move = INVALID_MOVE;
-        let mut node_kind = NodeKind::UpperBound;
-
-        let hashmove;
-        match self.shared.tt.get(&position) {
-            None => hashmove = None,
-            Some(entry) => {
-                hashmove = position.board.is_legal(entry.mv).then(|| entry.mv);
-
-                match entry.kind {
-                    _ if entry.search_depth < depth => {}
-                    NodeKind::Exact => return Some(entry.eval),
-                    NodeKind::LowerBound => {
-                        if window.fail_high(entry.eval) {
-                            return Some(entry.eval);
-                        }
-                        window.raise_lb(entry.eval);
-                    }
-                    NodeKind::UpperBound => {
-                        if window.fail_low(entry.eval) {
-                            return Some(entry.eval);
-                        }
-                        window.lower_ub(entry.eval);
-                    }
-                }
-            }
-        }
-
-        // reverse futility pruning... but with qsearch
-        if depth <= 6 {
-            let margin = 250 * depth as i16;
-            let rfp_window = Window::test_lower_ub(window.ub() + margin);
-            let eval = self.qsearch(position, rfp_window);
-            if rfp_window.fail_high(eval) {
-                return Some(eval);
-            }
-        }
-
-        if position.board.checkers().is_empty() && depth >= 3 {
-            // search with an empty window - we only care about if the score is high or low
-            let nmp_window = Window::test_lower_ub(window.ub());
-            let v = -self.visit_node(&position.null_move().unwrap(), -nmp_window, depth - 3)?;
-            if nmp_window.fail_high(v) {
-                // Null move pruning
-                return Some(v);
-            }
-        }
-
-        let mut ordering = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
-        let mut quiets = 0;
-        while let Some(mv) = ordering.next(&self.state.history) {
-            let new_pos = &position.play_move(&self.shared.nnue, mv);
-
-            let d = if quiets < 4
-                || position.board.color_on(mv.to) == Some(!position.board.side_to_move())
-                || !new_pos.board.checkers().is_empty()
-            {
-                depth
-            } else if quiets < 12 && depth >= 2 {
-                depth - 1
-            } else if depth >= 3 {
-                depth - 2
-            } else {
-                depth
-            };
-
-            let mut v = -self.visit_node(new_pos, -window, d - 1)?;
-
-            if !window.fail_low(v) && d < depth {
-                // reduced move unexpectedly raised alpha; research at full depth
-                v = -self.visit_node(new_pos, -window, depth - 1)?;
-            }
-
-            let quiet = position.board.color_on(mv.to) != Some(!position.board.side_to_move());
-            if quiet {
-                quiets += 1;
-            }
-
-            if window.fail_high(v) {
-                self.shared.tt.store(
-                    &position,
-                    TableEntry {
-                        mv,
-                        eval: v,
-                        search_depth: depth,
-                        kind: NodeKind::LowerBound,
-                    },
-                );
-                // caused a beta cutoff, update the killer at this ply
-                if quiet {
-                    // quiet move - update killer and history
-                    *self.killer(position.ply) = mv;
-                    self.state.history.caused_cutoff(
-                        position.board.piece_on(mv.from).unwrap(),
-                        mv,
-                        position.board.side_to_move(),
-                    );
-                }
-                return Some(v);
-            } else if quiet {
-                // quiet move did not cause cutoff - update history
-                self.state.history.did_not_cause_cutoff(
-                    position.board.piece_on(mv.from).unwrap(),
-                    mv,
-                    position.board.side_to_move(),
-                );
-            }
-
-            if window.raise_lb(v) {
-                node_kind = NodeKind::Exact;
-            }
-            if v > best_score {
-                best_score = v;
-                best_move = mv;
-            }
-        }
-
+    fn failed_low(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
         self.shared.tt.store(
             &position,
             TableEntry {
-                mv: best_move,
-                eval: best_score,
-                search_depth: depth,
-                kind: node_kind,
+                mv,
+                eval,
+                depth,
+                kind: NodeKind::UpperBound,
             },
         );
+    }
 
-        Some(best_score)
+    fn failed_high(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
+        self.shared.tt.store(
+            &position,
+            TableEntry {
+                mv,
+                eval,
+                depth,
+                kind: NodeKind::LowerBound,
+            },
+        );
+        if !position.is_capture(mv) {
+            self.state.history.caused_cutoff(&position.board, mv);
+            *self.killer(position.ply) = mv;
+        }
     }
 }

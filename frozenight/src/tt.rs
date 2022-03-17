@@ -31,18 +31,7 @@ impl TranspositionTable {
             return None;
         }
         let data: TtData = bytemuck::cast(data);
-        Some(Move {
-            from: Square::index(data.mv as usize & 0x3F),
-            to: Square::index(data.mv as usize >> 6 & 0x3F),
-            promotion: match data.mv as usize >> 12 {
-                0 => None,
-                1 => Some(Piece::Knight),
-                2 => Some(Piece::Bishop),
-                3 => Some(Piece::Rook),
-                4 => Some(Piece::Queen),
-                _ => return None, // invalid
-            },
-        })
+        data.unmarshall_move(board)
     }
 
     pub fn get(&self, position: &Position) -> Option<TableEntry> {
@@ -55,27 +44,21 @@ impl TranspositionTable {
         // marshal between usable type and stored data
         // also validates the data
         let data: TtData = bytemuck::cast(data);
+
+        let kind = match data.kind {
+            0 => NodeKind::Exact,
+            1 => NodeKind::LowerBound,
+            2 => NodeKind::UpperBound,
+            _ => return None, // invalid
+        };
+
+        let mv = data.unmarshall_move(&position.board)?;
+
         Some(TableEntry {
-            mv: Move {
-                from: Square::index(data.mv as usize & 0x3F),
-                to: Square::index(data.mv as usize >> 6 & 0x3F),
-                promotion: match data.mv as usize >> 12 {
-                    0 => None,
-                    1 => Some(Piece::Knight),
-                    2 => Some(Piece::Bishop),
-                    3 => Some(Piece::Rook),
-                    4 => Some(Piece::Queen),
-                    _ => return None, // invalid
-                },
-            },
-            kind: match data.kind {
-                0 => NodeKind::Exact,
-                1 => NodeKind::LowerBound,
-                2 => NodeKind::UpperBound,
-                _ => return None, // invalid
-            },
+            mv,
+            kind,
             eval: data.eval.add_time(position.ply),
-            search_depth: data.depth,
+            depth: data.depth,
         })
     }
 
@@ -85,7 +68,7 @@ impl TranspositionTable {
 
         let age = self.search_number.load(Ordering::Relaxed);
         let old_data: TtData = bytemuck::cast(entry.data.load(Ordering::Relaxed));
-        if old_data.depth > data.search_depth {
+        if old_data.depth > data.depth {
             // depth-preferred with aging out
             let diff = age.wrapping_sub(old_data.age);
             if diff < 2 {
@@ -104,7 +87,7 @@ impl TranspositionTable {
         let data = bytemuck::cast(TtData {
             mv: data.mv.from as u16 | (data.mv.to as u16) << 6 | promo << 12,
             eval: data.eval.sub_time(position.ply),
-            depth: data.search_depth,
+            depth: data.depth,
             kind: data.kind as u8,
             age,
         });
@@ -123,7 +106,7 @@ impl TranspositionTable {
 pub struct TableEntry {
     pub mv: Move,
     pub eval: Eval,
-    pub search_depth: u16,
+    pub depth: i16,
     pub kind: NodeKind,
 }
 
@@ -145,7 +128,26 @@ struct TtEntry {
 struct TtData {
     mv: u16,
     eval: Eval,
-    depth: u16,
+    depth: i16,
     kind: u8,
     age: u8,
+}
+
+impl TtData {
+    fn unmarshall_move(&self, board: &Board) -> Option<Move> {
+        let mv = Move {
+            from: Square::index(self.mv as usize & 0x3F),
+            to: Square::index(self.mv as usize >> 6 & 0x3F),
+            promotion: match self.mv as usize >> 12 {
+                0 => None,
+                1 => Some(Piece::Knight),
+                2 => Some(Piece::Bishop),
+                3 => Some(Piece::Rook),
+                4 => Some(Piece::Queen),
+                _ => return None, // invalid
+            },
+        };
+
+        board.is_legal(mv).then(|| mv)
+    }
 }
