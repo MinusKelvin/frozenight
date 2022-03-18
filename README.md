@@ -7,7 +7,7 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
 ## Features
 
 - [`cozy-chess`] for move generation
-- Fail-soft negamax alpha beta search framework
+- Principal Variation Search
 - NNUE evaluation
   - 768 -> 16x2 -> 1
   - Training data generated through self-play, originally starting with a random network
