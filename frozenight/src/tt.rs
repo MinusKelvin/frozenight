@@ -68,7 +68,17 @@ impl TranspositionTable {
 
         let age = self.search_number.load(Ordering::Relaxed);
         let old_data: TtData = bytemuck::cast(entry.data.load(Ordering::Relaxed));
-        if old_data.depth > data.depth {
+
+        let old_prio = old_data.depth + match old_data.kind == NodeKind::Exact as u8 {
+            true => 2,
+            false => 0,
+        };
+        let new_prio = data.depth + match data.kind {
+            NodeKind::Exact => 2,
+            _ => 0,
+        };
+
+        if old_prio > new_prio {
             // depth-preferred with aging out
             let diff = age.wrapping_sub(old_data.age);
             if diff < 2 {
