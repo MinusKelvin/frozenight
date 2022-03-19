@@ -8,13 +8,25 @@ use super::window::Window;
 use super::Searcher;
 
 impl Searcher<'_> {
-    pub fn visit_null(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+    pub fn visit_null(
+        &mut self,
+        position: &Position,
+        window: Window,
+        depth: i16,
+        expected_cut: bool,
+    ) -> Option<Eval> {
         self.visit_node(position, window, depth, |this| {
-            this.null_search(position, window, depth)
+            this.null_search(position, window, depth, expected_cut)
         })
     }
 
-    fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+    fn null_search(
+        &mut self,
+        position: &Position,
+        window: Window,
+        depth: i16,
+        expected_cut: bool,
+    ) -> Option<Eval> {
         let hashmove = match self.shared.tt.get(&position) {
             None => None,
             Some(entry) => {
@@ -47,9 +59,9 @@ impl Searcher<'_> {
         }
 
         // null move pruning
-        if depth >= 3 {
+        if depth >= 3 && expected_cut {
             if let Some(nm) = position.null_move() {
-                let v = -self.visit_null(&nm, -window, depth - 3)?;
+                let v = -self.visit_null(&nm, -window, depth - 3, !expected_cut)?;
                 if window.fail_high(v) {
                     return Some(v);
                 }
@@ -72,10 +84,10 @@ impl Searcher<'_> {
                 _ => 2,
             };
 
-            let mut v = -self.visit_null(new_pos, -window, depth - reduction - 1)?;
+            let mut v = -self.visit_null(new_pos, -window, depth - reduction - 1, !expected_cut)?;
 
             if window.fail_high(v) && reduction > 0 {
-                v = -self.visit_null(new_pos, -window, depth - 1)?;
+                v = -self.visit_null(new_pos, -window, depth - 1, !expected_cut)?;
             }
 
             if window.fail_high(v) {
