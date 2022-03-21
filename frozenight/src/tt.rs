@@ -67,13 +67,20 @@ impl TranspositionTable {
         let entry = &self.entries[index];
 
         let age = self.search_number.load(Ordering::Relaxed);
-        let old_data: TtData = bytemuck::cast(entry.data.load(Ordering::Relaxed));
-        if old_data.depth > data.depth {
-            // depth-preferred with aging out
-            let diff = age.wrapping_sub(old_data.age);
-            if diff < 2 {
-                return;
-            }
+        let old_data = entry.data.load(Ordering::Relaxed);
+        let old_hash = entry.hash.load(Ordering::Relaxed) ^ old_data;
+        let old_data: TtData = bytemuck::cast(old_data);
+
+        let mut replace = false;
+        // always replace existing position data with PV data
+        replace |= old_hash == position.board.hash() && data.kind == NodeKind::Exact;
+        // prefer deeper data
+        replace |= data.depth >= old_data.depth;
+        // prefer replacing stale data
+        replace |= age.wrapping_sub(old_data.age) >= 2;
+
+        if !replace {
+            return;
         }
 
         let promo = match data.mv.promotion {
