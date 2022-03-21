@@ -47,9 +47,9 @@ impl Searcher<'_> {
         }
 
         // null move pruning
-        if depth >= 3 {
+        if depth >= 4 {
             if let Some(nm) = position.null_move() {
-                let v = -self.visit_null(&nm, -window, depth - 3)?;
+                let v = -self.visit_null(&nm, -window, depth - 4)?;
                 if window.fail_high(v) {
                     return Some(v);
                 }
