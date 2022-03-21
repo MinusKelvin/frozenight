@@ -1,6 +1,6 @@
 [package]
 name = "frozenight-uci"
-version = "3.0.0-dev"
+version = "2.1.0"
 edition = "2021"
 rust-version = "1.57"
 default-run = "frozenight-uci"
