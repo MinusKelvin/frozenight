@@ -15,12 +15,9 @@ impl Searcher<'_> {
         mut window: Window,
         depth: i16,
     ) -> Option<(Eval, Move)> {
-        let hashmove;
-        match self.shared.tt.get(&position) {
-            None => hashmove = None,
+        let hashmove = match self.shared.tt.get(&position) {
+            None => None,
             Some(entry) => {
-                hashmove = position.board.is_legal(entry.mv).then(|| entry.mv);
-
                 match entry.kind {
                     _ if entry.depth < depth => {}
                     NodeKind::Exact => return Some((entry.eval, entry.mv)),
@@ -35,8 +32,9 @@ impl Searcher<'_> {
                         }
                     }
                 }
+                Some(entry.mv)
             }
-        }
+        };
 
         let mut moves = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
 
