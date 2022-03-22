@@ -195,6 +195,6 @@ impl HistoryTable {
     fn rank(&self, piece: Piece, mv: Move, stm: Color) -> u32 {
         let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        piece_to + from_to
+        piece_to / 2 + from_to
     }
 }
