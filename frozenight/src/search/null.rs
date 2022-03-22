@@ -49,7 +49,11 @@ impl Searcher<'_> {
         // null move pruning
         if depth >= 4 {
             if let Some(nm) = position.null_move() {
-                let v = -self.visit_null(&nm, -window, depth - 4)?;
+                let reduction = match () {
+                    _ if depth > 6 => 4,
+                    _ => 3,
+                };
+                let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
                 if window.fail_high(v) {
                     return Some(v);
                 }
