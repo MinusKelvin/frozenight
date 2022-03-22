@@ -4,12 +4,13 @@ use crate::Eval;
 
 const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
 const L1_SIZE: usize = 16;
+const BUCKETS: usize = 8;
 
 pub struct Nnue {
     input_layer: [[i16; L1_SIZE]; NUM_FEATURES],
     input_layer_bias: [i16; L1_SIZE],
-    hidden_layer: [i8; L1_SIZE * 2],
-    hidden_layer_bias: i32,
+    hidden_layer: [[i8; L1_SIZE * 2]; BUCKETS],
+    hidden_layer_bias: [i32; BUCKETS],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -17,6 +18,7 @@ pub struct NnueAccumulator {
     white: [i16; L1_SIZE],
     black: [i16; L1_SIZE],
     side_to_move: Color,
+    bucket: usize,
 }
 
 impl Nnue {
@@ -43,6 +45,7 @@ impl NnueAccumulator {
             white,
             black,
             side_to_move: board.side_to_move(),
+            bucket: board.occupied().popcnt() as usize * BUCKETS / 32,
         }
     }
 
@@ -51,7 +54,8 @@ impl NnueAccumulator {
             Color::White => [self.white, self.black],
             Color::Black => [self.black, self.white],
         }));
-        let output = vdot(l1_input, nn.hidden_layer) + nn.hidden_layer_bias;
+        let output =
+            vdot(l1_input, nn.hidden_layer[self.bucket]) + nn.hidden_layer_bias[self.bucket];
 
         Eval::new((output / 8) as i16)
     }
@@ -154,6 +158,8 @@ impl NnueAccumulator {
                 nn.input_layer[feature(!us, added, mv.to.flip_rank())],
             );
         }
+
+        result.bucket = (board.occupied().popcnt() - 1) as usize * BUCKETS / 32;
 
         result
     }

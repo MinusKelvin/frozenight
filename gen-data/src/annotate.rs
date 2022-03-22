@@ -125,7 +125,7 @@ impl Options {
                         let time = start.elapsed().as_secs_f64();
                         let eta = time / completion - time;
                         print!(
-                            "\r\x1b[K{:>6.2}% complete. {} positions so far. Estimated time remaining: {} minutes",
+                            "\r\x1b[K{:>6.2}% complete. {} positions so far. Remaining: {} minutes",
                             completion * 100.0,
                             positions.load(Ordering::Relaxed),
                             eta as i64 / 60,

@@ -9,6 +9,7 @@ import struct, sys, subprocess
 
 NUM_FEATURES = 2 * 6 * 64
 LAYER_1 = 16
+BUCKETS = 8
 WEIGHT_SCALE = 64
 ACTIVATION_RANGE = 127
 MIN = -128 / WEIGHT_SCALE
@@ -19,16 +20,18 @@ class Nnue(pl.LightningModule):
         super(Nnue, self).__init__()
 
         self.features = nn.Linear(NUM_FEATURES, LAYER_1)
-        self.layer1 = nn.Linear(2 * LAYER_1, 1)
+        self.layer1 = nn.Linear(2 * LAYER_1, BUCKETS)
 
-    def forward(self, features):
+    def forward(self, features, bucket):
         acc = torch.cat([self.features(features[0]), self.features(features[1])], dim=1)
         l1_input = torch.clamp(acc, 0.0, 1.0)
-        return self.layer1(l1_input)
+        return self.layer1(l1_input).transpose(0, 1) \
+            .index_select(0, bucket) \
+            .diagonal().unsqueeze(1)
 
     def training_step(self, batch, batch_idx):
-        features, target = batch
-        value = torch.sigmoid(self(features))
+        features, bucket, target = batch
+        value = torch.sigmoid(self(features, bucket))
         return torch.nn.functional.mse_loss(value, target)
 
     def optimizer_step(self, *args, **kwargs):
@@ -71,9 +74,9 @@ class Nnue(pl.LightningModule):
             file.write(",input_layer_bias:")
             save_tensor(file, state["features.bias"].cpu().numpy(), ACTIVATION_RANGE)
             file.write(",hidden_layer:")
-            save_tensor(file, state["layer1.weight"].cpu().numpy()[0], WEIGHT_SCALE)
+            save_tensor(file, state["layer1.weight"].cpu().numpy(), WEIGHT_SCALE)
             file.write(",hidden_layer_bias:")
-            file.write(f"{round(state['layer1.bias'].cpu().numpy()[0] * ACTIVATION_RANGE * WEIGHT_SCALE)},")
+            save_tensor(file, state['layer1.bias'].cpu().numpy(), ACTIVATION_RANGE * WEIGHT_SCALE)
             file.write("}")
 
 class PositionSet(torch.utils.data.Dataset):
@@ -89,6 +92,7 @@ class PositionSet(torch.utils.data.Dataset):
         for i in range(32):
             if content[i] == 65535: break
             stm[content[i]] = 1
+        bucket = (i - 1) * BUCKETS // 32
         sntm = np.zeros(NUM_FEATURES, dtype=np.float32)
         for i in range(32):
             if content[32 + i] == 65535: break
@@ -97,7 +101,7 @@ class PositionSet(torch.utils.data.Dataset):
         outcome = content[65] / 2
         t = 0.9
         target = value * t + outcome * (1 - t)
-        return [torch.as_tensor(stm), torch.as_tensor(sntm)], torch.tensor([target])
+        return [torch.as_tensor(stm), torch.as_tensor(sntm)], bucket, target
 
 if __name__ != "__main__":
     pass
