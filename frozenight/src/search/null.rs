@@ -71,6 +71,7 @@ impl Searcher<'_> {
             let reduction = match () {
                 _ if position.is_capture(mv) => 0,
                 _ if !new_pos.board.checkers().is_empty() => 0,
+                _ if i < 1 => 0,
                 _ => (depth + i as i16) / 8,
             };
 
