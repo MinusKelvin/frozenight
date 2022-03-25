@@ -63,8 +63,7 @@ impl Searcher<'_> {
             let reduction = match () {
                 _ if position.is_capture(mv) => 0,
                 _ if !new_pos.board.checkers().is_empty() => 0,
-                _ if i < 6 => 0,
-                _ => 1,
+                _ => ((2 * depth + i as i16) / 16).min(i as i16 / 2),
             };
 
             let mut v =
