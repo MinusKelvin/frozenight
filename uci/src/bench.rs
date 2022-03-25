@@ -73,8 +73,8 @@ const POSITIONS: &[&str] = &[
 
 pub fn bench() {
     let depth = match std::env::args().any(|s| s == "--long") {
-        true => 14,
-        false => 8,
+        true => 20,
+        false => 10,
     };
 
     let mut total_time = Duration::ZERO;
