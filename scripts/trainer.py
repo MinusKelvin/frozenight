@@ -42,6 +42,9 @@ class Nnue(pl.LightningModule):
         value = torch.sigmoid(self(features, buckets))
         return torch.nn.functional.mse_loss(value, target)
 
+    def validation_step(self, batch, batch_idx):
+        self.log("val_loss", self.training_step(batch, batch_idx))
+
     def optimizer_step(self, *args, **kwargs):
         super().optimizer_step(*args, **kwargs)
         for p in self.layer1.parameters():
@@ -50,17 +53,17 @@ class Nnue(pl.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters())
 
-    def training_epoch_end(self, outputs):
-        self.export()
-        out = subprocess.run(
-            ["cargo", "run", "bench"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True
-        ).stdout
-        nodes = float(out.split()[0])
-        print(f"bench: {nodes}")
-        self.log("bench", nodes)
+    # def training_epoch_end(self, outputs):
+    #     self.export()
+    #     out = subprocess.run(
+    #         ["cargo", "run", "bench"],
+    #         stdout=subprocess.PIPE,
+    #         stderr=subprocess.DEVNULL,
+    #         text=True
+    #     ).stdout
+    #     nodes = float(out.split()[0])
+    #     print(f"bench: {nodes}")
+    #     self.log("bench", nodes)
 
     def export(nnue):
         def save_tensor(file, tensor, scale):
@@ -115,11 +118,16 @@ if __name__ != "__main__":
     pass
 elif sys.argv[1] == "train":
     with open(sys.argv[2], "rb") as f:
-        dataset = PositionSet(f.read())
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<12, shuffle=True, num_workers=16)
+        data = f.read()
+        count = len(data) // 132
+        split = (count - count // 10) * 132
+        train_dataset = PositionSet(data[:split])
+        val_dataset = PositionSet(data[split:])
+    train_data = torch.utils.data.DataLoader(train_dataset, batch_size=1<<12, shuffle=True, num_workers=16)
+    val_data = torch.utils.data.DataLoader(val_dataset, batch_size=1<<12, num_workers=16)
 
     nnue = Nnue()
-    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=4, monitor="bench", filename="{epoch}-{bench}"), max_epochs=32)
-    trainer.fit(nnue, train_dataloaders=dataloader)
+    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=4, monitor="val_loss", filename="{epoch}-{val_loss:.3e}"), max_epochs=32)
+    trainer.fit(nnue, train_dataloaders=train_data, val_dataloaders=val_data)
 elif sys.argv[1] == "dump":
     Nnue.load_from_checkpoint(sys.argv[2]).export()
