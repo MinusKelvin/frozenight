@@ -3,7 +3,7 @@ for net in $1/*
 do
     EXE="frzn-$(basename $net .ckpt)"
     echo Building $EXE
-    ./trainer.py dump $net
+    scripts/trainer.py dump $net
     make EXE=$EXE
     ENGINES="$ENGINES -engine name=$EXE cmd=./$EXE"
 done
