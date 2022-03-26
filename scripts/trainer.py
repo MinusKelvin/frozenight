@@ -23,7 +23,8 @@ class Nnue(pl.LightningModule):
 
     def forward(self, features):
         acc = torch.cat([self.features(features[0]), self.features(features[1])], dim=1)
-        l1_input = torch.clamp(acc, 0.0, 1.0)
+        shallow = acc * 0.01
+        l1_input = torch.clamp(acc, shallow, 0.99 + shallow)
         return self.layer1(l1_input)
 
     def training_step(self, batch, batch_idx):
@@ -107,7 +108,7 @@ elif sys.argv[1] == "train":
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<12, shuffle=True, num_workers=16)
 
     nnue = Nnue()
-    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=4, monitor="bench", filename="{epoch}-{bench}"))
+    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=4, monitor="bench", filename="{epoch}-{bench}"), max_epochs=24)
     trainer.fit(nnue, train_dataloaders=dataloader)
 elif sys.argv[1] == "dump":
     Nnue.load_from_checkpoint(sys.argv[2]).export()
