@@ -19,15 +19,18 @@ impl Searcher<'_> {
             None => None,
             Some(entry) => {
                 match entry.kind {
-                    _ if entry.depth < depth => {}
-                    NodeKind::Exact => return Some(entry.eval),
+                    NodeKind::Exact => {
+                        if entry.depth >= depth || entry.eval.is_conclusive() {
+                            return Some(entry.eval);
+                        }
+                    }
                     NodeKind::LowerBound => {
-                        if window.fail_high(entry.eval) {
+                        if entry.depth >= depth && window.fail_high(entry.eval) {
                             return Some(entry.eval);
                         }
                     }
                     NodeKind::UpperBound => {
-                        if window.fail_low(entry.eval) {
+                        if entry.depth >= depth && window.fail_low(entry.eval) {
                             return Some(entry.eval);
                         }
                     }
