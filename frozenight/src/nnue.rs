@@ -3,7 +3,7 @@ use cozy_chess::{Board, Color, File, Move, Piece, Rank, Square};
 use crate::Eval;
 
 const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
-const L1_SIZE: usize = 16;
+const L1_SIZE: usize = 32;
 
 pub struct Nnue {
     input_layer: [[i16; L1_SIZE]; NUM_FEATURES],

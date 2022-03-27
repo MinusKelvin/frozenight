@@ -8,7 +8,7 @@ import numpy as np
 import struct, sys, subprocess
 
 NUM_FEATURES = 2 * 6 * 64
-LAYER_1 = 16
+LAYER_1 = 32
 WEIGHT_SCALE = 64
 ACTIVATION_RANGE = 127
 MIN = -128 / WEIGHT_SCALE
@@ -107,7 +107,7 @@ elif sys.argv[1] == "train":
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<12, shuffle=True, num_workers=16)
 
     nnue = Nnue()
-    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=4, monitor="bench", filename="{epoch}-{bench}"))
+    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=4, monitor="bench", filename="{epoch}-{bench}"), max_epochs=24)
     trainer.fit(nnue, train_dataloaders=dataloader)
 elif sys.argv[1] == "dump":
     Nnue.load_from_checkpoint(sys.argv[2]).export()
