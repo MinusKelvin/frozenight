@@ -7,6 +7,8 @@ use super::ordering::MoveOrdering;
 use super::window::Window;
 use super::Searcher;
 
+use cozy_chess::Piece;
+
 impl Searcher<'_> {
     pub fn visit_null(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
         self.visit_node(position, window, depth, |this| {
@@ -48,14 +50,19 @@ impl Searcher<'_> {
 
         // null move pruning
         if depth >= 4 {
-            if let Some(nm) = position.null_move() {
-                let reduction = match () {
-                    _ if depth > 6 => 4,
-                    _ => 3,
-                };
-                let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
-                if window.fail_high(v) {
-                    return Some(v);
+            let sliders = position.board.pieces(Piece::Rook)
+                | position.board.pieces(Piece::Bishop)
+                | position.board.pieces(Piece::Queen);
+            if !(sliders & position.board.colors(position.board.side_to_move())).is_empty() {
+                if let Some(nm) = position.null_move() {
+                    let reduction = match () {
+                        _ if depth > 6 => 4,
+                        _ => 3,
+                    };
+                    let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
+                    if window.fail_high(v) {
+                        return Some(v);
+                    }
                 }
             }
         }
