@@ -83,8 +83,8 @@ impl<'a> MoveOrdering<'a> {
                         self.captures.push((mv, victim - attacker));
                     }
                     _ if mv == self.killer => {
-                        // Killer is legal; give it the same rank as PxP
-                        self.captures.push((mv, 0));
+                        // Killer is legal; give it the same rank as PxN
+                        self.captures.push((mv, 4));
                     }
                     _ => {
                         self.quiets.push((mv, mvs.piece));
