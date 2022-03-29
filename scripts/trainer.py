@@ -95,7 +95,7 @@ class PositionSet(torch.utils.data.Dataset):
             sntm[content[32 + i]] = 1
         value = torch.sigmoid(torch.tensor([content[64] / ACTIVATION_RANGE / WEIGHT_SCALE * 8]))
         outcome = content[65] / 2
-        t = 0.9
+        t = 1
         target = value * t + outcome * (1 - t)
         return [torch.as_tensor(stm), torch.as_tensor(sntm)], torch.tensor([target])
 
