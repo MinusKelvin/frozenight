@@ -1,4 +1,6 @@
-use cozy_chess::{Board, Color, Move, Piece, Square};
+use cozy_chess::{
+    get_bishop_moves, get_knight_moves, get_rook_moves, Board, Color, Move, Piece, Square, get_pawn_attacks,
+};
 
 pub struct MoveOrdering<'a> {
     board: &'a Board,
@@ -63,6 +65,13 @@ impl<'a> MoveOrdering<'a> {
         self.stage = MoveOrderingStage::Captures;
         self.captures.reserve(16);
         self.quiets.reserve(64);
+
+        let their_king = self.board.king(!self.board.side_to_move());
+        let bishop_checks = get_bishop_moves(their_king, self.board.occupied());
+        let rook_checks = get_rook_moves(their_king, self.board.occupied());
+        let knight_checks = get_knight_moves(their_king);
+        let pawn_checks = get_pawn_attacks(their_king, !self.board.side_to_move());
+
         self.board.generate_moves(|mvs| {
             for mv in mvs {
                 if Some(mv) == self.hashmove {
@@ -76,6 +85,15 @@ impl<'a> MoveOrdering<'a> {
                     continue;
                 }
 
+                let is_check = || match mvs.piece {
+                    Piece::Rook => rook_checks.has(mv.to),
+                    Piece::Bishop => bishop_checks.has(mv.to),
+                    Piece::Knight => knight_checks.has(mv.to),
+                    Piece::Queen => (rook_checks | bishop_checks).has(mv.to),
+                    Piece::Pawn => pawn_checks.has(mv.to),
+                    Piece::King => false,
+                };
+
                 match self.board.piece_on(mv.to) {
                     Some(victim) => {
                         let attacker = PIECE_ORDINALS[mvs.piece as usize];
@@ -85,6 +103,9 @@ impl<'a> MoveOrdering<'a> {
                     _ if mv == self.killer => {
                         // Killer is legal; give it the same rank as PxP
                         self.captures.push((mv, 0));
+                    }
+                    _ if is_check() => {
+                        self.captures.push((mv, -1));
                     }
                     _ => {
                         self.quiets.push((mv, mvs.piece));
