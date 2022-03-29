@@ -1,6 +1,8 @@
 use std::sync::atomic::Ordering;
 
-use cozy_chess::{get_king_moves, BitBoard, Move, Piece};
+use cozy_chess::{
+    get_bishop_moves, get_king_moves, get_knight_moves, get_rook_moves, BitBoard, Move, Piece,
+};
 
 use crate::position::Position;
 use crate::Eval;
@@ -13,28 +15,54 @@ const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
 
 impl Searcher<'_> {
     pub fn qsearch(&mut self, position: &Position, window: Window) -> Eval {
-        self.qsearch_impl(position, window, 0)
+        self.qsearch_impl(position, window, 0, 0)
     }
 
-    fn qsearch_impl(&mut self, position: &Position, mut window: Window, qply: u16) -> Eval {
-        self.stats.selective_depth.fetch_max(position.ply, Ordering::Relaxed);
+    fn qsearch_impl(
+        &mut self,
+        position: &Position,
+        mut window: Window,
+        qply: u16,
+        quiets_played: u16,
+    ) -> Eval {
+        self.stats
+            .selective_depth
+            .fetch_max(position.ply, Ordering::Relaxed);
         self.stats.nodes.fetch_add(1, Ordering::Relaxed);
 
         let in_check = !position.board.checkers().is_empty();
-        let king = position.board.king(position.board.side_to_move());
+        let us = position.board.side_to_move();
+        let king = position.board.king(us);
 
         let permitted;
         let mut best;
         let do_for;
+        let bishop_checks;
+        let rook_checks;
+        let knight_checks;
 
         if in_check {
             best = -Eval::MATE.add_time(position.ply);
+            bishop_checks = BitBoard::EMPTY;
+            rook_checks = BitBoard::EMPTY;
+            knight_checks = BitBoard::EMPTY;
             permitted = BitBoard::FULL;
             do_for = BitBoard::FULL;
         } else {
             best = position.static_eval(&self.shared.nnue);
-            permitted = position.board.colors(!position.board.side_to_move());
+            permitted = position.board.colors(!us);
             do_for = !king.bitboard();
+            if quiets_played < 1 {
+                let their_king = position.board.king(!us);
+                let occupied = position.board.occupied();
+                bishop_checks = get_bishop_moves(their_king, occupied);
+                rook_checks = get_rook_moves(their_king, occupied);
+                knight_checks = get_knight_moves(their_king);
+            } else {
+                bishop_checks = BitBoard::EMPTY;
+                rook_checks = BitBoard::EMPTY;
+                knight_checks = BitBoard::EMPTY;
+            }
         }
 
         if window.fail_high(best) {
@@ -45,6 +73,13 @@ impl Searcher<'_> {
         let mut moves = Vec::with_capacity(16);
         let mut had_moves = false;
         position.board.generate_moves_for(do_for, |mut mvs| {
+            let permitted = match mvs.piece {
+                Piece::Rook => permitted | rook_checks,
+                Piece::Bishop => permitted | bishop_checks,
+                Piece::Queen => permitted | rook_checks | bishop_checks,
+                Piece::Knight => permitted | knight_checks,
+                _ => permitted,
+            };
             mvs.to &= permitted;
             had_moves = true;
             for mv in mvs {
@@ -116,6 +151,7 @@ impl Searcher<'_> {
                 &position.play_move(&self.shared.nnue, mv),
                 -window,
                 qply + 1,
+                quiets_played + !position.board.colors(!us).has(mv.to) as u16
             );
             if window.fail_high(v) {
                 return v;
