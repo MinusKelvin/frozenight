@@ -62,13 +62,13 @@ impl Searcher<'_> {
 
         if !in_check {
             for to in get_king_moves(king) & permitted {
-                had_moves = true;
                 let mv = Move {
                     from: king,
                     to,
                     promotion: None,
                 };
                 if position.board.is_legal(mv) {
+                    had_moves = true;
                     match position.board.piece_on(to) {
                         Some(victim) => {
                             let attacker = PIECE_ORDINALS[Piece::King as usize];
@@ -79,10 +79,23 @@ impl Searcher<'_> {
                     }
                 }
             }
-        }
+            if !had_moves {
+                for to in get_king_moves(king) & !permitted {
+                    let mv = Move {
+                        from: king,
+                        to,
+                        promotion: None,
+                    };
+                    if position.board.is_legal(mv) {
+                        had_moves = true;
+                        break;
+                    }
+                }
+            }
 
-        if !had_moves && !in_check {
-            return Eval::DRAW;
+            if !had_moves {
+                return Eval::DRAW;
+            }
         }
 
         let mut i = 0;
