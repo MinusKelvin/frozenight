@@ -75,11 +75,14 @@ impl Searcher<'_> {
         while let Some((i, mv)) = moves.next(&mut self.state.history) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
 
-            let reduction = match () {
+            let mut reduction = match () {
                 _ if position.is_capture(mv) => 0,
-                _ if !new_pos.board.checkers().is_empty() => 0,
                 _ => ((2 * depth + i as i16) / 8).min(i as i16),
             };
+
+            if !new_pos.board.checkers().is_empty() {
+                reduction /= 2;
+            }
 
             let mut v = -self.visit_null(new_pos, -window, depth - reduction - 1)?;
 
