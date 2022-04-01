@@ -1,9 +1,10 @@
 use std::io::{stdin, stdout, Write};
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Color, File, Move, Piece, Square};
-use frozenight::Frozenight;
+use frozenight::{Frozenight, Tablebase};
 
 mod bench;
 
@@ -13,9 +14,11 @@ fn main() {
         return;
     }
 
-    let mut frozenight = Frozenight::new(32);
-
+    let mut tb = Arc::new(Tablebase::new());
     let mut move_overhead = Duration::from_millis(0);
+    let mut hash_size = 32;
+
+    let mut frozenight = Frozenight::new(hash_size, tb.clone());
     let mut abort = None;
     let mut ob_no_adj = false;
 
@@ -46,6 +49,7 @@ fn main() {
                     println!("option name Hash type spin default 32 min 1 max 65536");
                     println!("option name Threads type spin default 1 min 1 max 1");
                     println!("option name OB_noadj type check default false");
+                    println!("option name SyzygyPath type string default <empty>");
                     println!("uciok");
                 }
                 "quit" => {
@@ -71,7 +75,20 @@ fn main() {
                             move_overhead = Duration::from_millis(stream.next()?.parse().ok()?)
                         }
                         "Hash" => {
-                            frozenight = Frozenight::new(stream.next()?.parse().ok()?);
+                            hash_size = stream.next()?.parse().ok()?;
+                            frozenight = Frozenight::new(hash_size, tb.clone());
+                        }
+                        "SyzygyPath" => {
+                            // can't handle spaces lol
+                            let path = stream.next()?;
+                            let mut new_tb = Tablebase::new();
+                            // unclear if the path splitting character is based on platform,
+                            // or if it can be escaped
+                            for dir in path.split(';') {
+                                let _ = new_tb.add_directory(dir);
+                            }
+                            tb = Arc::new(new_tb);
+                            frozenight = Frozenight::new(hash_size, tb.clone());
                         }
                         "OB_noadj" => {
                             ob_no_adj = stream.next()? == "true";
@@ -165,7 +182,7 @@ fn main() {
                             let time = now.elapsed();
                             let nodes = stats.nodes.load(Ordering::Relaxed);
                             print!(
-                                "info depth {} seldepth {} nodes {} nps {} score {} time {} pv",
+                                "info depth {} seldepth {} nodes {} nps {} score {} time {} tbhits {} pv",
                                 depth,
                                 stats.selective_depth.load(Ordering::Relaxed),
                                 nodes,
@@ -174,7 +191,8 @@ fn main() {
                                     true => frozenight::Eval::new(250),
                                     false => eval,
                                 },
-                                time.as_millis()
+                                time.as_millis(),
+                                stats.tb_hits.load(Ordering::Relaxed),
                             );
                             let mut board = board.clone();
                             for &mv in pv {

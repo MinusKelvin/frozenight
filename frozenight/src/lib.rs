@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move};
+pub use cozy_syzygy::Tablebase;
 use nohash::{IntMap, IntSet};
 
 mod eval;
@@ -27,16 +28,18 @@ pub struct Frozenight {
 struct SharedState {
     nnue: Nnue,
     tt: TranspositionTable,
+    tb: Arc<Tablebase>,
 }
 
 impl Frozenight {
-    pub fn new(hash_mb: usize) -> Self {
+    pub fn new(hash_mb: usize, tb: Arc<Tablebase>) -> Self {
         Frozenight {
             board: Default::default(),
             history: Default::default(),
             shared_state: Arc::new(SharedState {
                 nnue: Nnue::new(),
                 tt: TranspositionTable::new(hash_mb),
+                tb,
             }),
             tl_data: vec![],
             abort: Default::default(),
@@ -155,6 +158,7 @@ impl Frozenight {
         let tl_data = self.tl_data[thread].clone();
         tl_data.0.nodes.store(0, Ordering::Relaxed);
         tl_data.0.selective_depth.store(0, Ordering::Relaxed);
+        tl_data.0.tb_hits.store(0, Ordering::Relaxed);
         let repetitions = self.history.clone();
         let board = self.board.clone();
         move |f| {
@@ -229,4 +233,5 @@ fn iterative_deepening(
 pub struct Statistics {
     pub selective_depth: AtomicU16,
     pub nodes: AtomicU64,
+    pub tb_hits: AtomicU64,
 }

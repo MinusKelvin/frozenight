@@ -1,7 +1,8 @@
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use frozenight::Frozenight;
+use frozenight::{Frozenight, Tablebase};
 
 // generated from self-play
 const POSITIONS: &[&str] = &[
@@ -80,8 +81,10 @@ pub fn bench() {
     let mut total_time = Duration::ZERO;
     let mut total_nodes = 0;
 
+    let tb = Arc::new(Tablebase::new());
+
     for &pos in POSITIONS {
-        let mut engine = Frozenight::new(16);
+        let mut engine = Frozenight::new(16, tb.clone());
         engine.set_position(pos.parse().unwrap(), |_| None);
 
         let mut nodes = 0;

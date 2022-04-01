@@ -9,3 +9,4 @@ edition = "2021"
 bytemuck = { version = "1.7.3", features = ["derive"] }
 cozy-chess = "0.2.1"
 nohash = "0.2.0"
+cozy-syzygy = { git = "https://github.com/MinusKelvin/cozy-syzygy.git", rev = "e364942" }
