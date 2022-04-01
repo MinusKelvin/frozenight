@@ -39,17 +39,17 @@ class Nnue(pl.LightningModule):
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters())
 
-    def training_epoch_end(self, outputs):
-        self.export()
-        out = subprocess.run(
-            ["cargo", "run", "bench"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True
-        ).stdout
-        nodes = float(out.split()[0])
-        print(f"bench: {nodes}")
-        self.log("bench", nodes)
+#    def training_epoch_end(self, outputs):
+#        self.export()
+#        out = subprocess.run(
+#            ["cargo", "run", "bench"],
+#            stdout=subprocess.PIPE,
+#            stderr=subprocess.DEVNULL,
+#            text=True
+#        ).stdout
+#        nodes = float(out.split()[0])
+#        print(f"bench: {nodes}")
+#        self.log("bench", nodes)
 
     def export(nnue):
         def save_tensor(file, tensor, scale):
@@ -107,7 +107,7 @@ elif sys.argv[1] == "train":
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<12, shuffle=True, num_workers=32)
 
     nnue = Nnue()
-    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=4, monitor="bench", filename="{epoch}-{bench}"), max_epochs=24)
+    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=-1), max_epochs=24)
     trainer.fit(nnue, train_dataloaders=dataloader)
 elif sys.argv[1] == "dump":
     Nnue.load_from_checkpoint(sys.argv[2]).export()
