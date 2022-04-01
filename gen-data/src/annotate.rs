@@ -2,11 +2,10 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{stdout, BufRead, BufReader, BufWriter, Seek, SeekFrom, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, Arc};
 use std::time::Instant;
 
 use cozy_chess::{Board, Color, Piece, Square};
-use cozy_syzygy::Tablebase;
 use frozenight::{Eval, Frozenight};
 use structopt::StructOpt;
 
@@ -32,13 +31,14 @@ impl Options {
     pub fn run(self, opt: CommonOptions) {
         let output = Mutex::new(BufWriter::new(File::create("data.bin").unwrap()));
 
-        let mut tb = Tablebase::new();
+        let mut tb = frozenight::load_embedded();
         for path in opt.syzygy_path {
             let _ = tb.add_directory(path);
         }
         if tb.max_pieces() > 2 {
             println!("Using tablebase with {} men", tb.max_pieces());
         }
+        let tb = Arc::new(tb);
 
         let start = Instant::now();
         let positions = AtomicUsize::new(0);
@@ -54,7 +54,7 @@ impl Options {
         crossbeam_utils::thread::scope(|s| {
             for _ in 0..opt.concurrency {
                 s.spawn(|_| {
-                    let mut engine = Frozenight::new(64);
+                    let mut engine = Frozenight::new(64, tb.clone());
                     while !ABORT.load(Ordering::SeqCst) {
                         let line = match input.lock().unwrap().next() {
                             Some(l) => l,

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
@@ -80,8 +81,10 @@ pub fn bench() {
     let mut total_time = Duration::ZERO;
     let mut total_nodes = 0;
 
+    let tb = Arc::new(frozenight::load_embedded());
+
     for &pos in POSITIONS {
-        let mut engine = Frozenight::new(16);
+        let mut engine = Frozenight::new(16, tb.clone());
         engine.set_position(pos.parse().unwrap(), |_| None);
 
         let mut nodes = 0;

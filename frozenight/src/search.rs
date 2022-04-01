@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use cozy_chess::{Board, Move, Square};
+use cozy_syzygy::Wdl;
 use nohash::IntSet;
 
 use crate::position::Position;
@@ -113,6 +114,21 @@ impl<'a> Searcher<'a> {
 
         if depth > 0 && self.abort.load(Ordering::Relaxed) {
             return None;
+        }
+
+        if position.board.halfmove_clock() == 0
+            && position.board.occupied().popcnt() <= self.shared.tb.max_pieces()
+        {
+            let result = self.shared.tb.probe_wdl(&position.board).map(|t| t.0);
+            if result.is_some() {
+                self.stats.tb_hits.fetch_add(1, Ordering::Relaxed);
+            }
+            match result {
+                Some(Wdl::Win) => return Some(Eval::TB_WIN.add_time(position.ply)),
+                Some(Wdl::Loss) => return Some(-Eval::TB_WIN.add_time(position.ply)),
+                Some(_) => return Some(Eval::DRAW),
+                None => {}
+            }
         }
 
         if !self.repetition.insert(position.board.hash()) {

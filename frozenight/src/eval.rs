@@ -101,7 +101,12 @@ impl std::ops::Sub<i16> for Eval {
 impl std::fmt::Display for Eval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.plys_to_conclusion() {
-            Some(plys) => write!(f, "mate {}", (plys + plys.signum()) / 2),
+            Some(plys) if *self < -Eval::TB_WIN || *self > Eval::TB_WIN => {
+                write!(f, "mate {}", (plys + plys.signum()) / 2)
+            }
+            Some(plys) => {
+                write!(f, "cp {}", 10000 * plys.signum() - plys)
+            }
             None => write!(f, "cp {}", self.0 / 5),
         }
     }

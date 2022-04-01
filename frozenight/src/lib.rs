@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move};
+use cozy_syzygy::Tablebase;
 use nohash::{IntMap, IntSet};
 
 mod eval;
@@ -27,16 +28,18 @@ pub struct Frozenight {
 struct SharedState {
     nnue: Nnue,
     tt: TranspositionTable,
+    tb: Arc<Tablebase>,
 }
 
 impl Frozenight {
-    pub fn new(hash_mb: usize) -> Self {
+    pub fn new(hash_mb: usize, tb: Arc<Tablebase>) -> Self {
         Frozenight {
             board: Default::default(),
             history: Default::default(),
             shared_state: Arc::new(SharedState {
                 nnue: Nnue::new(),
                 tt: TranspositionTable::new(hash_mb),
+                tb,
             }),
             tl_data: vec![],
             abort: Default::default(),
@@ -142,6 +145,7 @@ impl Frozenight {
         let tl_data = self.tl_data[thread].clone();
         tl_data.0.nodes.store(0, Ordering::Relaxed);
         tl_data.0.selective_depth.store(0, Ordering::Relaxed);
+        tl_data.0.tb_hits.store(0, Ordering::Relaxed);
         let repetitions = self.history.clone();
         let board = self.board.clone();
         move |f| {
@@ -216,4 +220,45 @@ fn iterative_deepening(
 pub struct Statistics {
     pub selective_depth: AtomicU16,
     pub nodes: AtomicU64,
+    pub tb_hits: AtomicU64,
+}
+
+pub fn load_embedded() -> Tablebase {
+    let mut tb = Tablebase::new();
+    tb.load_bytes("KBBvK", include_bytes!("../tb/KBBvK.rtbw"));
+    tb.load_bytes("KBNvK", include_bytes!("../tb/KBNvK.rtbw"));
+    tb.load_bytes("KBPvK", include_bytes!("../tb/KBPvK.rtbw"));
+    tb.load_bytes("KBvKB", include_bytes!("../tb/KBvKB.rtbw"));
+    tb.load_bytes("KBvKN", include_bytes!("../tb/KBvKN.rtbw"));
+    tb.load_bytes("KBvKP", include_bytes!("../tb/KBvKP.rtbw"));
+    tb.load_bytes("KBvK", include_bytes!("../tb/KBvK.rtbw"));
+    tb.load_bytes("KNNvK", include_bytes!("../tb/KNNvK.rtbw"));
+    tb.load_bytes("KNPvK", include_bytes!("../tb/KNPvK.rtbw"));
+    tb.load_bytes("KNvKN", include_bytes!("../tb/KNvKN.rtbw"));
+    tb.load_bytes("KNvKP", include_bytes!("../tb/KNvKP.rtbw"));
+    tb.load_bytes("KNvK", include_bytes!("../tb/KNvK.rtbw"));
+    tb.load_bytes("KPPvK", include_bytes!("../tb/KPPvK.rtbw"));
+    tb.load_bytes("KPvKP", include_bytes!("../tb/KPvKP.rtbw"));
+    tb.load_bytes("KPvK", include_bytes!("../tb/KPvK.rtbw"));
+    tb.load_bytes("KQBvK", include_bytes!("../tb/KQBvK.rtbw"));
+    tb.load_bytes("KQNvK", include_bytes!("../tb/KQNvK.rtbw"));
+    tb.load_bytes("KQPvK", include_bytes!("../tb/KQPvK.rtbw"));
+    tb.load_bytes("KQQvK", include_bytes!("../tb/KQQvK.rtbw"));
+    tb.load_bytes("KQRvK", include_bytes!("../tb/KQRvK.rtbw"));
+    tb.load_bytes("KQvKB", include_bytes!("../tb/KQvKB.rtbw"));
+    tb.load_bytes("KQvKN", include_bytes!("../tb/KQvKN.rtbw"));
+    tb.load_bytes("KQvKP", include_bytes!("../tb/KQvKP.rtbw"));
+    tb.load_bytes("KQvKQ", include_bytes!("../tb/KQvKQ.rtbw"));
+    tb.load_bytes("KQvKR", include_bytes!("../tb/KQvKR.rtbw"));
+    tb.load_bytes("KQvK", include_bytes!("../tb/KQvK.rtbw"));
+    tb.load_bytes("KRBvK", include_bytes!("../tb/KRBvK.rtbw"));
+    tb.load_bytes("KRNvK", include_bytes!("../tb/KRNvK.rtbw"));
+    tb.load_bytes("KRPvK", include_bytes!("../tb/KRPvK.rtbw"));
+    tb.load_bytes("KRRvK", include_bytes!("../tb/KRRvK.rtbw"));
+    tb.load_bytes("KRvKB", include_bytes!("../tb/KRvKB.rtbw"));
+    tb.load_bytes("KRvKN", include_bytes!("../tb/KRvKN.rtbw"));
+    tb.load_bytes("KRvKP", include_bytes!("../tb/KRvKP.rtbw"));
+    tb.load_bytes("KRvKR", include_bytes!("../tb/KRvKR.rtbw"));
+    tb.load_bytes("KRvK", include_bytes!("../tb/KRvK.rtbw"));
+    tb
 }

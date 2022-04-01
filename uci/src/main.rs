@@ -1,5 +1,6 @@
 use std::io::{stdin, stdout, Write};
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Color, File, Move, Piece, Square};
@@ -13,7 +14,9 @@ fn main() {
         return;
     }
 
-    let mut frozenight = Frozenight::new(32);
+    let tb = Arc::new(frozenight::load_embedded());
+
+    let mut frozenight = Frozenight::new(32, tb.clone());
 
     let mut move_overhead = Duration::from_millis(0);
     let mut abort = None;
@@ -69,7 +72,7 @@ fn main() {
                             move_overhead = Duration::from_millis(stream.next()?.parse().ok()?)
                         }
                         "Hash" => {
-                            frozenight = Frozenight::new(stream.next()?.parse().ok()?);
+                            frozenight = Frozenight::new(stream.next()?.parse().ok()?, tb.clone());
                         }
                         _ => {}
                     }
@@ -157,13 +160,14 @@ fn main() {
                             let time = now.elapsed();
                             let nodes = stats.nodes.load(Ordering::Relaxed);
                             print!(
-                                "info depth {} seldepth {} nodes {} nps {} score {} time {} pv",
+                                "info depth {} seldepth {} nodes {} nps {} score {} time {} tbhits {} pv",
                                 depth,
                                 stats.selective_depth.load(Ordering::Relaxed),
                                 nodes,
                                 (nodes as f64 / time.as_secs_f64()).round() as u64,
                                 eval,
-                                time.as_millis()
+                                time.as_millis(),
+                                stats.tb_hits.load(Ordering::Relaxed),
                             );
                             let mut board = board.clone();
                             for &mv in pv {

@@ -30,13 +30,14 @@ impl Options {
             .unwrap();
         let output = Mutex::new(BufWriter::new(output));
 
-        let mut tb = Tablebase::new();
+        let mut tb = frozenight::load_embedded();
         for path in opt.syzygy_path {
             let _ = tb.add_directory(path);
         }
         if tb.max_pieces() > 2 {
             println!("Using tablebase with {} men", tb.max_pieces());
         }
+        let tb = Arc::new(tb);
 
         let game_counter = Arc::new(AtomicUsize::new(0));
         let start = Instant::now();
@@ -44,7 +45,7 @@ impl Options {
         crossbeam_utils::thread::scope(|s| {
             for _ in 0..opt.concurrency {
                 s.spawn(|_| while !crate::ABORT.load(Ordering::SeqCst) {
-                    let (start_pos, mvs, winner) = self.play_game(&tb);
+                    let (start_pos, mvs, winner) = self.play_game(tb.clone());
 
                     output.lock().map(|mut output| {
                         write!(output, "{start_pos:#}\t").unwrap();
@@ -100,12 +101,12 @@ impl Options {
         board
     }
 
-    fn play_game(&self, tb: &Tablebase) -> (Board, Vec<Move>, Option<Color>) {
+    fn play_game(&self, tb: Arc<Tablebase>) -> (Board, Vec<Move>, Option<Color>) {
         let start_pos = self.generate_starting_position();
         let mut repetitions = HashMap::<_, u8>::new();
         let mut game = vec![];
 
-        let mut engine = Frozenight::new(64);
+        let mut engine = Frozenight::new(64, tb.clone());
         let mut board = start_pos.clone();
 
         let winner = loop {
