@@ -32,8 +32,11 @@ impl Options {
     pub fn run(self, opt: CommonOptions) {
         let output = Mutex::new(BufWriter::new(File::create("data.bin").unwrap()));
 
-        let tb = opt.syzygy_path.map(Tablebase::new);
-        if let Some(tb) = tb.as_ref() {
+        let mut tb = Tablebase::new();
+        for path in opt.syzygy_path {
+            let _ = tb.add_directory(path);
+        }
+        if tb.max_pieces() > 2 {
             println!("Using tablebase with {} men", tb.max_pieces());
         }
 
@@ -78,16 +81,12 @@ impl Options {
                             if self.filter_in_check && !board.checkers().is_empty() {
                                 continue;
                             }
-                            match tb {
-                                Some(ref tb)
                                     if self.filter_tb_positions
                                         && board.occupied().popcnt() <= tb.max_pieces() as u32
-                                        && tb.probe_wdl(&board).is_some() =>
+                                        && tb.probe_wdl(&board).is_some()
                                 {
                                     continue
                                 }
-                                _ => {}
-                            }
                             if !seen_positions.lock().unwrap().insert(board.hash()) {
                                 continue;
                             }

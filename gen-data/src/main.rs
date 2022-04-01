@@ -25,7 +25,7 @@ struct CommonOptions {
     #[structopt(short = "p", long, default_value = &DEFAULT_CONCURRENCY_STR)]
     concurrency: usize,
     #[structopt(short = "s", long)]
-    syzygy_path: Option<PathBuf>,
+    syzygy_path: Vec<PathBuf>,
 }
 
 #[derive(StructOpt)]

@@ -111,7 +111,7 @@ checksum = "847c4608e7a1ec5968d182493cdab14836def5aa950d2191662bab1f831ab903"
 [[package]]
 name = "cozy-syzygy"
 version = "0.1.0"
-source = "git+https://github.com/MinusKelvin/cozy-syzygy.git?branch=main#ea9a659ab8ae4958195de1b95976693d401f6eb2"
+source = "git+https://github.com/MinusKelvin/cozy-syzygy.git?rev=e364942#e36494254114541d80691e4563e4f695d00d4205"
 dependencies = [
  "cozy-chess",
  "memmap",

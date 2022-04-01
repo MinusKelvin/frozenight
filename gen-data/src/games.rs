@@ -30,17 +30,21 @@ impl Options {
             .unwrap();
         let output = Mutex::new(BufWriter::new(output));
 
-        let tb = opt.syzygy_path.map(Tablebase::new);
-        if let Some(tb) = tb.as_ref() {
-            println!("Using tablebase adjudication with {} men", tb.max_pieces());
+        let mut tb = Tablebase::new();
+        for path in opt.syzygy_path {
+            let _ = tb.add_directory(path);
         }
+        if tb.max_pieces() > 2 {
+            println!("Using tablebase with {} men", tb.max_pieces());
+        }
+
         let game_counter = Arc::new(AtomicUsize::new(0));
         let start = Instant::now();
 
         crossbeam_utils::thread::scope(|s| {
             for _ in 0..opt.concurrency {
                 s.spawn(|_| while !crate::ABORT.load(Ordering::SeqCst) {
-                    let (start_pos, mvs, winner) = self.play_game(tb.as_ref());
+                    let (start_pos, mvs, winner) = self.play_game(&tb);
 
                     output.lock().map(|mut output| {
                         write!(output, "{start_pos:#}\t").unwrap();
@@ -96,7 +100,7 @@ impl Options {
         board
     }
 
-    fn play_game(&self, tb: Option<&Tablebase>) -> (Board, Vec<Move>, Option<Color>) {
+    fn play_game(&self, tb: &Tablebase) -> (Board, Vec<Move>, Option<Color>) {
         let start_pos = self.generate_starting_position();
         let mut repetitions = HashMap::<_, u8>::new();
         let mut game = vec![];
@@ -125,14 +129,12 @@ impl Options {
             game.push(mv);
             board.play(mv);
 
-            if let Some(tb) = tb {
-                if board.occupied().popcnt() <= tb.max_pieces() as u32 {
-                    match tb.probe_wdl(&board) {
-                        Some((Wdl::Win, _)) => break Some(board.side_to_move()),
-                        Some((Wdl::Loss, _)) => break Some(!board.side_to_move()),
-                        Some(_) => break None,
-                        None => {}
-                    }
+            if board.occupied().popcnt() <= tb.max_pieces() as u32 {
+                match tb.probe_wdl(&board) {
+                    Some((Wdl::Win, _)) => break Some(board.side_to_move()),
+                    Some((Wdl::Loss, _)) => break Some(!board.side_to_move()),
+                    Some(_) => break None,
+                    None => {}
                 }
             }
         };
