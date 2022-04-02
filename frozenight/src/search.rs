@@ -40,6 +40,7 @@ pub(crate) struct Searcher<'a> {
     pub root: Board,
     pub stats: &'a Statistics,
     pub shared: &'a SharedState,
+    pub node_limit: u64,
     abort: &'a AtomicBool,
     valid: bool,
     repetition: IntSet<u64>,
@@ -63,6 +64,7 @@ impl<'a> Searcher<'a> {
             repetition,
             state,
             stats,
+            node_limit: u64::MAX,
             valid: true,
         }
     }
@@ -122,7 +124,9 @@ impl<'a> Searcher<'a> {
         let result = if depth <= 0 {
             self.qsearch(position, window)
         } else {
-            self.stats.nodes.fetch_add(1, Ordering::Relaxed);
+            if self.stats.nodes.fetch_add(1, Ordering::Relaxed) >= self.node_limit {
+                return None;
+            }
             f(self)?
         };
 

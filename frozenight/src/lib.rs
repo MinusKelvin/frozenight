@@ -92,12 +92,12 @@ impl Frozenight {
         // Start main search thread
         let searcher = self.searcher(0);
         std::thread::spawn(move || {
-            searcher(move |s| {
+            searcher(move |mut s| {
+                s.node_limit = nodes_limit;
                 let root = s.root.clone();
                 let (e, m) = iterative_deepening(
                     s,
                     depth_limit.min(5000),
-                    nodes_limit,
                     info,
                     time_use_suggestion,
                 );
@@ -129,11 +129,11 @@ impl Frozenight {
         nodes_limit: u64,
         info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]),
     ) -> (Eval, Move) {
-        self.searcher(0)(|s| {
+        self.searcher(0)(|mut s| {
+            s.node_limit = nodes_limit;
             iterative_deepening(
                 s,
                 depth_limit.min(5000),
-                nodes_limit,
                 info,
                 time_use_suggestion,
             )
@@ -190,7 +190,6 @@ impl Drop for Abort {
 fn iterative_deepening(
     mut searcher: Searcher,
     depth_limit: u16,
-    nodes_limit: u64,
     mut info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]),
     time_use_suggestion: Option<Instant>,
 ) -> (Eval, Move) {
@@ -221,10 +220,6 @@ fn iterative_deepening(
             if Instant::now() > time_use_suggestion {
                 break;
             }
-        }
-
-        if searcher.stats.nodes.load(Ordering::Relaxed) >= nodes_limit {
-            break;
         }
     }
     best_move.unwrap()
