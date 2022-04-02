@@ -17,6 +17,7 @@ fn main() {
 
     let mut move_overhead = Duration::from_millis(0);
     let mut abort = None;
+    let mut ob_no_adj = false;
 
     let mut buf = String::new();
     loop {
@@ -44,6 +45,7 @@ fn main() {
                     println!("option name Move Overhead type spin default 0 min 0 max 5000");
                     println!("option name Hash type spin default 32 min 1 max 65536");
                     println!("option name Threads type spin default 1 min 1 max 1");
+                    println!("option name OB_noadj type check defalse false");
                     println!("uciok");
                 }
                 "quit" => {
@@ -70,6 +72,9 @@ fn main() {
                         }
                         "Hash" => {
                             frozenight = Frozenight::new(stream.next()?.parse().ok()?);
+                        }
+                        "OB_noadj" => {
+                            ob_no_adj = stream.next()? == "true";
                         }
                         _ => {}
                     }
@@ -162,7 +167,10 @@ fn main() {
                                 stats.selective_depth.load(Ordering::Relaxed),
                                 nodes,
                                 (nodes as f64 / time.as_secs_f64()).round() as u64,
-                                eval,
+                                match ob_no_adj {
+                                    true => frozenight::Eval::new(250),
+                                    false => eval,
+                                },
                                 time.as_millis()
                             );
                             let mut board = board.clone();
