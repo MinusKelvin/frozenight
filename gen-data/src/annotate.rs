@@ -14,8 +14,8 @@ use crate::{CommonOptions, ABORT};
 
 #[derive(StructOpt)]
 pub(crate) struct Options {
-    #[structopt(short = "d", long, default_value = "5")]
-    depth: u16,
+    #[structopt(short = "n", long, default_value = "10000")]
+    nodes: u64,
     #[structopt(short = "t", long)]
     filter_captures: bool,
     #[structopt(short = "c", long)]
@@ -93,7 +93,7 @@ impl Options {
 
                             engine.set_position(board.clone(), |_| None);
                             let (eval, mv) =
-                                engine.search_synchronous(None, self.depth, |_, _, _, _, _| {});
+                                engine.search_synchronous(None, 250, self.nodes, |_, _, _, _, _| {});
 
                             if self.filter_captures
                                 && board.colors(!board.side_to_move()).has(mv.to)

@@ -15,8 +15,8 @@ use crate::CommonOptions;
 
 #[derive(StructOpt)]
 pub(crate) struct Options {
-    #[structopt(short = "d", long, default_value = "8")]
-    depth: u16,
+    #[structopt(short = "n", long, default_value = "10000")]
+    nodes: u64,
     #[structopt(default_value = "10_000_000", parse(try_from_str = crate::parse_filter_underscore))]
     positions: usize,
 }
@@ -124,7 +124,7 @@ impl Options {
             let mut moves = game.iter().copied();
             engine.set_position(start_pos.clone(), |_| moves.next());
 
-            let (_, mv) = engine.search_synchronous(None, self.depth, |_, _, _, _, _| {});
+            let (_, mv) = engine.search_synchronous(None, 250, self.nodes, |_, _, _, _, _| {});
 
             game.push(mv);
             board.play(mv);

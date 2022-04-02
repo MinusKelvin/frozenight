@@ -80,6 +80,7 @@ impl Frozenight {
         time_use_suggestion: Option<Instant>,
         deadline: Option<Instant>,
         depth_limit: u16,
+        nodes_limit: u64,
         info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]) + Send + 'static,
         best_move: impl FnOnce(Eval, Move, &Board) + Send + 'static,
     ) -> Abort {
@@ -93,8 +94,13 @@ impl Frozenight {
         std::thread::spawn(move || {
             searcher(move |s| {
                 let root = s.root.clone();
-                let (e, m) =
-                    iterative_deepening(s, depth_limit.min(5000), info, time_use_suggestion);
+                let (e, m) = iterative_deepening(
+                    s,
+                    depth_limit.min(5000),
+                    nodes_limit,
+                    info,
+                    time_use_suggestion,
+                );
                 best_move(e, m, &root);
             })
         });
@@ -120,10 +126,17 @@ impl Frozenight {
         &mut self,
         time_use_suggestion: Option<Instant>,
         depth_limit: u16,
+        nodes_limit: u64,
         info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]),
     ) -> (Eval, Move) {
         self.searcher(0)(|s| {
-            iterative_deepening(s, depth_limit.min(5000), info, time_use_suggestion)
+            iterative_deepening(
+                s,
+                depth_limit.min(5000),
+                nodes_limit,
+                info,
+                time_use_suggestion,
+            )
         })
     }
 
@@ -177,6 +190,7 @@ impl Drop for Abort {
 fn iterative_deepening(
     mut searcher: Searcher,
     depth_limit: u16,
+    nodes_limit: u64,
     mut info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]),
     time_use_suggestion: Option<Instant>,
 ) -> (Eval, Move) {
@@ -207,6 +221,10 @@ fn iterative_deepening(
             if Instant::now() > time_use_suggestion {
                 break;
             }
+        }
+
+        if searcher.stats.nodes.load(Ordering::Relaxed) >= nodes_limit {
+            break;
         }
     }
     best_move.unwrap()

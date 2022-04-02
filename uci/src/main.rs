@@ -112,6 +112,7 @@ fn main() {
                     let mut time_available = None;
                     let mut increment = Duration::ZERO;
                     let mut budget_time = false;
+                    let mut nodes = u64::MAX;
 
                     let mut depth = 250;
 
@@ -145,6 +146,7 @@ fn main() {
                                 budget_time = false;
                             }
                             "depth" => depth = stream.next().unwrap().parse().unwrap(),
+                            "nodes" => nodes = stream.next().unwrap().parse().unwrap(),
                             _ => {}
                         }
                     }
@@ -158,6 +160,7 @@ fn main() {
                         time_use_suggestion.map(|d| now + d.saturating_sub(move_overhead)),
                         time_available.map(|d| now + (d / 2).saturating_sub(move_overhead)),
                         depth,
+                        nodes,
                         move |depth, stats, eval, board, pv| {
                             let time = now.elapsed();
                             let nodes = stats.nodes.load(Ordering::Relaxed);

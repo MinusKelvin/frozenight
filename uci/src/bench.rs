@@ -86,7 +86,7 @@ pub fn bench() {
 
         let mut nodes = 0;
         let start = Instant::now();
-        engine.search_synchronous(None, depth, |_, stats, _, _, _| {
+        engine.search_synchronous(None, depth, u64::MAX, |_, stats, _, _, _| {
             nodes = stats.nodes.load(Ordering::Relaxed)
         });
         total_time += start.elapsed();
