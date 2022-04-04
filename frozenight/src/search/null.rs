@@ -78,7 +78,15 @@ impl Searcher<'_> {
             let reduction = match () {
                 _ if position.is_capture(mv) => 0,
                 _ if !new_pos.board.checkers().is_empty() => 0,
-                _ => ((2 * depth + i as i16) / 8).min(i as i16),
+                _ => {
+                    let mut amt = ((2 * depth + i as i16) / 8).min(i as i16);
+                    let p = position.board.piece_on(mv.from).unwrap();
+                    let c = position.board.side_to_move();
+                    if self.state.history.rank(p, mv, c) < 7_000_000 {
+                        amt += 1;
+                    }
+                    amt
+                }
             };
 
             let mut v = -self.visit_null(new_pos, -window, depth - reduction - 1)?;
