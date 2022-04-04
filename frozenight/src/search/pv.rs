@@ -36,7 +36,7 @@ impl Searcher<'_> {
                 let tt_not_good_enough = entry.depth < depth - 2 || entry.kind != NodeKind::Exact;
                 if tt_not_good_enough && depth > 3 {
                     // internal iterative deepening
-                    Some(self.pv_search(position, window, depth - 2)?.1)
+                    Some(self.pv_search(position, window, depth / 2)?.1)
                 } else {
                     Some(entry.mv)
                 }
