@@ -34,6 +34,19 @@ impl TranspositionTable {
         data.unmarshall_move(board)
     }
 
+    pub fn get_tb(&self, board: &Board) -> Option<Eval> {
+        let index = board.hash() as usize % self.entries.len();
+        let data = self.entries[index].data.load(Ordering::Relaxed);
+        let hxd = self.entries[index].hash.load(Ordering::Relaxed);
+        if hxd ^ data != board.hash() {
+            return None;
+        }
+        let data: TtData = bytemuck::cast(data);
+        let is_tb_score = data.eval < Eval::TB_WIN && data.eval > Eval::MAX_INCONCLUSIVE
+            || data.eval > -Eval::TB_WIN && data.eval < -Eval::MAX_INCONCLUSIVE;
+        is_tb_score.then(|| data.eval)
+    }
+
     pub fn get(&self, position: &Position) -> Option<TableEntry> {
         let index = position.board.hash() as usize % self.entries.len();
         let data = self.entries[index].data.load(Ordering::Relaxed);

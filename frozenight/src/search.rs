@@ -118,19 +118,8 @@ impl<'a> Searcher<'a> {
             return None;
         }
 
-        if position.board.halfmove_clock() == 0
-            && position.board.occupied().popcnt() <= self.shared.tb.max_pieces()
-        {
-            let result = self.shared.tb.probe_wdl(&position.board).map(|t| t.0);
-            if result.is_some() {
-                self.stats.tb_hits.fetch_add(1, Ordering::Relaxed);
-            }
-            match result {
-                Some(Wdl::Win) => return Some(Eval::TB_WIN.add_time(position.ply)),
-                Some(Wdl::Loss) => return Some(-Eval::TB_WIN.add_time(position.ply)),
-                Some(_) => return Some(Eval::DRAW),
-                None => {}
-            }
+        if let Some(result) = self.check_tb(position, depth) {
+            return Some(result);
         }
 
         if !self.repetition.insert(position.board.hash()) {
@@ -181,6 +170,33 @@ impl<'a> Searcher<'a> {
         if !position.is_capture(mv) {
             self.state.history.caused_cutoff(&position.board, mv);
             *self.killer(position.ply) = mv;
+        }
+    }
+
+    fn check_tb(&self, position: &Position, depth: i16) -> Option<Eval> {
+        if position.board.halfmove_clock() == 0
+            && position.board.occupied().popcnt() <= self.shared.tb.max_pieces()
+        {
+            self.shared.tt.get_tb(&position.board).or_else(|| {
+                let r = match self.shared.tb.probe_wdl(&position.board)?.0 {
+                    Wdl::Win => (Eval::TB_WIN.add_time(position.ply)),
+                    Wdl::Loss => (-Eval::TB_WIN.add_time(position.ply)),
+                    _ => (Eval::DRAW),
+                };
+                self.stats.tb_hits.fetch_add(1, Ordering::Relaxed);
+                self.shared.tt.store(
+                    position,
+                    TableEntry {
+                        mv: INVALID_MOVE,
+                        eval: r,
+                        depth,
+                        kind: NodeKind::Exact,
+                    },
+                );
+                Some(r)
+            })
+        } else {
+            None
         }
     }
 }
