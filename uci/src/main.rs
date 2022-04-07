@@ -113,7 +113,7 @@ fn main() {
                     let mut increment = Duration::ZERO;
                     let mut budget_time = false;
                     let mut nodes = u64::MAX;
-                    let mut to_go = 45;
+                    let mut to_go = 48;
 
                     let mut depth = 250;
 
@@ -155,7 +155,7 @@ fn main() {
 
                     let time_use_suggestion = time_available.map(|amt| match budget_time {
                         true => {
-                            amt.min((amt.saturating_sub(increment) / (to_go + 5)) + increment / 2)
+                            amt.min((amt.saturating_sub(increment) / (to_go + 2)) + increment / 2)
                         }
                         false => amt,
                     });
