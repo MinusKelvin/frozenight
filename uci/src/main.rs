@@ -113,6 +113,7 @@ fn main() {
                     let mut increment = Duration::ZERO;
                     let mut budget_time = false;
                     let mut nodes = u64::MAX;
+                    let mut to_go = 45;
 
                     let mut depth = 250;
 
@@ -145,6 +146,7 @@ fn main() {
                                 ));
                                 budget_time = false;
                             }
+                            "movestogo" => to_go = stream.next().unwrap().parse().unwrap(),
                             "depth" => depth = stream.next().unwrap().parse().unwrap(),
                             "nodes" => nodes = stream.next().unwrap().parse().unwrap(),
                             _ => {}
@@ -152,7 +154,9 @@ fn main() {
                     }
 
                     let time_use_suggestion = time_available.map(|amt| match budget_time {
-                        true => amt.min((amt.saturating_sub(increment) / 50) + increment / 2),
+                        true => {
+                            amt.min((amt.saturating_sub(increment) / (to_go + 5)) + increment / 2)
+                        }
                         false => amt,
                     });
 
