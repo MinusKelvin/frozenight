@@ -18,6 +18,7 @@ fn main() {
     let mut move_overhead = Duration::from_millis(0);
     let mut abort = None;
     let mut ob_no_adj = false;
+    let mut chess960 = false;
 
     let mut buf = String::new();
     loop {
@@ -46,6 +47,7 @@ fn main() {
                     println!("option name Hash type spin default 32 min 1 max 65536");
                     println!("option name Threads type spin default 1 min 1 max 1");
                     println!("option name OB_noadj type check default false");
+                    println!("option name UCI_Chess960 type check default false");
                     println!("uciok");
                 }
                 "quit" => {
@@ -76,6 +78,9 @@ fn main() {
                         "OB_noadj" => {
                             ob_no_adj = stream.next()? == "true";
                         }
+                        "UCI_Chess960" => {
+                            chess960 = stream.next()? == "true";
+                        }
                         _ => {}
                     }
                 }
@@ -87,7 +92,7 @@ fn main() {
                             let fen = (&mut stream)
                                 .take_while(|&tok| tok != "moves")
                                 .fold(fen_start, |a, b| a + " " + b);
-                            match fen.parse() {
+                            match Board::from_fen(&fen, chess960) {
                                 Ok(b) => b,
                                 Err(e) => {
                                     eprintln!("Invalid FEN: {:?}", e);
@@ -182,13 +187,13 @@ fn main() {
                             );
                             let mut board = board.clone();
                             for &mv in pv {
-                                print!(" {}", to_uci_castling(&board, mv));
+                                print!(" {}", to_uci_castling(&board, mv, chess960));
                                 board.play(mv);
                             }
                             println!();
                         },
-                        |_, mv, board| {
-                            println!("bestmove {}", to_uci_castling(board, mv));
+                        move |_, mv, board| {
+                            println!("bestmove {}", to_uci_castling(board, mv, chess960));
                             stdout().flush().unwrap();
                         },
                     ));
@@ -203,7 +208,10 @@ fn main() {
     }
 }
 
-fn to_uci_castling(board: &Board, mut mv: Move) -> Move {
+fn to_uci_castling(board: &Board, mut mv: Move, chess960: bool) -> Move {
+    if chess960 {
+        return mv;
+    }
     if board.color_on(mv.from) == board.color_on(mv.to) {
         if mv.to.file() > mv.from.file() {
             mv.to = Square::new(File::G, mv.to.rank());
