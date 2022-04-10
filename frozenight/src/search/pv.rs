@@ -18,21 +18,6 @@ impl Searcher<'_> {
         let hashmove = match self.shared.tt.get(&position) {
             None => None,
             Some(entry) => {
-                if entry.depth >= depth {
-                    match entry.kind {
-                        NodeKind::Exact => return Some((entry.eval, entry.mv)),
-                        NodeKind::LowerBound => {
-                            if window.fail_high(entry.eval) {
-                                return Some((entry.eval, entry.mv));
-                            }
-                        }
-                        NodeKind::UpperBound => {
-                            if window.fail_low(entry.eval) {
-                                return Some((entry.eval, entry.mv));
-                            }
-                        }
-                    }
-                }
                 let tt_not_good_enough = entry.depth < depth - 2 || entry.kind != NodeKind::Exact;
                 if tt_not_good_enough && depth > 3 {
                     // internal iterative deepening
