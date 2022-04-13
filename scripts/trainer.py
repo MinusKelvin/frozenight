@@ -104,7 +104,7 @@ if __name__ != "__main__":
 elif sys.argv[1] == "train":
     with open(sys.argv[2], "rb") as f:
         dataset = PositionSet(f.read())
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<12, shuffle=True, num_workers=32)
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<13, shuffle=True, num_workers=32)
 
     nnue = Nnue()
     trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=-1), max_epochs=24)
