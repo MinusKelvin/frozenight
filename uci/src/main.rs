@@ -110,7 +110,7 @@ fn main() {
                     frozenight.set_position(board, |board| {
                         let mv = stream.peek()?.parse().ok()?;
                         stream.next();
-                        Some(from_uci_castling(board, mv))
+                        Some(from_uci_castling(board, mv, chess960))
                     });
                 }
                 "go" => {
@@ -222,7 +222,10 @@ fn to_uci_castling(board: &Board, mut mv: Move, chess960: bool) -> Move {
     mv
 }
 
-fn from_uci_castling(board: &Board, mut mv: Move) -> Move {
+fn from_uci_castling(board: &Board, mut mv: Move, chess960: bool) -> Move {
+    if chess960 {
+        return mv;
+    }
     if mv.from.file() == File::E && board.piece_on(mv.from) == Some(Piece::King) {
         if mv.to.file() == File::G {
             mv.to = Square::new(File::H, mv.to.rank());
