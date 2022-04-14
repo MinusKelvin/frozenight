@@ -81,7 +81,7 @@ impl Searcher<'_> {
                 _ => ((2 * depth + i as i16) / 8).min(i as i16),
             };
 
-            if depth - reduction - 1 < 0 {
+            if depth > 1 && depth - reduction - 1 < 0 {
                 continue;
             }
 
