@@ -5,7 +5,7 @@ use crate::Eval;
 
 use super::ordering::MoveOrdering;
 use super::window::Window;
-use super::Searcher;
+use super::{is_singular, Searcher};
 
 use cozy_chess::Piece;
 
@@ -17,8 +17,8 @@ impl Searcher<'_> {
     }
 
     fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
-        let hashmove = match self.shared.tt.get(&position) {
-            None => None,
+        let (hashmove, singular) = match self.shared.tt.get(&position) {
+            None => (None, false),
             Some(entry) => {
                 match entry.kind {
                     _ if entry.depth < depth => {}
@@ -34,7 +34,7 @@ impl Searcher<'_> {
                         }
                     }
                 }
-                Some(entry.mv)
+                (Some(entry.mv), entry.singular)
             }
         };
 
@@ -68,6 +68,7 @@ impl Searcher<'_> {
         }
 
         let mut best_score = -Eval::MATE;
+        let mut second_best = -Eval::MATE;
         let mut best_move = INVALID_MOVE;
 
         let mut moves = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
@@ -78,7 +79,12 @@ impl Searcher<'_> {
             let reduction = match () {
                 _ if position.is_capture(mv) => 0,
                 _ if !new_pos.board.checkers().is_empty() => 0,
-                _ => ((2 * depth + i as i16) / 8).min(i as i16),
+                _ => ((2 * depth + i as i16) / 8
+                    + match singular {
+                        true => 1,
+                        false => 0,
+                    })
+                .min(i as i16),
             };
 
             let mut v = -self.visit_null(new_pos, -window, depth - reduction - 1)?;
@@ -97,12 +103,21 @@ impl Searcher<'_> {
             }
 
             if v > best_score {
+                second_best = best_score;
                 best_score = v;
                 best_move = mv;
+            } else if v > second_best {
+                second_best = v;
             }
         }
 
-        self.failed_low(position, depth, best_score, best_move);
+        self.failed_low(
+            position,
+            depth,
+            best_score,
+            best_move,
+            is_singular(best_score, second_best),
+        );
 
         Some(best_score)
     }

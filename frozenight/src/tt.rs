@@ -45,7 +45,7 @@ impl TranspositionTable {
         // also validates the data
         let data: TtData = bytemuck::cast(data);
 
-        let kind = match data.kind {
+        let kind = match data.kind & 3 {
             0 => NodeKind::Exact,
             1 => NodeKind::LowerBound,
             2 => NodeKind::UpperBound,
@@ -59,6 +59,7 @@ impl TranspositionTable {
             kind,
             eval: data.eval.add_time(position.ply),
             depth: data.depth,
+            singular: data.kind & 0x80 != 0,
         })
     }
 
@@ -95,7 +96,7 @@ impl TranspositionTable {
             mv: data.mv.from as u16 | (data.mv.to as u16) << 6 | promo << 12,
             eval: data.eval.sub_time(position.ply),
             depth: data.depth,
-            kind: data.kind as u8,
+            kind: data.kind as u8 | (data.singular as u8) << 7,
             age,
         });
         entry.data.store(data, Ordering::Relaxed);
@@ -115,6 +116,7 @@ pub struct TableEntry {
     pub eval: Eval,
     pub depth: i16,
     pub kind: NodeKind,
+    pub singular: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

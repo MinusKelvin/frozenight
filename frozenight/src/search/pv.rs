@@ -6,7 +6,7 @@ use crate::Eval;
 
 use super::ordering::MoveOrdering;
 use super::window::Window;
-use super::Searcher;
+use super::{is_singular, Searcher};
 
 impl Searcher<'_> {
     pub fn pv_search(
@@ -15,8 +15,8 @@ impl Searcher<'_> {
         mut window: Window,
         depth: i16,
     ) -> Option<(Eval, Move)> {
-        let hashmove = match self.shared.tt.get(&position) {
-            None => None,
+        let (hashmove, singular) = match self.shared.tt.get(&position) {
+            None => (None, false),
             Some(entry) => {
                 if entry.depth >= depth {
                     match entry.kind {
@@ -36,9 +36,12 @@ impl Searcher<'_> {
                 let tt_not_good_enough = entry.depth < depth - 2 || entry.kind != NodeKind::Exact;
                 if tt_not_good_enough && depth > 3 {
                     // internal iterative deepening
-                    Some(self.pv_search(position, window, depth - 2)?.1)
+                    (
+                        Some(self.pv_search(position, window, depth - 2)?.1),
+                        entry.singular,
+                    )
                 } else {
-                    Some(entry.mv)
+                    (Some(entry.mv), entry.singular)
                 }
             }
         };
@@ -57,13 +60,24 @@ impl Searcher<'_> {
         }
         let mut raised_alpha = window.raise_lb(best_score);
 
+        let mut second_best = -Eval::MATE;
+
         while let Some((i, mv)) = moves.next(&mut self.state.history) {
             let new_pos = &position.play_move(&self.shared.nnue, mv);
 
             let reduction = match () {
                 _ if position.is_capture(mv) => 0,
                 _ if !new_pos.board.checkers().is_empty() => 0,
-                _ => ((2 * depth + i as i16) / 8).min(i as i16) * 2 / 3,
+                _ => {
+                    ((2 * depth + i as i16) / 8
+                        + match singular {
+                            true => 1,
+                            false => 0,
+                        })
+                    .min(i as i16)
+                        * 2
+                        / 3
+                }
             };
 
             let mut v =
@@ -71,8 +85,11 @@ impl Searcher<'_> {
 
             if window.fail_low(v) {
                 if v > best_score {
+                    second_best = best_score;
                     best_score = v;
                     best_move = mv;
+                } else if v > second_best {
+                    second_best = v;
                 }
                 continue;
             }
@@ -81,8 +98,11 @@ impl Searcher<'_> {
                 v = -self.visit_null(new_pos, -Window::null(window.lb()), depth - 1)?;
                 if window.fail_low(v) {
                     if v > best_score {
+                        second_best = best_score;
                         best_score = v;
                         best_move = mv;
+                    } else if v > second_best {
+                        second_best = v;
                     }
                     continue;
                 }
@@ -103,9 +123,12 @@ impl Searcher<'_> {
             }
 
             if window.raise_lb(v) {
+                second_best = best_score;
                 best_move = mv;
                 best_score = v;
                 raised_alpha = true;
+            } else if v > second_best {
+                second_best = v;
             }
         }
 
@@ -117,10 +140,17 @@ impl Searcher<'_> {
                     eval: best_score,
                     depth,
                     kind: NodeKind::Exact,
+                    singular: is_singular(best_score, second_best),
                 },
             );
         } else {
-            self.failed_low(position, depth, best_score, best_move);
+            self.failed_low(
+                position,
+                depth,
+                best_score,
+                best_move,
+                is_singular(best_score, second_best),
+            );
         }
 
         Some((best_score, best_move))

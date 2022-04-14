@@ -140,7 +140,14 @@ impl<'a> Searcher<'a> {
         Some(result)
     }
 
-    fn failed_low(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
+    fn failed_low(
+        &mut self,
+        position: &Position,
+        depth: i16,
+        eval: Eval,
+        mv: Move,
+        singular: bool,
+    ) {
         self.shared.tt.store(
             &position,
             TableEntry {
@@ -148,6 +155,7 @@ impl<'a> Searcher<'a> {
                 eval,
                 depth,
                 kind: NodeKind::UpperBound,
+                singular,
             },
         );
     }
@@ -160,6 +168,7 @@ impl<'a> Searcher<'a> {
                 eval,
                 depth,
                 kind: NodeKind::LowerBound,
+                singular: false,
             },
         );
         if !position.is_capture(mv) {
@@ -167,4 +176,8 @@ impl<'a> Searcher<'a> {
             *self.killer(position.ply) = mv;
         }
     }
+}
+
+fn is_singular(eval: Eval, second_best: Eval) -> bool {
+    second_best + 1500 < eval
 }
