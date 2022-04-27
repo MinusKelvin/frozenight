@@ -9,6 +9,7 @@ use cozy_chess::{Board, Color, Piece, Square};
 use cozy_syzygy::Tablebase;
 use frozenight::{Eval, Frozenight};
 use structopt::StructOpt;
+use rand::prelude::*;
 
 use crate::{CommonOptions, ABORT};
 
@@ -16,6 +17,7 @@ use crate::{CommonOptions, ABORT};
 pub(crate) struct Options {
     #[structopt(short = "n", long, default_value = "10000")]
     nodes: u64,
+
     #[structopt(short = "t", long)]
     filter_captures: bool,
     #[structopt(short = "c", long)]
@@ -26,6 +28,9 @@ pub(crate) struct Options {
     filter_mate_scores: bool,
     #[structopt(short = "b", long)]
     filter_tb_positions: bool,
+
+    #[structopt(short = "s", long, default_value = "0.75")]
+    skip: f64
 }
 
 impl Options {
@@ -81,12 +86,15 @@ impl Options {
                             if self.filter_in_check && !board.checkers().is_empty() {
                                 continue;
                             }
-                                    if self.filter_tb_positions
-                                        && board.occupied().popcnt() <= tb.max_pieces() as u32
-                                        && tb.probe_wdl(&board).is_some()
-                                {
-                                    continue
-                                }
+                            if thread_rng().gen_bool(self.skip) {
+                                continue;
+                            }
+                            if self.filter_tb_positions
+                                && board.occupied().popcnt() <= tb.max_pieces() as u32
+                                && tb.probe_wdl(&board).is_some()
+                            {
+                                continue
+                            }
                             if !seen_positions.lock().unwrap().insert(board.hash()) {
                                 continue;
                             }
