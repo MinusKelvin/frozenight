@@ -1,5 +1,4 @@
 use std::io::{stdin, stdout, Write};
-use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Color, File, Move, Piece, Square};
@@ -172,12 +171,11 @@ fn main() {
                         nodes,
                         move |depth, stats, eval, board, pv| {
                             let time = now.elapsed();
-                            let nodes = stats.nodes.load(Ordering::Relaxed);
                             print!(
                                 "info depth {} seldepth {} nodes {} nps {} score {} time {} pv",
                                 depth,
-                                stats.selective_depth.load(Ordering::Relaxed),
-                                nodes,
+                                stats.selective_depth,
+                                stats.nodes,
                                 (nodes as f64 / time.as_secs_f64()).round() as u64,
                                 match ob_no_adj {
                                     true => frozenight::Eval::new(250),

@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -20,7 +20,7 @@ pub struct Frozenight {
     board: Board,
     history: IntSet<u64>,
     shared_state: Arc<SharedState>,
-    tl_data: Vec<Arc<(Statistics, Mutex<SearchState>)>>,
+    tl_data: Vec<Arc<Mutex<SearchState>>>,
     abort: Arc<AtomicBool>,
 }
 
@@ -95,12 +95,8 @@ impl Frozenight {
             searcher(move |mut s| {
                 s.node_limit = nodes_limit;
                 let root = s.root.clone();
-                let (e, m) = iterative_deepening(
-                    s,
-                    depth_limit.min(5000),
-                    info,
-                    time_use_suggestion,
-                );
+                let (e, m) =
+                    iterative_deepening(s, depth_limit.min(5000), info, time_use_suggestion);
                 best_move(e, m, &root);
             })
         });
@@ -131,12 +127,7 @@ impl Frozenight {
     ) -> (Eval, Move) {
         self.searcher(0)(|mut s| {
             s.node_limit = nodes_limit;
-            iterative_deepening(
-                s,
-                depth_limit.min(5000),
-                info,
-                time_use_suggestion,
-            )
+            iterative_deepening(s, depth_limit.min(5000), info, time_use_suggestion)
         })
     }
 
@@ -147,22 +138,17 @@ impl Frozenight {
         let abort = self.abort.clone();
         let shared = self.shared_state.clone();
         while thread >= self.tl_data.len() {
-            self.tl_data.push(Arc::new((
-                Statistics::default(),
-                Mutex::new(SearchState::default()),
-            )));
+            self.tl_data
+                .push(Arc::new(Mutex::new(SearchState::default())));
         }
         let tl_data = self.tl_data[thread].clone();
-        tl_data.0.nodes.store(0, Ordering::Relaxed);
-        tl_data.0.selective_depth.store(0, Ordering::Relaxed);
         let repetitions = self.history.clone();
         let board = self.board.clone();
         move |f| {
             f(Searcher::new(
                 &abort,
                 &shared,
-                &mut tl_data.1.lock().unwrap(),
-                &tl_data.0,
+                &mut tl_data.lock().unwrap(),
                 repetitions,
                 board,
             ))
@@ -210,7 +196,7 @@ fn iterative_deepening(
                     break;
                 }
             }
-            info(depth, searcher.stats, result.0, &searcher.root, &pv);
+            info(depth, &searcher.stats, result.0, &searcher.root, &pv);
             best_move = Some(result);
         } else {
             break;
@@ -227,6 +213,6 @@ fn iterative_deepening(
 
 #[derive(Debug, Default)]
 pub struct Statistics {
-    pub selective_depth: AtomicU16,
-    pub nodes: AtomicU64,
+    pub selective_depth: u16,
+    pub nodes: u64,
 }

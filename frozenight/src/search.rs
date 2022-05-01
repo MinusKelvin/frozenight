@@ -38,7 +38,7 @@ impl Default for SearchState {
 
 pub(crate) struct Searcher<'a> {
     pub root: Board,
-    pub stats: &'a Statistics,
+    pub stats: Statistics,
     pub shared: &'a SharedState,
     pub node_limit: u64,
     abort: &'a AtomicBool,
@@ -52,7 +52,6 @@ impl<'a> Searcher<'a> {
         abort: &'a AtomicBool,
         shared: &'a SharedState,
         state: &'a mut SearchState,
-        stats: &'a Statistics,
         repetition: IntSet<u64>,
         root: Board,
     ) -> Self {
@@ -63,7 +62,7 @@ impl<'a> Searcher<'a> {
             abort,
             repetition,
             state,
-            stats,
+            stats: Statistics::default(),
             node_limit: u64::MAX,
             valid: true,
         }
@@ -124,7 +123,8 @@ impl<'a> Searcher<'a> {
         let result = if depth <= 0 {
             self.qsearch(position, window)
         } else {
-            if self.stats.nodes.fetch_add(1, Ordering::Relaxed) >= self.node_limit {
+            self.stats.nodes += 1;
+            if self.stats.nodes >= self.node_limit {
                 return None;
             }
             f(self)?
