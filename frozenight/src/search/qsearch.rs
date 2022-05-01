@@ -17,7 +17,9 @@ impl Searcher<'_> {
     }
 
     fn qsearch_impl(&mut self, position: &Position, mut window: Window, qply: u16) -> Eval {
-        self.stats.selective_depth.fetch_max(position.ply, Ordering::Relaxed);
+        self.stats
+            .selective_depth
+            .fetch_max(position.ply, Ordering::Relaxed);
         self.stats.nodes.fetch_add(1, Ordering::Relaxed);
 
         let in_check = !position.board.checkers().is_empty();
@@ -41,6 +43,18 @@ impl Searcher<'_> {
             return best;
         }
         window.raise_lb(best);
+
+        let mini_idx = (position.board.hash() % self.qsearch_mini_tt.len() as u64) as usize;
+        let (mini_hash, mini_eval, mini_ply) = self.qsearch_mini_tt[mini_idx];
+        if mini_hash == position.board.hash() && mini_ply <= qply {
+            let mini_eval = mini_eval.add_time(position.ply);
+            if window.fail_high(mini_eval) {
+                return mini_eval;
+            } else if window.fail_low(mini_eval) {
+                return mini_eval;
+            }
+            window.raise_lb(mini_eval);
+        }
 
         let mut moves = Vec::with_capacity(16);
         let mut had_moves = false;
@@ -118,6 +132,8 @@ impl Searcher<'_> {
                 qply + 1,
             );
             if window.fail_high(v) {
+                self.qsearch_mini_tt[mini_idx] =
+                    (position.board.hash(), v.sub_time(position.ply), qply);
                 return v;
             }
             window.raise_lb(v);
@@ -126,6 +142,11 @@ impl Searcher<'_> {
             }
 
             i += 1;
+        }
+
+        if best != -Eval::MATE.add_time(position.ply) {
+            self.qsearch_mini_tt[mini_idx] =
+                (position.board.hash(), best.sub_time(position.ply), qply);
         }
 
         best

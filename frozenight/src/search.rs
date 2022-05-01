@@ -45,6 +45,7 @@ pub(crate) struct Searcher<'a> {
     valid: bool,
     repetition: IntSet<u64>,
     state: &'a mut SearchState,
+    qsearch_mini_tt: [(u64, Eval, u16); 64],
 }
 
 impl<'a> Searcher<'a> {
@@ -66,6 +67,7 @@ impl<'a> Searcher<'a> {
             stats,
             node_limit: u64::MAX,
             valid: true,
+            qsearch_mini_tt: [(0, Eval::DRAW, 0); 64],
         }
     }
 
