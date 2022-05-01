@@ -13,11 +13,20 @@ const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
 
 impl Searcher<'_> {
     pub fn qsearch(&mut self, position: &Position, window: Window) -> Eval {
-        self.qsearch_impl(position, window, 0)
+        let mut mini_tt = [(0, Eval::DRAW, 0); 64];
+        self.qsearch_impl(position, window, 0, &mut mini_tt)
     }
 
-    fn qsearch_impl(&mut self, position: &Position, mut window: Window, qply: u16) -> Eval {
-        self.stats.selective_depth.fetch_max(position.ply, Ordering::Relaxed);
+    fn qsearch_impl(
+        &mut self,
+        position: &Position,
+        mut window: Window,
+        qply: u16,
+        mini_tt: &mut [(u64, Eval, u16); 64],
+    ) -> Eval {
+        self.stats
+            .selective_depth
+            .fetch_max(position.ply, Ordering::Relaxed);
         self.stats.nodes.fetch_add(1, Ordering::Relaxed);
 
         let in_check = !position.board.checkers().is_empty();
@@ -41,6 +50,17 @@ impl Searcher<'_> {
             return best;
         }
         window.raise_lb(best);
+
+        let mini_idx = (position.board.hash() % mini_tt.len() as u64) as usize;
+        let (mini_hash, mini_eval, mini_ply) = mini_tt[mini_idx];
+        if mini_hash == position.board.hash() && mini_ply <= qply {
+            if window.fail_high(mini_eval) {
+                return mini_eval;
+            } else if window.fail_low(mini_eval) {
+                return mini_eval;
+            }
+            window.raise_lb(mini_eval);
+        }
 
         let mut moves = Vec::with_capacity(16);
         let mut had_moves = false;
@@ -116,8 +136,10 @@ impl Searcher<'_> {
                 &position.play_move(&self.shared.nnue, mv),
                 -window,
                 qply + 1,
+                mini_tt,
             );
             if window.fail_high(v) {
+                mini_tt[mini_idx] = (position.board.hash(), v, qply);
                 return v;
             }
             window.raise_lb(v);
@@ -127,6 +149,8 @@ impl Searcher<'_> {
 
             i += 1;
         }
+
+        mini_tt[mini_idx] = (position.board.hash(), best, qply);
 
         best
     }
