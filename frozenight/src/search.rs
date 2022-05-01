@@ -150,6 +150,7 @@ impl<'a> Searcher<'a> {
                 kind: NodeKind::UpperBound,
             },
         );
+        *self.killer(position.ply) = INVALID_MOVE;
     }
 
     fn failed_high(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
