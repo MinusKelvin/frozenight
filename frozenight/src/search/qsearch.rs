@@ -44,9 +44,10 @@ impl Searcher<'_> {
         }
         window.raise_lb(best);
 
-        let mini_idx = (position.board.hash() % self.qsearch_mini_tt.len() as u64) as usize;
-        let (mini_hash, mini_eval, mini_ply) = self.qsearch_mini_tt[mini_idx];
-        if mini_hash == position.board.hash() && mini_ply <= qply {
+        let mini_idx = (position.board.hash() % self.state.qsearch_mini_tt.len() as u64) as usize;
+        let hash = (position.board.hash() / self.state.qsearch_mini_tt.len() as u64) as u32;
+        let (mini_hash, mini_eval, mini_ply) = self.state.qsearch_mini_tt[mini_idx];
+        if mini_hash == hash && mini_ply <= qply {
             let mini_eval = mini_eval.add_time(position.ply);
             if window.fail_high(mini_eval) {
                 return mini_eval;
@@ -132,8 +133,7 @@ impl Searcher<'_> {
                 qply + 1,
             );
             if window.fail_high(v) {
-                self.qsearch_mini_tt[mini_idx] =
-                    (position.board.hash(), v.sub_time(position.ply), qply);
+                self.state.qsearch_mini_tt[mini_idx] = (hash, v.sub_time(position.ply), qply);
                 return v;
             }
             window.raise_lb(v);
@@ -145,8 +145,7 @@ impl Searcher<'_> {
         }
 
         if best != -Eval::MATE.add_time(position.ply) {
-            self.qsearch_mini_tt[mini_idx] =
-                (position.board.hash(), best.sub_time(position.ply), qply);
+            self.state.qsearch_mini_tt[mini_idx] = (hash, best.sub_time(position.ply), qply);
         }
 
         best
