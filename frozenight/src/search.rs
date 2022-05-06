@@ -25,7 +25,6 @@ const INVALID_MOVE: Move = Move {
 pub(crate) struct SearchState {
     killers: Vec<Move>,
     history: HistoryTable,
-    qsearch_mini_tt: [(u32, Eval, u16); 512],
 }
 
 impl Default for SearchState {
@@ -33,7 +32,6 @@ impl Default for SearchState {
         SearchState {
             killers: vec![INVALID_MOVE; 128],
             history: HistoryTable::new(),
-            qsearch_mini_tt: [(0, Eval::DRAW, 0); 512],
         }
     }
 }

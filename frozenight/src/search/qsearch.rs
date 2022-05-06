@@ -4,9 +4,10 @@ use cozy_chess::{get_king_moves, BitBoard, Move, Piece};
 
 use crate::position::Position;
 use crate::Eval;
+use crate::tt::{NodeKind, TableEntry};
 
 use super::window::Window;
-use super::Searcher;
+use super::{Searcher, INVALID_MOVE};
 
 const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
@@ -27,6 +28,7 @@ impl Searcher<'_> {
 
         let permitted;
         let mut best;
+        let mut best_mv = INVALID_MOVE;
         let do_for;
 
         if in_check {
@@ -44,17 +46,21 @@ impl Searcher<'_> {
         }
         window.raise_lb(best);
 
-        let mini_idx = (position.board.hash() % self.state.qsearch_mini_tt.len() as u64) as usize;
-        let hash = (position.board.hash() / self.state.qsearch_mini_tt.len() as u64) as u32;
-        let (mini_hash, mini_eval, mini_ply) = self.state.qsearch_mini_tt[mini_idx];
-        if mini_hash == hash && mini_ply <= qply {
-            let mini_eval = mini_eval.add_time(position.ply);
-            if window.fail_high(mini_eval) {
-                return mini_eval;
-            } else if window.fail_low(mini_eval) {
-                return mini_eval;
+        if let Some(entry) = self.shared.tt.get(position) {
+            match entry.kind {
+                _ if entry.depth < -(qply as i16) => {}
+                NodeKind::Exact => return entry.eval,
+                NodeKind::LowerBound => {
+                    if window.fail_high(entry.eval) {
+                        return entry.eval;
+                    }
+                }
+                NodeKind::UpperBound => {
+                    if window.fail_low(entry.eval) {
+                        return entry.eval;
+                    }
+                }
             }
-            window.raise_lb(mini_eval);
         }
 
         let mut moves = Vec::with_capacity(16);
@@ -133,19 +139,36 @@ impl Searcher<'_> {
                 qply + 1,
             );
             if window.fail_high(v) {
-                self.state.qsearch_mini_tt[mini_idx] = (hash, v.sub_time(position.ply), qply);
+                self.shared.tt.store(
+                    &position,
+                    TableEntry {
+                        mv,
+                        eval: v,
+                        depth: -(qply as i16),
+                        kind: NodeKind::LowerBound,
+                    },
+                );
                 return v;
             }
             window.raise_lb(v);
             if v > best {
                 best = v;
+                best_mv = mv;
             }
 
             i += 1;
         }
 
-        if best != -Eval::MATE.add_time(position.ply) {
-            self.state.qsearch_mini_tt[mini_idx] = (hash, best.sub_time(position.ply), qply);
+        if best_mv != INVALID_MOVE {
+            self.shared.tt.store(
+                &position,
+                TableEntry {
+                    mv: best_mv,
+                    eval: best,
+                    depth: -(qply as i16),
+                    kind: NodeKind::UpperBound,
+                },
+            );
         }
 
         best
