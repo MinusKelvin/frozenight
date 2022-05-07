@@ -43,6 +43,23 @@ impl Frozenight {
         }
     }
 
+    pub fn set_hash(&mut self, hash_mb: usize) {
+        match Arc::get_mut(&mut self.shared_state) {
+            Some(state) => {
+                // put dummy value in to drop potentially large previous TT allocation
+                state.tt = TranspositionTable::new(1);
+                // then create potentially large new TT allocation
+                state.tt = TranspositionTable::new(hash_mb);
+            }
+            None => {
+                self.shared_state = Arc::new(SharedState {
+                    nnue: Nnue::new(),
+                    tt: TranspositionTable::new(hash_mb),
+                });
+            }
+        }
+    }
+
     pub fn board(&self) -> &Board {
         &self.board
     }
@@ -95,12 +112,8 @@ impl Frozenight {
             searcher(move |mut s| {
                 s.node_limit = nodes_limit;
                 let root = s.root.clone();
-                let (e, m) = iterative_deepening(
-                    s,
-                    depth_limit.min(5000),
-                    info,
-                    time_use_suggestion,
-                );
+                let (e, m) =
+                    iterative_deepening(s, depth_limit.min(5000), info, time_use_suggestion);
                 best_move(e, m, &root);
             })
         });
@@ -131,12 +144,7 @@ impl Frozenight {
     ) -> (Eval, Move) {
         self.searcher(0)(|mut s| {
             s.node_limit = nodes_limit;
-            iterative_deepening(
-                s,
-                depth_limit.min(5000),
-                info,
-                time_use_suggestion,
-            )
+            iterative_deepening(s, depth_limit.min(5000), info, time_use_suggestion)
         })
     }
 

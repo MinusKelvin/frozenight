@@ -73,7 +73,7 @@ fn main() {
                             move_overhead = Duration::from_millis(stream.next()?.parse().ok()?)
                         }
                         "Hash" => {
-                            frozenight = Frozenight::new(stream.next()?.parse().ok()?);
+                            frozenight.set_hash(stream.next()?.parse().ok()?);
                         }
                         "OB_noadj" => {
                             ob_no_adj = stream.next()? == "true";
