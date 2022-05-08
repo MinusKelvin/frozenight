@@ -20,7 +20,11 @@ impl Searcher<'_> {
             Some(entry) => {
                 if entry.depth >= depth {
                     match entry.kind {
-                        NodeKind::Exact => return Some((entry.eval, entry.mv)),
+                        NodeKind::Exact => {
+                            if depth < 2 {
+                                return Some((entry.eval, entry.mv));
+                            }
+                        }
                         NodeKind::LowerBound => {
                             if window.fail_high(entry.eval) {
                                 return Some((entry.eval, entry.mv));
