@@ -166,8 +166,16 @@ fn main() {
                     });
 
                     abort = Some(frozenight.start_search(
-                        time_use_suggestion.map(|d| now + d.saturating_sub(move_overhead)),
-                        time_available.map(|d| now + (d / 2).saturating_sub(move_overhead)),
+                        time_use_suggestion.map(|d| {
+                            now + d
+                                .saturating_sub(move_overhead)
+                                .max(Duration::from_millis(1))
+                        }),
+                        time_available.map(|d| {
+                            now + (d / 2)
+                                .saturating_sub(move_overhead)
+                                .max(Duration::from_millis(1))
+                        }),
                         depth,
                         nodes,
                         move |depth, stats, eval, board, pv| {
