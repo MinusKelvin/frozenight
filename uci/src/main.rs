@@ -15,7 +15,7 @@ fn main() {
 
     let mut frozenight = Frozenight::new(32);
 
-    let mut move_overhead = Duration::from_millis(0);
+    let mut move_overhead = Duration::from_millis(50);
     let mut abort = None;
     let mut ob_no_adj = false;
     let mut chess960 = false;
@@ -201,6 +201,7 @@ fn main() {
                             println!();
                         },
                         move |_, mv, board| {
+                            std::thread::sleep(std::time::Duration::from_millis(30));
                             println!("bestmove {}", to_uci_castling(board, mv, chess960));
                             stdout().flush().unwrap();
                         },
