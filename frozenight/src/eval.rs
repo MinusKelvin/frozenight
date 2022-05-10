@@ -6,8 +6,8 @@ pub struct Eval(i16);
 
 impl Eval {
     pub const MATE: Eval = Eval(300_00);
-    pub const TB_WIN: Eval = Eval(200_00);
-    pub const MAX_INCONCLUSIVE: Eval = Eval(100_00);
+    pub const TB_WIN: Eval = Eval(250_00);
+    pub const MAX_INCONCLUSIVE: Eval = Eval(200_00);
     pub const DRAW: Eval = Eval(0);
 
     pub fn new(value: i16) -> Self {
