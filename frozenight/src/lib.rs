@@ -201,6 +201,12 @@ fn iterative_deepening(
     mut info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]),
     time_use_suggestion: Option<Instant>,
 ) -> (Eval, Move) {
+    let mut movecount = 0;
+    searcher.root.generate_moves(|mvs| {
+        movecount += mvs.len();
+        movecount > 1
+    });
+
     let mut best_move = None;
     let mut pv = Vec::with_capacity(32);
     for depth in 1..depth_limit + 1 {
@@ -220,6 +226,12 @@ fn iterative_deepening(
             }
             info(depth, searcher.stats, result.0, &searcher.root, &pv);
             best_move = Some(result);
+
+            if let Some(done_in) = result.0.plys_to_conclusion() {
+                if done_in.abs() < depth as i16 && time_use_suggestion.is_some() {
+                    break;
+                }
+            }
         } else {
             break;
         }
@@ -228,6 +240,10 @@ fn iterative_deepening(
             if Instant::now() > time_use_suggestion {
                 break;
             }
+        }
+
+        if movecount == 1 && time_use_suggestion.is_some() {
+            break;
         }
     }
     best_move.unwrap()
