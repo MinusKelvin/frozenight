@@ -38,6 +38,12 @@ impl Searcher<'_> {
             }
         };
 
+        // mate distance pruning
+        let mate_score = Eval::MATE.add_time(position.ply);
+        if window.fail_low(mate_score) {
+            return Some(mate_score);
+        }
+
         // reverse futility pruning... but with qsearch
         if depth <= 6 {
             let margin = 250 * depth as i16;
