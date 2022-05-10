@@ -71,7 +71,7 @@ impl Searcher<'_> {
             };
 
             let mut v =
-                -self.visit_null(new_pos, -Window::null(window.lb()), depth - reduction - 1)?;
+                -self.visit_null(new_pos, -Window::null(window.lb()-1), depth - reduction - 1)?;
 
             if window.fail_low(v) {
                 if v > best_score {
@@ -82,7 +82,7 @@ impl Searcher<'_> {
             }
 
             if reduction > 0 {
-                v = -self.visit_null(new_pos, -Window::null(window.lb()), depth - 1)?;
+                v = -self.visit_null(new_pos, -Window::null(window.lb()-1), depth - 1)?;
                 if window.fail_low(v) {
                     if v > best_score {
                         best_score = v;
