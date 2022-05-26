@@ -18,7 +18,7 @@ pub struct NnueAccumulator {
     white: [i16; L1_SIZE],
     black: [i16; L1_SIZE],
     side_to_move: Color,
-    pieces: usize,
+    material: usize,
 }
 
 impl Nnue {
@@ -45,7 +45,11 @@ impl NnueAccumulator {
             white,
             black,
             side_to_move: board.side_to_move(),
-            pieces: board.occupied().popcnt() as usize,
+            material: board.pieces(Piece::Pawn).popcnt() as usize
+                + 3 * board.pieces(Piece::Bishop).popcnt() as usize
+                + 3 * board.pieces(Piece::Knight).popcnt() as usize
+                + 5 * board.pieces(Piece::Rook).popcnt() as usize
+                + 8 * board.pieces(Piece::Queen).popcnt() as usize,
         }
     }
 
@@ -54,7 +58,7 @@ impl NnueAccumulator {
             Color::White => [self.white, self.black],
             Color::Black => [self.black, self.white],
         }));
-        let bucket = (self.pieces - 1) * BUCKETS / 32;
+        let bucket = (self.material * BUCKETS / 40).min(BUCKETS - 1);
         let output = vdot(l1_input, nn.hidden_layer[bucket]) + nn.hidden_layer_bias[bucket];
 
         Eval::new((output / 8) as i16)
@@ -74,7 +78,22 @@ impl NnueAccumulator {
         let moved = board.piece_on(mv.from).unwrap();
 
         if board.colors(!us).has(mv.to) {
-            result.pieces -= 1;
+            result.material -= match board.piece_on(mv.to) {
+                Some(Piece::Pawn) => 1,
+                Some(Piece::Bishop) => 3,
+                Some(Piece::Knight) => 3,
+                Some(Piece::Rook) => 5,
+                Some(Piece::Queen) => 8,
+                _ => unreachable!(),
+            };
+        }
+
+        match mv.promotion {
+            Some(Piece::Bishop) => result.material += 2,
+            Some(Piece::Knight) => result.material += 2,
+            Some(Piece::Rook) => result.material += 4,
+            Some(Piece::Queen) => result.material += 7,
+            _ => {}
         }
 
         // remove piece on from square
@@ -112,7 +131,7 @@ impl NnueAccumulator {
                         Square::new(ep_file, Rank::Fifth.relative_to(!us)),
                     )],
                 );
-                result.pieces -= 1;
+                result.material -= 1;
             }
         }
 

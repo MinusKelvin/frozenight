@@ -8,8 +8,8 @@ use std::time::Instant;
 use cozy_chess::{Board, Color, Piece, Square};
 use cozy_syzygy::Tablebase;
 use frozenight::{Eval, Frozenight};
-use structopt::StructOpt;
 use rand::prelude::*;
+use structopt::StructOpt;
 
 use crate::{CommonOptions, ABORT};
 
@@ -30,7 +30,7 @@ pub(crate) struct Options {
     filter_tb_positions: bool,
 
     #[structopt(short = "s", long, default_value = "0.75")]
-    skip: f64
+    skip: f64,
 }
 
 impl Options {
@@ -152,13 +152,18 @@ fn emit_sample(mut out: impl Write, board: &Board, eval: Eval, winner: Option<Co
     write_features(&mut out, board, board.side_to_move() == Color::Black);
     write_features(&mut out, board, board.side_to_move() == Color::White);
     out.write_all(&eval.raw().to_le_bytes()).unwrap();
-    out.write_all(match (winner, board.side_to_move()) {
-        (Some(win), stm) if win == stm => &[2, 0],
-        (Some(win), stm) if win != stm => &[0, 0],
-        (None, _) => &[1, 0],
+    let material = board.pieces(Piece::Pawn).popcnt() as u8
+        + 3 * board.pieces(Piece::Bishop).popcnt() as u8
+        + 3 * board.pieces(Piece::Knight).popcnt() as u8
+        + 5 * board.pieces(Piece::Rook).popcnt() as u8
+        + 8 * board.pieces(Piece::Queen).popcnt() as u8;
+    let outcome = match (winner, board.side_to_move()) {
+        (Some(win), stm) if win == stm => 2,
+        (Some(win), stm) if win != stm => 0,
+        (None, _) => 1,
         _ => unreachable!(),
-    })
-    .unwrap();
+    };
+    out.write_all(&[outcome, material]).unwrap();
 }
 
 fn write_features(mut out: impl Write, board: &Board, flip: bool) {
