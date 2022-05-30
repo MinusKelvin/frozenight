@@ -1,10 +1,10 @@
 use std::sync::atomic::Ordering;
 
-use cozy_chess::{get_king_moves, BitBoard, Move, Piece};
+use cozy_chess::{get_king_moves, BitBoard, Move, Piece, Rank};
 
 use crate::position::Position;
-use crate::Eval;
 use crate::tt::{NodeKind, TableEntry};
+use crate::Eval;
 
 use super::window::Window;
 use super::{Searcher, INVALID_MOVE};
@@ -24,7 +24,8 @@ impl Searcher<'_> {
         self.stats.nodes.fetch_add(1, Ordering::Relaxed);
 
         let in_check = !position.board.checkers().is_empty();
-        let king = position.board.king(position.board.side_to_move());
+        let us = position.board.side_to_move();
+        let king = position.board.king(us);
 
         let permitted;
         let mut best;
@@ -37,7 +38,7 @@ impl Searcher<'_> {
             do_for = BitBoard::FULL;
         } else {
             best = position.static_eval(&self.shared.nnue);
-            permitted = position.board.colors(!position.board.side_to_move());
+            permitted = position.board.colors(!us);
             do_for = !king.bitboard();
         }
 
@@ -66,7 +67,9 @@ impl Searcher<'_> {
         let mut moves = Vec::with_capacity(16);
         let mut had_moves = false;
         position.board.generate_moves_for(do_for, |mut mvs| {
-            mvs.to &= permitted;
+            if !(mvs.piece == Piece::Pawn && mvs.from.rank() == Rank::Seventh.relative_to(us)) {
+                mvs.to &= permitted;
+            }
             had_moves = true;
             for mv in mvs {
                 match position.board.piece_on(mv.to) {
