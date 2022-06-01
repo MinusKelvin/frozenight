@@ -13,6 +13,8 @@ use structopt::StructOpt;
 
 use crate::{CommonOptions, ABORT};
 
+const BUCKET_SKIP: [f64; 8] = [0.3, 0.2, 0.1, 0.0, 0.1, 0.2, 0.3, 0.5];
+
 #[derive(StructOpt)]
 pub(crate) struct Options {
     #[structopt(short = "n", long, default_value = "10000")]
@@ -89,6 +91,15 @@ impl Options {
                             if thread_rng().gen_bool(self.skip) {
                                 continue;
                             }
+                            let material = board.pieces(Piece::Pawn).popcnt()
+                                + 3 * board.pieces(Piece::Bishop).popcnt()
+                                + 3 * board.pieces(Piece::Knight).popcnt()
+                                + 5 * board.pieces(Piece::Rook).popcnt()
+                                + 8 * board.pieces(Piece::Queen).popcnt();
+                            let bucket = (material * 8 / 76).min(7);
+                            if thread_rng().gen_bool(BUCKET_SKIP[bucket as usize]) {
+                                continue;
+                            }
                             if self.filter_tb_positions
                                 && board.occupied().popcnt() <= tb.max_pieces() as u32
                                 && tb.probe_wdl(&board).is_some()
@@ -123,7 +134,7 @@ impl Options {
                                 continue;
                             }
 
-                            emit_sample(&mut *output.lock().unwrap(), &board, eval, winner);
+                            emit_sample(&mut *output.lock().unwrap(), material, &board, eval, winner);
                             positions.fetch_add(1, Ordering::Relaxed);
                         }
 
@@ -148,22 +159,23 @@ impl Options {
     }
 }
 
-fn emit_sample(mut out: impl Write, board: &Board, eval: Eval, winner: Option<Color>) {
+fn emit_sample(
+    mut out: impl Write,
+    material: u32,
+    board: &Board,
+    eval: Eval,
+    winner: Option<Color>,
+) {
     write_features(&mut out, board, board.side_to_move() == Color::Black);
     write_features(&mut out, board, board.side_to_move() == Color::White);
     out.write_all(&eval.raw().to_le_bytes()).unwrap();
-    let material = board.pieces(Piece::Pawn).popcnt() as u8
-        + 3 * board.pieces(Piece::Bishop).popcnt() as u8
-        + 3 * board.pieces(Piece::Knight).popcnt() as u8
-        + 5 * board.pieces(Piece::Rook).popcnt() as u8
-        + 8 * board.pieces(Piece::Queen).popcnt() as u8;
     let outcome = match (winner, board.side_to_move()) {
         (Some(win), stm) if win == stm => 2,
         (Some(win), stm) if win != stm => 0,
         (None, _) => 1,
         _ => unreachable!(),
     };
-    out.write_all(&[outcome, material]).unwrap();
+    out.write_all(&[outcome, material as u8]).unwrap();
 }
 
 fn write_features(mut out: impl Write, board: &Board, flip: bool) {
