@@ -9,7 +9,7 @@ import struct, sys, subprocess
 
 NUM_FEATURES = 2 * 6 * 64
 LAYER_1 = 32
-BUCKETS = 8
+BUCKETS = 16
 WEIGHT_SCALE = 64
 ACTIVATION_RANGE = 127
 MIN = -128 / WEIGHT_SCALE
@@ -106,7 +106,7 @@ class PositionSet(torch.utils.data.Dataset):
             sntm[content[32 + i]] = 1
         value = torch.sigmoid(torch.tensor([content[64] / ACTIVATION_RANGE / WEIGHT_SCALE * 8]))
         outcome = content[65] / 2
-        bucket = min(content[66] * BUCKETS // 40, 7)
+        bucket = min(content[66] * BUCKETS // 76, BUCKETS - 1)
         t = 0.9
         target = value * t + outcome * (1 - t)
         return [torch.as_tensor(stm), torch.as_tensor(sntm)], bucket, torch.tensor([target])
@@ -119,7 +119,7 @@ elif sys.argv[1] == "train":
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<13, shuffle=True, num_workers=32)
 
     nnue = Nnue()
-    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=-1), max_epochs=24)
+    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=-1), max_epochs=40)
     trainer.fit(nnue, train_dataloaders=dataloader)
 elif sys.argv[1] == "dump":
     Nnue.load_from_checkpoint(sys.argv[2]).export()

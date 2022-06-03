@@ -4,7 +4,7 @@ use crate::Eval;
 
 const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
 const L1_SIZE: usize = 32;
-const BUCKETS: usize = 8;
+const BUCKETS: usize = 16;
 
 pub struct Nnue {
     input_layer: [[i16; L1_SIZE]; NUM_FEATURES],
@@ -58,7 +58,7 @@ impl NnueAccumulator {
             Color::White => [self.white, self.black],
             Color::Black => [self.black, self.white],
         }));
-        let bucket = (self.material * BUCKETS / 40).min(BUCKETS - 1);
+        let bucket = (self.material * BUCKETS / 76).min(BUCKETS - 1);
         let output = vdot(l1_input, nn.hidden_layer[bucket]) + nn.hidden_layer_bias[bucket];
 
         Eval::new((output / 8) as i16)
