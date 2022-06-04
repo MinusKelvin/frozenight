@@ -75,7 +75,7 @@ impl TranspositionTable {
         // always replace existing position data with PV data
         replace |= old_hash == position.board.hash() && data.kind == NodeKind::Exact;
         // prefer deeper data
-        replace |= data.depth >= old_data.depth;
+        replace |= data.depth + 2 >= old_data.depth;
         // prefer replacing stale data
         replace |= age.wrapping_sub(old_data.age) >= 2;
 
