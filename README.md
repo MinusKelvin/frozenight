@@ -30,6 +30,10 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
   - Uses at least 2% remaining + increment/2
   - Avoids stopping in the middle of an iteration
 
+## License
+
+Frozenight is daul-licensed under the [MIT License](LICENSE-MIT) and [Apache License (Version 2.0)](LICENSE-APACHE) licesnses.
+
 ## Thanks
 
 - Analog ([Tantabus]), for `cozy-chess` and helping me understand search techniques
