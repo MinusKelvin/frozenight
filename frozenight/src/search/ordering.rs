@@ -86,6 +86,10 @@ impl<'a> MoveOrdering<'a> {
                         // Killer is legal; give it the same rank as PxP
                         self.captures.push((mv, 0));
                     }
+                    _ if mv.promotion.is_some() => {
+                        // Give promotions the same rank as PxP
+                        self.captures.push((mv, 0));
+                    }
                     _ => {
                         self.quiets.push((mv, mvs.piece));
                     }
