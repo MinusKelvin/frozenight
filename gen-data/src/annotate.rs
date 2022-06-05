@@ -28,6 +28,8 @@ pub(crate) struct Options {
     filter_mate_scores: bool,
     #[structopt(short = "b", long)]
     filter_tb_positions: bool,
+    #[structopt(short = "e", long)]
+    filter_eval_above: Option<i16>,
 
     #[structopt(short = "s", long, default_value = "0.75")]
     skip: f64,
@@ -121,6 +123,13 @@ impl Options {
                                 && (eval > Eval::TB_WIN || eval < -Eval::TB_WIN)
                             {
                                 continue;
+                            }
+
+                            if let Some(limit) = self.filter_eval_above {
+                                let limit = Eval::new(limit * 5);
+                                if eval > limit || eval < -limit {
+                                    continue;
+                                }
                             }
 
                             emit_sample(&mut *output.lock().unwrap(), &board, eval, winner);
