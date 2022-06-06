@@ -32,13 +32,13 @@ impl Position {
     pub fn null_move(&self) -> Option<Position> {
         Some(Position {
             board: self.board.null_move()?,
-            nnue: self.nnue.swap_sides(),
+            nnue: self.nnue,
             ply: self.ply + 1,
         })
     }
 
     pub fn static_eval(&self, nn: &Nnue) -> Eval {
-        self.nnue.calculate(nn)
+        self.nnue.calculate(nn, self.board.side_to_move())
     }
 
     pub fn is_capture(&self, mv: Move) -> bool {

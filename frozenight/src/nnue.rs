@@ -17,7 +17,6 @@ pub struct Nnue {
 pub struct NnueAccumulator {
     white: [i16; L1_SIZE],
     black: [i16; L1_SIZE],
-    side_to_move: Color,
     material: usize,
 }
 
@@ -44,7 +43,6 @@ impl NnueAccumulator {
         NnueAccumulator {
             white,
             black,
-            side_to_move: board.side_to_move(),
             material: board.pieces(Piece::Pawn).popcnt() as usize
                 + 3 * board.pieces(Piece::Bishop).popcnt() as usize
                 + 3 * board.pieces(Piece::Knight).popcnt() as usize
@@ -53,8 +51,8 @@ impl NnueAccumulator {
         }
     }
 
-    pub fn calculate(&self, nn: &Nnue) -> Eval {
-        let l1_input = clipped_relu(bytemuck::cast(match self.side_to_move {
+    pub fn calculate(&self, nn: &Nnue, stm: Color) -> Eval {
+        let l1_input = clipped_relu(bytemuck::cast(match stm {
             Color::White => [self.white, self.black],
             Color::Black => [self.black, self.white],
         }));
@@ -64,15 +62,8 @@ impl NnueAccumulator {
         Eval::new((output / 8) as i16)
     }
 
-    pub fn swap_sides(&self) -> Self {
-        NnueAccumulator {
-            side_to_move: !self.side_to_move,
-            ..*self
-        }
-    }
-
     pub fn play_move(&self, nn: &Nnue, board: &Board, mv: Move) -> Self {
-        let mut result = self.swap_sides();
+        let mut result = *self;
 
         let us = board.side_to_move();
         let moved = board.piece_on(mv.from).unwrap();
