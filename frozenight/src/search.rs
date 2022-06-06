@@ -117,10 +117,6 @@ impl<'a> Searcher<'a> {
             return None;
         }
 
-        if !self.repetition.insert(position.board.hash()) {
-            return Some(Eval::DRAW);
-        }
-
         let result = if depth <= 0 {
             self.qsearch(position, window)
         } else {
@@ -136,7 +132,6 @@ impl<'a> Searcher<'a> {
             debug_assert!(plys.abs() >= position.ply as i16);
         }
 
-        self.repetition.remove(&position.board.hash());
         Some(result)
     }
 
@@ -156,7 +151,14 @@ impl<'a> Searcher<'a> {
         self.visit_moves(position, hashmove, |this, mv| {
             let new_pos = &position.play_move(&this.shared.nnue, mv);
 
-            let v = f(this, i, mv, new_pos, window)?;
+            let v;
+            if this.repetition.insert(new_pos.board.hash()) {
+                v = f(this, i, mv, new_pos, window)?;
+                this.repetition.remove(&new_pos.board.hash());
+            } else {
+                // repetition
+                v = Eval::DRAW;
+            };
 
             if v > best_score {
                 best_move = mv;
