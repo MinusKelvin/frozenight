@@ -7,16 +7,18 @@ use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, SharedState, Statistics};
 
+pub use self::abdada::AbdadaTable;
 use self::ordering::{HistoryTable, BREAK, CONTINUE};
 use self::window::Window;
 
+mod abdada;
 mod null;
 mod ordering;
 mod pv;
 mod qsearch;
 mod window;
 
-const INVALID_MOVE: Move = Move {
+pub const INVALID_MOVE: Move = Move {
     from: Square::A1,
     to: Square::A1,
     promotion: None,
@@ -41,7 +43,7 @@ pub(crate) struct Searcher<'a> {
     pub stats: &'a Statistics,
     pub shared: &'a SharedState,
     pub node_limit: u64,
-    abort: &'a AtomicBool,
+    pub abort: &'a AtomicBool,
     valid: bool,
     repetition: IntSet<u64>,
     state: &'a mut SearchState,
@@ -148,12 +150,22 @@ impl<'a> Searcher<'a> {
         let mut raised_alpha = false;
         let mut i = 0;
 
+        let mut remaining = vec![];
+
         self.visit_moves(position, hashmove, |this, mv| {
-            let new_pos = &position.play_move(&this.shared.nnue, mv);
+            let new_pos = position.play_move(&this.shared.nnue, mv);
 
             let v;
             if this.repetition.insert(new_pos.board.hash()) {
-                v = f(this, i, mv, new_pos, window)?;
+                if i > 0 && this.shared.abdada.is_searching(new_pos.board.hash()) {
+                    this.repetition.remove(&new_pos.board.hash());
+                    remaining.push((i, mv, new_pos));
+                    i += 1;
+                    return Some(CONTINUE);
+                }
+
+                let _guard = this.shared.abdada.enter(new_pos.board.hash());
+                v = f(this, i, mv, &new_pos, window)?;
                 this.repetition.remove(&new_pos.board.hash());
             } else {
                 // repetition
@@ -176,6 +188,26 @@ impl<'a> Searcher<'a> {
             i += 1;
             Some(CONTINUE)
         })?;
+
+        for (i, mv, new_pos) in remaining {
+            self.repetition.insert(new_pos.board.hash());
+            let _guard = self.shared.abdada.enter(new_pos.board.hash());
+            let v = f(self, i, mv, &new_pos, window)?;
+            self.repetition.remove(&new_pos.board.hash());
+
+            if v > best_score {
+                best_move = mv;
+                best_score = v;
+            }
+
+            if window.fail_high(v) {
+                break;
+            }
+
+            if window.raise_lb(v) {
+                raised_alpha = true;
+            }
+        }
 
         if window.fail_high(best_score) {
             self.failed_high(position, depth, best_score, best_move);

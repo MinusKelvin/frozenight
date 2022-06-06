@@ -13,7 +13,7 @@ mod tt;
 
 pub use eval::Eval;
 use nnue::Nnue;
-use search::{SearchState, Searcher};
+use search::{AbdadaTable, SearchState, Searcher, INVALID_MOVE};
 use tt::TranspositionTable;
 
 pub struct Frozenight {
@@ -27,6 +27,16 @@ pub struct Frozenight {
 struct SharedState {
     nnue: Nnue,
     tt: TranspositionTable,
+    abdada: AbdadaTable,
+}
+
+struct CurrentSearch<I, B> {
+    depth: u16,
+    eval: Eval,
+    mv: Move,
+    info: I,
+    best_move: Option<B>,
+    tl_datas: Vec<Arc<(Statistics, Mutex<SearchState>)>>,
 }
 
 impl Frozenight {
@@ -37,6 +47,7 @@ impl Frozenight {
             shared_state: Arc::new(SharedState {
                 nnue: Nnue::new(),
                 tt: TranspositionTable::new(hash_mb),
+                abdada: AbdadaTable::new(),
             }),
             tl_data: vec![],
             abort: Default::default(),
@@ -55,6 +66,7 @@ impl Frozenight {
                 self.shared_state = Arc::new(SharedState {
                     nnue: Nnue::new(),
                     tt: TranspositionTable::new(hash_mb),
+                    abdada: AbdadaTable::new(),
                 });
             }
         }
@@ -98,6 +110,7 @@ impl Frozenight {
         deadline: Option<Instant>,
         depth_limit: u16,
         nodes_limit: u64,
+        threads: usize,
         info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]) + Send + 'static,
         best_move: impl FnOnce(Eval, Move, &Board) + Send + 'static,
     ) -> Abort {
@@ -106,17 +119,63 @@ impl Frozenight {
         // Create a new abort search variable
         self.abort = Arc::new(AtomicBool::new(false));
 
-        // Start main search thread
-        let searcher = self.searcher(0);
-        std::thread::spawn(move || {
-            searcher(move |mut s| {
-                s.node_limit = nodes_limit;
-                let root = s.root.clone();
-                let (e, m) =
-                    iterative_deepening(s, depth_limit.min(5000), info, time_use_suggestion);
-                best_move(e, m, &root);
-            })
-        });
+        let mut searchers = Vec::with_capacity(threads);
+        let mut tl_datas = Vec::with_capacity(threads);
+        for i in 0..threads {
+            searchers.push(self.searcher(i));
+            tl_datas.push(self.tl_data[i].clone());
+        }
+
+        let search_data = Arc::new(Mutex::new(CurrentSearch {
+            depth: 0,
+            eval: Eval::DRAW,
+            mv: INVALID_MOVE,
+            tl_datas,
+            info,
+            best_move: Some(best_move),
+        }));
+
+        // Start search threads
+        for searcher in searchers {
+            let search_data = search_data.clone();
+            std::thread::spawn(move || {
+                searcher(move |mut s| {
+                    s.node_limit = nodes_limit;
+                    let root = s.root.clone();
+                    let abort = s.abort;
+                    iterative_deepening(
+                        s,
+                        depth_limit.min(5000),
+                        |depth, _stats, eval, board, pv| {
+                            let mut data = search_data.lock().unwrap();
+                            if data.depth >= depth {
+                                return;
+                            }
+                            data.depth = depth;
+                            data.eval = eval;
+                            data.mv = pv[0];
+
+                            let mut stats = Statistics::default();
+                            let nodes = stats.nodes.get_mut();
+                            let sd = stats.selective_depth.get_mut();
+                            for (stat, _) in data.tl_datas.iter().map(|a| &**a) {
+                                *nodes += stat.nodes.load(Ordering::Relaxed);
+                                *sd = (*sd).max(stat.selective_depth.load(Ordering::Relaxed))
+                            }
+
+                            (data.info)(depth, &stats, eval, board, pv);
+                        },
+                        time_use_suggestion,
+                    );
+
+                    let mut data = search_data.lock().unwrap();
+                    if let Some(best_move) = data.best_move.take() {
+                        best_move(data.eval, data.mv, &root);
+                        abort.store(true, Ordering::Relaxed);
+                    };
+                })
+            });
+        }
 
         // Spawn timeout thread
         if let Some(deadline) = deadline {

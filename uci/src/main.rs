@@ -19,6 +19,7 @@ fn main() {
     let mut abort = None;
     let mut ob_no_adj = false;
     let mut chess960 = false;
+    let mut threads = 1;
 
     let mut buf = String::new();
     loop {
@@ -45,7 +46,7 @@ fn main() {
                     println!("id author MinusKelvin <mark.carlson@minuskelvin.net>");
                     println!("option name Move Overhead type spin default 0 min 0 max 5000");
                     println!("option name Hash type spin default 32 min 1 max 65536");
-                    println!("option name Threads type spin default 1 min 1 max 1");
+                    println!("option name Threads type spin default 1 min 1 max 64");
                     println!("option name OB_noadj type check default false");
                     println!("option name UCI_Chess960 type check default false");
                     println!("uciok");
@@ -80,6 +81,9 @@ fn main() {
                         }
                         "UCI_Chess960" => {
                             chess960 = stream.next()? == "true";
+                        }
+                        "Threads" => {
+                            threads = stream.next()?.parse().ok()?;
                         }
                         _ => {}
                     }
@@ -178,6 +182,7 @@ fn main() {
                         }),
                         depth,
                         nodes,
+                        threads,
                         move |depth, stats, eval, board, pv| {
                             let time = now.elapsed();
                             let nodes = stats.nodes.load(Ordering::Relaxed);
