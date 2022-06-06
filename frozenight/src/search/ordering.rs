@@ -1,146 +1,113 @@
+use std::ops::ControlFlow;
+
 use cozy_chess::{Board, Color, Move, Piece, Square};
 
-pub struct MoveOrdering<'a> {
-    board: &'a Board,
-    stage: MoveOrderingStage,
-    hashmove: Option<Move>,
-    killer: Move,
-    captures: Vec<(Move, i8)>,
-    quiets: Vec<(Move, Piece)>,
-    underpromotions: Vec<Move>,
-    count: usize,
-}
+use crate::position::Position;
 
-#[derive(Clone, Copy)]
-enum MoveOrderingStage {
-    Hashmove,
-    GenerateMoves,
-    Captures,
-    Quiets,
-    Underpromotions,
-}
+use super::Searcher;
 
 const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 
-impl<'a> MoveOrdering<'a> {
-    pub fn new(board: &'a Board, hashmove: Option<Move>, killer: Move) -> Self {
-        MoveOrdering {
-            board,
-            stage: match hashmove {
-                Some(_) => MoveOrderingStage::Hashmove,
-                None => MoveOrderingStage::GenerateMoves,
-            },
-            hashmove,
-            killer,
-            captures: vec![],
-            quiets: vec![],
-            underpromotions: vec![],
-            count: 0,
+pub const CONTINUE: ControlFlow<()> = ControlFlow::Continue(());
+pub const BREAK: ControlFlow<()> = ControlFlow::Break(());
+
+impl Searcher<'_> {
+    pub fn visit_moves(
+        &mut self,
+        position: &Position,
+        hashmove: Option<Move>,
+        mut search: impl FnMut(&mut Searcher, Move) -> Option<ControlFlow<()>>,
+    ) -> Option<()> {
+        // Hashmove
+        if let Some(mv) = hashmove {
+            if search(self, mv)?.is_break() {
+                return Some(());
+            }
         }
-    }
 
-    pub fn next(&mut self, history: &HistoryTable) -> Option<(usize, Move)> {
-        match self.stage {
-            MoveOrderingStage::Hashmove => self.hashmove(),
-            MoveOrderingStage::GenerateMoves => self.generate_moves(history),
-            MoveOrderingStage::Captures => self.captures(history),
-            MoveOrderingStage::Quiets => self.quiets(history),
-            MoveOrderingStage::Underpromotions => self.underpromotions(),
-        }
-        .map(|mv| {
-            let count = self.count;
-            self.count += 1;
-            (count, mv)
-        })
-    }
+        // Generate moves.
+        let mut captures = Vec::with_capacity(16);
+        let mut quiets = Vec::with_capacity(64);
+        let mut underpromotions = vec![];
+        let killer = *self.killer(position.ply);
 
-    fn hashmove(&mut self) -> Option<Move> {
-        self.stage = MoveOrderingStage::GenerateMoves;
-        self.hashmove
-    }
-
-    fn generate_moves(&mut self, history: &HistoryTable) -> Option<Move> {
-        self.stage = MoveOrderingStage::Captures;
-        self.captures.reserve(16);
-        self.quiets.reserve(64);
-        self.board.generate_moves(|mvs| {
+        position.board.generate_moves(|mvs| {
             for mv in mvs {
-                if Some(mv) == self.hashmove {
+                if Some(mv) == hashmove {
                     continue;
                 }
                 if matches!(
                     mv.promotion,
                     Some(Piece::Knight | Piece::Bishop | Piece::Rook)
                 ) {
-                    self.underpromotions.push(mv);
+                    underpromotions.push(mv);
                     continue;
                 }
 
-                match self.board.piece_on(mv.to) {
+                match position.board.piece_on(mv.to) {
                     Some(victim) => {
                         let attacker = PIECE_ORDINALS[mvs.piece as usize];
                         let victim = PIECE_ORDINALS[victim as usize] * 4;
-                        self.captures.push((mv, victim - attacker));
+                        captures.push((mv, victim - attacker));
                     }
-                    _ if mv == self.killer => {
+                    _ if mv == killer => {
                         // Killer is legal; give it the same rank as PxP
-                        self.captures.push((mv, 0));
+                        captures.push((mv, 0));
                     }
                     _ => {
-                        self.quiets.push((mv, mvs.piece));
+                        quiets.push((mv, mvs.piece));
                     }
                 }
             }
             false
         });
-        self.captures(history)
-    }
 
-    fn captures(&mut self, history: &HistoryTable) -> Option<Move> {
-        if self.captures.is_empty() {
-            self.stage = MoveOrderingStage::Quiets;
-            return self.quiets(history);
-        }
+        // Iterate captures
+        while !captures.is_empty() {
+            let mut index = 0;
+            for i in 1..captures.len() {
+                if captures[i].1 > captures[index].1 {
+                    index = i;
+                }
+            }
 
-        let mut index = 0;
-        for i in 1..self.captures.len() {
-            if self.captures[i].1 > self.captures[index].1 {
-                index = i;
+            if search(self, captures.swap_remove(index).0)?.is_break() {
+                return Some(());
             }
         }
 
-        Some(self.captures.swap_remove(index).0)
-    }
+        // Iterate quiets
+        while !quiets.is_empty() {
+            let mut index = 0;
+            let mut rank =
+                self.state
+                    .history
+                    .rank(quiets[0].1, quiets[0].0, position.board.side_to_move());
+            for i in 1..quiets.len() {
+                let r = self.state.history.rank(
+                    quiets[i].1,
+                    quiets[i].0,
+                    position.board.side_to_move(),
+                );
+                if r > rank {
+                    index = i;
+                    rank = r;
+                }
+            }
 
-    fn quiets(&mut self, history: &HistoryTable) -> Option<Move> {
-        if self.quiets.is_empty() {
-            self.stage = MoveOrderingStage::Underpromotions;
-            return self.underpromotions();
-        }
-
-        let mut index = 0;
-        let mut rank = history.rank(
-            self.quiets[0].1,
-            self.quiets[0].0,
-            self.board.side_to_move(),
-        );
-        for i in 1..self.quiets.len() {
-            let r = history.rank(
-                self.quiets[i].1,
-                self.quiets[i].0,
-                self.board.side_to_move(),
-            );
-            if r > rank {
-                index = i;
-                rank = r;
+            if search(self, quiets.swap_remove(index).0)?.is_break() {
+                return Some(());
             }
         }
 
-        Some(self.quiets.swap_remove(index).0)
-    }
+        // Iterate underpromotions
+        while let Some(mv) = underpromotions.pop() {
+            if search(self, mv)?.is_break() {
+                return Some(());
+            }
+        }
 
-    fn underpromotions(&mut self) -> Option<Move> {
-        self.underpromotions.pop()
+        Some(())
     }
 }
 

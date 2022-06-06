@@ -3,7 +3,7 @@ use crate::search::INVALID_MOVE;
 use crate::tt::NodeKind;
 use crate::Eval;
 
-use super::ordering::MoveOrdering;
+use super::ordering::{BREAK, CONTINUE};
 use super::window::Window;
 use super::Searcher;
 
@@ -75,11 +75,14 @@ impl Searcher<'_> {
 
         let mut best_score = -Eval::MATE;
         let mut best_move = INVALID_MOVE;
+        let mut cutoff = false;
+        let mut i = 0;
 
-        let mut moves = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
-
-        while let Some((i, mv)) = moves.next(&mut self.state.history) {
-            let new_pos = &position.play_move(&self.shared.nnue, mv);
+        self.visit_moves(position, hashmove, |this, mv| {
+            let tmp = i;
+            i += 1;
+            let i = tmp;
+            let new_pos = &position.play_move(&this.shared.nnue, mv);
 
             let reduction = match () {
                 _ if position.is_capture(mv) => 0,
@@ -88,31 +91,38 @@ impl Searcher<'_> {
             };
 
             if depth - reduction - 1 < 0 {
-                continue;
+                return Some(CONTINUE);
             }
 
-            let mut v = -self.visit_null(new_pos, -window, depth - reduction - 1)?;
+            let mut v = -this.visit_null(new_pos, -window, depth - reduction - 1)?;
 
             if window.fail_high(v) && reduction > 0 {
-                v = -self.visit_null(new_pos, -window, depth - 1)?;
+                v = -this.visit_null(new_pos, -window, depth - 1)?;
             }
 
             if window.fail_high(v) {
-                self.failed_high(position, depth, v, mv);
-                return Some(v);
+                this.failed_high(position, depth, v, mv);
+                cutoff = true;
+                best_score = v;
+                best_move = mv;
+                return Some(BREAK);
             }
 
             if !position.is_capture(mv) {
-                self.state.history.did_not_cause_cutoff(&position.board, mv);
+                this.state.history.did_not_cause_cutoff(&position.board, mv);
             }
 
             if v > best_score {
                 best_score = v;
                 best_move = mv;
             }
-        }
 
-        self.failed_low(position, depth, best_score, best_move);
+            Some(CONTINUE)
+        })?;
+
+        if !cutoff {
+            self.failed_low(position, depth, best_score, best_move);
+        }
 
         Some(best_score)
     }

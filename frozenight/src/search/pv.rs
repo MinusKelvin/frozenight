@@ -4,9 +4,9 @@ use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
 use crate::Eval;
 
-use super::ordering::MoveOrdering;
+use super::ordering::{BREAK, CONTINUE};
 use super::window::Window;
-use super::Searcher;
+use super::{Searcher, INVALID_MOVE};
 
 impl Searcher<'_> {
     pub fn pv_search(
@@ -47,22 +47,30 @@ impl Searcher<'_> {
             }
         };
 
-        let mut moves = MoveOrdering::new(&position.board, hashmove, *self.killer(position.ply));
+        let mut best_move = INVALID_MOVE;
+        let mut best_score = -Eval::MATE;
+        let mut raised_alpha = false;
+        let mut cutoff = false;
+        let mut i = 0;
 
-        let (_, mut best_move) = moves.next(&mut self.state.history).unwrap();
-        let mut best_score = -self.visit_pv(
-            &position.play_move(&self.shared.nnue, best_move),
-            -window,
-            depth - 1,
-        )?;
-        if window.fail_high(best_score) {
-            self.failed_high(position, depth, best_score, best_move);
-            return Some((best_score, best_move));
-        }
-        let mut raised_alpha = window.raise_lb(best_score);
+        self.visit_moves(position, hashmove, |this, mv| {
+            let tmp = i;
+            i += 1;
+            let i = tmp;
+            let new_pos = &position.play_move(&this.shared.nnue, mv);
 
-        while let Some((i, mv)) = moves.next(&mut self.state.history) {
-            let new_pos = &position.play_move(&self.shared.nnue, mv);
+            if best_move == INVALID_MOVE {
+                // First move; search as PV node
+                best_move = mv;
+                best_score = -this.visit_pv(&new_pos, -window, depth - 1)?;
+                if window.fail_high(best_score) {
+                    this.failed_high(position, depth, best_score, best_move);
+                    cutoff = true;
+                    return Some(BREAK);
+                }
+                raised_alpha = window.raise_lb(best_score);
+                return Some(CONTINUE);
+            }
 
             let reduction = match () {
                 _ if position.is_capture(mv) => 0,
@@ -71,39 +79,45 @@ impl Searcher<'_> {
             };
 
             let mut v =
-                -self.visit_null(new_pos, -Window::null(window.lb()), depth - reduction - 1)?;
+                -this.visit_null(new_pos, -Window::null(window.lb()), depth - reduction - 1)?;
 
             if window.fail_low(v) {
                 if v > best_score {
                     best_score = v;
                     best_move = mv;
                 }
-                continue;
+                return Some(CONTINUE);
             }
 
             if reduction > 0 {
-                v = -self.visit_null(new_pos, -Window::null(window.lb()), depth - 1)?;
+                v = -this.visit_null(new_pos, -Window::null(window.lb()), depth - 1)?;
                 if window.fail_low(v) {
                     if v > best_score {
                         best_score = v;
                         best_move = mv;
                     }
-                    continue;
+                    return Some(CONTINUE);
                 }
             }
 
             if window.fail_high(v) {
                 // null window search search returned a lower bound that exceeds beta,
                 // so there's no need to re-search
-                self.failed_high(position, depth, v, mv);
-                return Some((v, mv));
+                this.failed_high(position, depth, v, mv);
+                best_move = mv;
+                best_score = v;
+                cutoff = true;
+                return Some(BREAK);
             }
 
-            v = -self.visit_pv(new_pos, -window, depth - 1)?;
+            v = -this.visit_pv(new_pos, -window, depth - 1)?;
 
             if window.fail_high(v) {
-                self.failed_high(position, depth, v, mv);
-                return Some((v, mv));
+                this.failed_high(position, depth, v, mv);
+                best_move = mv;
+                best_score = v;
+                cutoff = true;
+                return Some(BREAK);
             }
 
             if window.raise_lb(v) {
@@ -111,20 +125,24 @@ impl Searcher<'_> {
                 best_score = v;
                 raised_alpha = true;
             }
-        }
 
-        if raised_alpha {
-            self.shared.tt.store(
-                &position,
-                TableEntry {
-                    mv: best_move,
-                    eval: best_score,
-                    depth,
-                    kind: NodeKind::Exact,
-                },
-            );
-        } else {
-            self.failed_low(position, depth, best_score, best_move);
+            Some(CONTINUE)
+        })?;
+
+        if !cutoff {
+            if raised_alpha {
+                self.shared.tt.store(
+                    &position,
+                    TableEntry {
+                        mv: best_move,
+                        eval: best_score,
+                        depth,
+                        kind: NodeKind::Exact,
+                    },
+                );
+            } else {
+                self.failed_low(position, depth, best_score, best_move);
+            }
         }
 
         Some((best_score, best_move))
