@@ -45,6 +45,7 @@ pub(crate) struct Searcher<'a> {
     pub node_limit: u64,
     pub abort: &'a AtomicBool,
     valid: bool,
+    multithreaded: bool,
     repetition: IntSet<u64>,
     state: &'a mut SearchState,
 }
@@ -57,6 +58,7 @@ impl<'a> Searcher<'a> {
         stats: &'a Statistics,
         repetition: IntSet<u64>,
         root: Board,
+        multithreaded: bool,
     ) -> Self {
         state.history.decay();
         Searcher {
@@ -66,6 +68,7 @@ impl<'a> Searcher<'a> {
             repetition,
             state,
             stats,
+            multithreaded,
             node_limit: u64::MAX,
             valid: true,
         }
@@ -157,14 +160,20 @@ impl<'a> Searcher<'a> {
 
             let v;
             if this.repetition.insert(new_pos.board.hash()) {
-                if i > 0 && this.shared.abdada.is_searching(new_pos.board.hash()) {
+                if this.multithreaded
+                    && i > 0
+                    && this.shared.abdada.is_searching(new_pos.board.hash())
+                {
                     this.repetition.remove(&new_pos.board.hash());
                     remaining.push((i, mv, new_pos));
                     i += 1;
                     return Some(CONTINUE);
                 }
 
-                let _guard = this.shared.abdada.enter(new_pos.board.hash());
+                let _guard = match this.multithreaded {
+                    true => this.shared.abdada.enter(new_pos.board.hash()),
+                    false => None,
+                };
                 v = f(this, i, mv, &new_pos, window)?;
                 this.repetition.remove(&new_pos.board.hash());
             } else {

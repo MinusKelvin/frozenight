@@ -122,7 +122,7 @@ impl Frozenight {
         let mut searchers = Vec::with_capacity(threads);
         let mut tl_datas = Vec::with_capacity(threads);
         for i in 0..threads {
-            searchers.push(self.searcher(i));
+            searchers.push(self.searcher(i, threads > 1));
             tl_datas.push(self.tl_data[i].clone());
         }
 
@@ -201,7 +201,7 @@ impl Frozenight {
         nodes_limit: u64,
         info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]),
     ) -> (Eval, Move) {
-        self.searcher(0)(|mut s| {
+        self.searcher(0, false)(|mut s| {
             s.node_limit = nodes_limit;
             iterative_deepening(s, depth_limit.min(5000), info, time_use_suggestion)
         })
@@ -210,6 +210,7 @@ impl Frozenight {
     fn searcher<F: FnOnce(Searcher) -> R, R>(
         &mut self,
         thread: usize,
+        multithreaded: bool,
     ) -> impl FnOnce(F) -> R + Send {
         let abort = self.abort.clone();
         let shared = self.shared_state.clone();
@@ -232,6 +233,7 @@ impl Frozenight {
                 &tl_data.0,
                 repetitions,
                 board,
+                multithreaded,
             ))
         }
     }
