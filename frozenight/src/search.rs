@@ -7,7 +7,7 @@ use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, SharedState, Statistics};
 
-use self::ordering::HistoryTable;
+use self::ordering::{HistoryTable, BREAK, CONTINUE};
 use self::window::Window;
 
 mod null;
@@ -138,6 +138,60 @@ impl<'a> Searcher<'a> {
 
         self.repetition.remove(&position.board.hash());
         Some(result)
+    }
+
+    fn search_moves(
+        &mut self,
+        position: &Position,
+        hashmove: Option<Move>,
+        mut window: Window,
+        depth: i16,
+        mut f: impl FnMut(&mut Searcher, usize, Move, &Position, Window) -> Option<Eval>,
+    ) -> Option<(Eval, Move)> {
+        let mut best_move = INVALID_MOVE;
+        let mut best_score = -Eval::MATE;
+        let mut raised_alpha = false;
+        let mut i = 0;
+
+        self.visit_moves(position, hashmove, |this, mv| {
+            let new_pos = &position.play_move(&this.shared.nnue, mv);
+
+            let v = f(this, i, mv, new_pos, window)?;
+
+            if v > best_score {
+                best_move = mv;
+                best_score = v;
+            }
+
+            if window.fail_high(v) {
+                return Some(BREAK);
+            }
+
+            if window.raise_lb(v) {
+                raised_alpha = true;
+            }
+
+            i += 1;
+            Some(CONTINUE)
+        })?;
+
+        if window.fail_high(best_score) {
+            self.failed_high(position, depth, best_score, best_move);
+        } else if raised_alpha {
+            self.shared.tt.store(
+                &position,
+                TableEntry {
+                    mv: best_move,
+                    eval: best_score,
+                    depth,
+                    kind: NodeKind::Exact,
+                },
+            );
+        } else {
+            self.failed_low(position, depth, best_score, best_move);
+        }
+
+        Some((best_score, best_move))
     }
 
     fn failed_low(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {

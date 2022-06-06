@@ -1,9 +1,7 @@
 use crate::position::Position;
-use crate::search::INVALID_MOVE;
 use crate::tt::NodeKind;
 use crate::Eval;
 
-use super::ordering::{BREAK, CONTINUE};
 use super::window::Window;
 use super::Searcher;
 
@@ -73,57 +71,39 @@ impl Searcher<'_> {
             }
         }
 
-        let mut best_score = -Eval::MATE;
-        let mut best_move = INVALID_MOVE;
-        let mut cutoff = false;
-        let mut i = 0;
+        self.search_moves(
+            position,
+            hashmove,
+            window,
+            depth,
+            |this, i, mv, new_pos, window| {
+                let reduction = match () {
+                    _ if position.is_capture(mv) => 0,
+                    _ if !new_pos.board.checkers().is_empty() => 0,
+                    _ => ((2 * depth + i as i16) / 8).min(i as i16),
+                };
 
-        self.visit_moves(position, hashmove, |this, mv| {
-            let tmp = i;
-            i += 1;
-            let i = tmp;
-            let new_pos = &position.play_move(&this.shared.nnue, mv);
+                if depth - reduction - 1 < 0 {
+                    return Some(-Eval::MATE);
+                }
 
-            let reduction = match () {
-                _ if position.is_capture(mv) => 0,
-                _ if !new_pos.board.checkers().is_empty() => 0,
-                _ => ((2 * depth + i as i16) / 8).min(i as i16),
-            };
+                let mut v = -this.visit_null(new_pos, -window, depth - reduction - 1)?;
 
-            if depth - reduction - 1 < 0 {
-                return Some(CONTINUE);
-            }
+                if window.fail_high(v) && reduction > 0 {
+                    v = -this.visit_null(new_pos, -window, depth - 1)?;
+                }
 
-            let mut v = -this.visit_null(new_pos, -window, depth - reduction - 1)?;
+                if window.fail_high(v) {
+                    return Some(v);
+                }
 
-            if window.fail_high(v) && reduction > 0 {
-                v = -this.visit_null(new_pos, -window, depth - 1)?;
-            }
+                if !position.is_capture(mv) {
+                    this.state.history.did_not_cause_cutoff(&position.board, mv);
+                }
 
-            if window.fail_high(v) {
-                this.failed_high(position, depth, v, mv);
-                cutoff = true;
-                best_score = v;
-                best_move = mv;
-                return Some(BREAK);
-            }
-
-            if !position.is_capture(mv) {
-                this.state.history.did_not_cause_cutoff(&position.board, mv);
-            }
-
-            if v > best_score {
-                best_score = v;
-                best_move = mv;
-            }
-
-            Some(CONTINUE)
-        })?;
-
-        if !cutoff {
-            self.failed_low(position, depth, best_score, best_move);
-        }
-
-        Some(best_score)
+                Some(v)
+            },
+        )
+        .map(|(e, _)| e)
     }
 }
