@@ -8,8 +8,11 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
 
 - [`cozy-chess`] for move generation
 - Principal Variation Search
+- ABDADA-based multithreading strategy
 - NNUE evaluation
   - 768 -> 32x2 -> 1
+  - Network bucketing based on modified piece material values (Queen = 8)
+    - This is based on game phase tuning in Koivisto done by Luecx
   - Training data generated through self-play, originally starting with a random network
 - Quiescense search
   - MVV-LVA ordering
@@ -32,7 +35,7 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
 
 ## License
 
-Frozenight is daul-licensed under the [MIT License](LICENSE-MIT) and [Apache License (Version 2.0)](LICENSE-APACHE) licesnses.
+Frozenight is dual-licensed under the [MIT License](LICENSE-MIT) and [Apache License (Version 2.0)](LICENSE-APACHE) licesnses.
 
 ## Thanks
 
