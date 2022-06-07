@@ -149,7 +149,7 @@ impl Frozenight {
                         |depth, _stats, eval, board, pv| {
                             let mut data = search_data.lock().unwrap();
                             if data.depth >= depth {
-                                return;
+                                return false;
                             }
                             data.depth = depth;
                             data.eval = eval;
@@ -164,6 +164,8 @@ impl Frozenight {
                             }
 
                             (data.info)(depth, &stats, eval, board, pv);
+
+                            true
                         },
                         time_use_suggestion,
                     );
@@ -199,11 +201,19 @@ impl Frozenight {
         time_use_suggestion: Option<Instant>,
         depth_limit: u16,
         nodes_limit: u64,
-        info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]),
+        mut info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]),
     ) -> (Eval, Move) {
         self.searcher(0, false)(|mut s| {
             s.node_limit = nodes_limit;
-            iterative_deepening(s, depth_limit.min(5000), info, time_use_suggestion)
+            iterative_deepening(
+                s,
+                depth_limit.min(5000),
+                |a, b, c, d, e| {
+                    info(a, b, c, d, e);
+                    true
+                },
+                time_use_suggestion,
+            )
         })
     }
 
@@ -259,7 +269,7 @@ impl Drop for Abort {
 fn iterative_deepening(
     mut searcher: Searcher,
     depth_limit: u16,
-    mut info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]),
+    mut info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]) -> bool,
     time_use_suggestion: Option<Instant>,
 ) -> (Eval, Move) {
     let mut movecount = 0;
@@ -271,6 +281,7 @@ fn iterative_deepening(
     let mut best_move = None;
     let mut pv = Vec::with_capacity(32);
     for depth in 1..depth_limit + 1 {
+        let check_tm;
         if let Some(result) = searcher.search(depth as i16) {
             pv.clear();
             pv.push(result.1);
@@ -285,7 +296,7 @@ fn iterative_deepening(
                     break;
                 }
             }
-            info(depth, searcher.stats, result.0, &searcher.root, &pv);
+            check_tm = info(depth, searcher.stats, result.0, &searcher.root, &pv);
             best_move = Some(result);
 
             if let Some(done_in) = result.0.plys_to_conclusion() {
@@ -298,7 +309,7 @@ fn iterative_deepening(
         }
 
         if let Some(time_use_suggestion) = time_use_suggestion {
-            if Instant::now() > time_use_suggestion {
+            if check_tm && Instant::now() > time_use_suggestion {
                 break;
             }
         }
