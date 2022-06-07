@@ -122,7 +122,7 @@ impl Frozenight {
         let mut searchers = Vec::with_capacity(threads);
         let mut tl_datas = Vec::with_capacity(threads);
         for i in 0..threads {
-            searchers.push(self.searcher(i, threads > 1));
+            searchers.push(self.searcher(i, false));
             tl_datas.push(self.tl_data[i].clone());
         }
 
