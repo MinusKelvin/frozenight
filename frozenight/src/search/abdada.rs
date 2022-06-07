@@ -7,7 +7,7 @@ pub struct AbdadaTable {
 impl AbdadaTable {
     pub fn new() -> Self {
         AbdadaTable {
-            entries: (0..65536).map(|_| AtomicU64::new(0)).collect(),
+            entries: (0..4096).map(|_| AtomicU64::new(0)).collect(),
         }
     }
 
