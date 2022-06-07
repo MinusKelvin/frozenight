@@ -1,5 +1,3 @@
-use std::ops::ControlFlow;
-
 use cozy_chess::{Board, Color, Move, Piece, Square};
 
 use crate::position::Position;
@@ -8,19 +6,19 @@ use super::Searcher;
 
 const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 
-pub const CONTINUE: ControlFlow<()> = ControlFlow::Continue(());
-pub const BREAK: ControlFlow<()> = ControlFlow::Break(());
+pub const CONTINUE: bool = false;
+pub const BREAK: bool = true;
 
 impl Searcher<'_> {
     pub fn visit_moves(
         &mut self,
         position: &Position,
         hashmove: Option<Move>,
-        mut search: impl FnMut(&mut Searcher, Move) -> Option<ControlFlow<()>>,
+        mut search: impl FnMut(&mut Searcher, Move) -> Option<bool>,
     ) -> Option<()> {
         // Hashmove
         if let Some(mv) = hashmove {
-            if search(self, mv)?.is_break() {
+            if search(self, mv)? {
                 return Some(());
             }
         }
@@ -71,7 +69,7 @@ impl Searcher<'_> {
                 }
             }
 
-            if search(self, captures.swap_remove(index).0)?.is_break() {
+            if search(self, captures.swap_remove(index).0)? {
                 return Some(());
             }
         }
@@ -95,14 +93,14 @@ impl Searcher<'_> {
                 }
             }
 
-            if search(self, quiets.swap_remove(index).0)?.is_break() {
+            if search(self, quiets.swap_remove(index).0)? {
                 return Some(());
             }
         }
 
         // Iterate underpromotions
         while let Some(mv) = underpromotions.pop() {
-            if search(self, mv)?.is_break() {
+            if search(self, mv)? {
                 return Some(());
             }
         }
