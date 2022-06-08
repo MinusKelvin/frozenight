@@ -14,6 +14,7 @@ WEIGHT_SCALE = 64
 ACTIVATION_RANGE = 127
 MIN = -128 / WEIGHT_SCALE
 MAX = 127 / WEIGHT_SCALE
+EVAL_PROPORTION = 0.0
 
 class Nnue(pl.LightningModule):
     def __init__(self):
@@ -107,8 +108,7 @@ class PositionSet(torch.utils.data.Dataset):
         value = torch.sigmoid(torch.tensor([content[64] / ACTIVATION_RANGE / WEIGHT_SCALE * 8]))
         outcome = content[65] / 2
         bucket = min(content[66] * BUCKETS // 76, BUCKETS - 1)
-        t = 0.9
-        target = value * t + outcome * (1 - t)
+        target = value * EVAL_PROPORTION + outcome * (1 - EVAL_PROPORTION)
         return [torch.as_tensor(stm), torch.as_tensor(sntm)], bucket, torch.tensor([target])
 
 if __name__ != "__main__":
