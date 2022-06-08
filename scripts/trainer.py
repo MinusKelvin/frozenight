@@ -14,7 +14,7 @@ WEIGHT_SCALE = 64
 ACTIVATION_RANGE = 127
 MIN = -128 / WEIGHT_SCALE
 MAX = 127 / WEIGHT_SCALE
-EVAL_PROPORTION = 0.0
+EVAL_PROPORTION = 0.9
 
 class Nnue(pl.LightningModule):
     def __init__(self):
