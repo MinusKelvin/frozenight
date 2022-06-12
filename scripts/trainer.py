@@ -14,7 +14,7 @@ WEIGHT_SCALE = 64
 ACTIVATION_RANGE = 127
 MIN = -128 / WEIGHT_SCALE
 MAX = 127 / WEIGHT_SCALE
-EVAL_PROPORTION = 0.9
+EVAL_PROPORTION = 0.975
 
 class Nnue(pl.LightningModule):
     def __init__(self):
@@ -119,7 +119,7 @@ elif sys.argv[1] == "train":
     dataloader = torch.utils.data.DataLoader(dataset, batch_size=1<<13, shuffle=True, num_workers=32)
 
     nnue = Nnue()
-    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=-1), max_epochs=40)
+    trainer = pl.Trainer(callbacks=pl.callbacks.ModelCheckpoint(save_top_k=-1, every_n_epochs=5), max_epochs=100)
     trainer.fit(nnue, train_dataloaders=dataloader)
 elif sys.argv[1] == "dump":
     Nnue.load_from_checkpoint(sys.argv[2]).export()
