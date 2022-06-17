@@ -1,3 +1,4 @@
+use arrayvec::ArrayVec;
 use cozy_chess::{Board, Color, Move, Piece, Square};
 
 use crate::position::Position;
@@ -24,9 +25,9 @@ impl Searcher<'_> {
         }
 
         // Generate moves.
-        let mut captures = Vec::with_capacity(16);
-        let mut quiets = Vec::with_capacity(64);
-        let mut underpromotions = vec![];
+        let mut captures: ArrayVec<_, 96> = Default::default();
+        let mut quiets: ArrayVec<_, 218> = Default::default();
+        let mut underpromotions: ArrayVec<_, 48> = Default::default();
         let killer = *self.killer(position.ply);
 
         position.board.generate_moves(|mvs| {
