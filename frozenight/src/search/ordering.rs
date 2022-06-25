@@ -110,56 +110,48 @@ impl Searcher<'_> {
 }
 
 pub struct HistoryTable {
-    piece_to_sq: [[[(u32, u32); Square::NUM]; Piece::NUM]; Color::NUM],
-    from_sq_to_sq: [[[(u32, u32); Square::NUM]; Square::NUM]; Color::NUM],
+    piece_to_sq: [[[i16; Square::NUM]; Piece::NUM]; Color::NUM],
+    from_sq_to_sq: [[[i16; Square::NUM]; Square::NUM]; Color::NUM],
 }
 
 impl HistoryTable {
     pub fn new() -> Self {
         HistoryTable {
-            piece_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
-            from_sq_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Square::NUM]; Color::NUM],
+            piece_to_sq: [[[0; Square::NUM]; Piece::NUM]; Color::NUM],
+            from_sq_to_sq: [[[0; Square::NUM]; Square::NUM]; Color::NUM],
         }
     }
 
     pub fn decay(&mut self) {
-        for (_, total) in self.piece_to_sq.iter_mut().flatten().flatten() {
-            *total /= 64;
+        for v in self.piece_to_sq.iter_mut().flatten().flatten() {
+            *v /= 16;
         }
-        for (_, total) in self.from_sq_to_sq.iter_mut().flatten().flatten() {
-            *total /= 16;
+        for v in self.from_sq_to_sq.iter_mut().flatten().flatten() {
+            *v /= 4;
         }
+    }
+
+    fn values(&mut self, board: &Board, mv: Move) -> (&mut i16, &mut i16) {
+        let stm = board.side_to_move();
+        let piece = board.piece_on(mv.from).unwrap();
+        (&mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize], &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize])
     }
 
     pub fn caused_cutoff(&mut self, board: &Board, mv: Move) {
-        let stm = board.side_to_move();
-        let piece = board.piece_on(mv.from).unwrap();
-        let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        let diff = 2_000_000_000 - *piece_to;
-        *total += 1;
-        *piece_to += diff / *total;
-        let (from_to, total) =
-            &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        let diff = 2_000_000_000 - *from_to;
-        *total += 1;
-        *from_to += diff / *total;
+        let (piece_to, from_to) = self.values(board, mv);
+        *piece_to = (*piece_to + 8).clamp(-1024, 1024);
+        *from_to = (*from_to + 8).clamp(-1024, 1024);
     }
 
     pub fn did_not_cause_cutoff(&mut self, board: &Board, mv: Move) {
-        let stm = board.side_to_move();
-        let piece = board.piece_on(mv.from).unwrap();
-        let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        *total += 1;
-        *piece_to -= *piece_to / *total;
-        let (from_to, total) =
-            &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        *total += 1;
-        *from_to -= *from_to / *total;
+        let (piece_to, from_to) = self.values(board, mv);
+        *piece_to = (*piece_to - 1).clamp(-1024, 1024);
+        *from_to = (*from_to - 1).clamp(-1024, 1024);
     }
 
-    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> u32 {
-        let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        piece_to + from_to
+    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
+        let piece_to = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+        let from_to = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
+        piece_to as i32 + from_to as i32
     }
 }
