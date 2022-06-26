@@ -139,14 +139,14 @@ impl HistoryTable {
 
     pub fn caused_cutoff(&mut self, board: &Board, mv: Move) {
         let (piece_to, from_to) = self.values(board, mv);
-        *piece_to = (*piece_to + 8).clamp(-1024, 1024);
-        *from_to = (*from_to + 8).clamp(-1024, 1024);
+        *piece_to = piece_to.saturating_add(8);
+        *from_to = from_to.saturating_add(8);
     }
 
     pub fn did_not_cause_cutoff(&mut self, board: &Board, mv: Move) {
         let (piece_to, from_to) = self.values(board, mv);
-        *piece_to = (*piece_to - 1).clamp(-1024, 1024);
-        *from_to = (*from_to - 1).clamp(-1024, 1024);
+        *piece_to = piece_to.saturating_sub(1);
+        *from_to = from_to.saturating_sub(1);
     }
 
     fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
