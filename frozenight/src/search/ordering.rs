@@ -6,8 +6,12 @@ use super::Searcher;
 
 const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 
+const MAX_PIECE_TO: u32 = 2_000_000_000;
+const MAX_FROM_TO: u32 = 2_000_000_000;
+
 pub const CONTINUE: bool = false;
 pub const BREAK: bool = true;
+pub const MAX_HISTORY_SCORE: u32 = MAX_PIECE_TO + MAX_FROM_TO;
 
 impl Searcher<'_> {
     pub fn visit_moves(
@@ -117,8 +121,8 @@ pub struct HistoryTable {
 impl HistoryTable {
     pub fn new() -> Self {
         HistoryTable {
-            piece_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
-            from_sq_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Square::NUM]; Color::NUM],
+            piece_to_sq: [[[(MAX_PIECE_TO / 2, 0); Square::NUM]; Piece::NUM]; Color::NUM],
+            from_sq_to_sq: [[[(MAX_FROM_TO / 2, 0); Square::NUM]; Square::NUM]; Color::NUM],
         }
     }
 
@@ -134,13 +138,15 @@ impl HistoryTable {
     pub fn caused_cutoff(&mut self, board: &Board, mv: Move) {
         let stm = board.side_to_move();
         let piece = board.piece_on(mv.from).unwrap();
+
         let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        let diff = 2_000_000_000 - *piece_to;
+        let diff = MAX_PIECE_TO - *piece_to;
         *total += 1;
         *piece_to += diff / *total;
+
         let (from_to, total) =
             &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        let diff = 2_000_000_000 - *from_to;
+        let diff = MAX_FROM_TO - *from_to;
         *total += 1;
         *from_to += diff / *total;
     }
@@ -161,5 +167,11 @@ impl HistoryTable {
         let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
         piece_to + from_to
+    }
+
+    pub fn score(&self, board: &Board, mv: Move) -> u32 {
+        let stm = board.side_to_move();
+        let piece = board.piece_on(mv.from).unwrap();
+        self.rank(piece, mv, stm)
     }
 }
