@@ -77,11 +77,21 @@ impl Searcher<'_> {
             window,
             depth,
             |this, i, mv, new_pos, window| {
-                let reduction = match () {
+                let mut reduction = match () {
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
                     _ => ((2 * depth + i as i16) / 8).min(i as i16),
                 };
+
+                let history = this.state.history.rank(
+                    position.board.piece_on(mv.from).unwrap(),
+                    mv,
+                    position.board.side_to_move(),
+                );
+                // 100_000_000 history score is about 2.5% of plays caused cutoff
+                if i > 0 && history < 100_000_000 {
+                    reduction += 1;
+                }
 
                 if depth - reduction - 1 < 0 {
                     return Some(-Eval::MATE);
