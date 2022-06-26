@@ -2,6 +2,7 @@ use crate::position::Position;
 use crate::tt::NodeKind;
 use crate::Eval;
 
+use super::ordering::MAX_HISTORY_SCORE;
 use super::window::Window;
 use super::Searcher;
 
@@ -77,11 +78,21 @@ impl Searcher<'_> {
             window,
             depth,
             |this, i, mv, new_pos, window| {
-                let reduction = match () {
-                    _ if position.is_capture(mv) => 0,
-                    _ if !new_pos.board.checkers().is_empty() => 0,
-                    _ => ((2 * depth + i as i16) / 8).min(i as i16),
-                };
+                let mut reduction = 0;
+
+                let tactical =
+                    position.is_capture(mv) || !new_pos.board.checkers().is_empty() || i == 0;
+
+                if !tactical {
+                    reduction = ((2 * depth + i as i16) / 8).min(i as i16);
+
+                    const HISTORY_THRESHOLD: u32 = (MAX_HISTORY_SCORE as f64 * 0.01) as u32;
+                    if depth > 3
+                        && this.state.history.score(&position.board, mv) < HISTORY_THRESHOLD
+                    {
+                        reduction += 1;
+                    }
+                }
 
                 if depth - reduction - 1 < 0 {
                     return Some(-Eval::MATE);
