@@ -117,7 +117,7 @@ pub struct HistoryTable {
 impl HistoryTable {
     pub fn new() -> Self {
         HistoryTable {
-            piece_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
+            piece_to_sq: [[[(0_500_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
             from_sq_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Square::NUM]; Color::NUM],
         }
     }
@@ -135,7 +135,7 @@ impl HistoryTable {
         let stm = board.side_to_move();
         let piece = board.piece_on(mv.from).unwrap();
         let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        let diff = 2_000_000_000 - *piece_to;
+        let diff = 1_000_000_000 - *piece_to;
         *total += 1;
         *piece_to += diff / *total;
         let (from_to, total) =
