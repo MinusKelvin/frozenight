@@ -162,4 +162,16 @@ impl HistoryTable {
         let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
         piece_to + from_to
     }
+
+    pub fn score(&self, board: &Board, mv: Move) -> Option<u32> {
+        let stm = board.side_to_move();
+        let piece = board.piece_on(mv.from).unwrap();
+        let (p_score, p_total) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+        let (f_score, f_total) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
+        if p_total + f_total >= 8 {
+            Some(p_score + f_score)
+        } else {
+            None
+        }
+    }
 }
