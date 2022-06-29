@@ -162,4 +162,8 @@ impl HistoryTable {
         let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
         piece_to + from_to
     }
+
+    pub fn score(&self, board: &Board, mv: Move) -> u32 {
+        self.rank(board.piece_on(mv.from).unwrap(), mv, board.side_to_move())
+    }
 }
