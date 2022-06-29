@@ -63,9 +63,10 @@ impl Searcher<'_> {
                         _ if depth > 6 => 4,
                         _ => 3,
                     };
-                    let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
-                    if window.fail_high(v) {
-                        return Some(v);
+                    let nmp_window = Window::null(window.lb() - 50);
+                    let v = -self.visit_null(&nm, -nmp_window, depth - reduction - 1)?;
+                    if nmp_window.fail_high(v) {
+                        return Some(v.max(window.lb() + 1));
                     }
                 }
             }
