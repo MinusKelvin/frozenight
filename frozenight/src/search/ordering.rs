@@ -48,7 +48,11 @@ impl Searcher<'_> {
                     Some(victim) => {
                         let attacker = PIECE_ORDINALS[mvs.piece as usize];
                         let victim = PIECE_ORDINALS[victim as usize] * 4;
-                        captures.push((mv, victim - attacker));
+                        let recapture_bonus = match position.prev_move.to == mv.to {
+                            true => 16,
+                            false => 0,
+                        };
+                        captures.push((mv, victim - attacker + recapture_bonus));
                     }
                     _ if mv == killer => {
                         // Killer is legal; give it the same rank as PxP
