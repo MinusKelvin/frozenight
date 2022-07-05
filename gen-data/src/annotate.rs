@@ -13,6 +13,25 @@ use structopt::StructOpt;
 
 use crate::{CommonOptions, ABORT};
 
+const BUCKET_SKIPS: [f64; 16] = [
+    0.9,
+    0.9,
+    0.8,
+    0.8,
+    0.6,
+    0.4,
+    0.2,
+    0.1,
+    0.1,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.1,
+];
+
 #[derive(StructOpt)]
 pub(crate) struct Options {
     #[structopt(short = "n", long, default_value = "10000")]
@@ -89,6 +108,14 @@ impl Options {
                                 continue;
                             }
                             if thread_rng().gen_bool(self.skip) {
+                                continue;
+                            }
+                            let material = board.pieces(Piece::Pawn).popcnt()
+                                + 3 * board.pieces(Piece::Bishop).popcnt()
+                                + 3 * board.pieces(Piece::Knight).popcnt()
+                                + 5 * board.pieces(Piece::Rook).popcnt()
+                                + 8 * board.pieces(Piece::Queen).popcnt();
+                            if thread_rng().gen_bool(BUCKET_SKIPS[(material as usize * 16 / 76).min(15)]) {
                                 continue;
                             }
                             if self.filter_tb_positions
