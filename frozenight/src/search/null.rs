@@ -15,8 +15,8 @@ impl Searcher<'_> {
     }
 
     fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
-        let hashmove = match self.shared.tt.get(&position) {
-            None => None,
+        let (hashmove, tteval) = match self.shared.tt.get(&position) {
+            None => (None, None),
             Some(entry) => {
                 match entry.kind {
                     _ if entry.depth < depth => {}
@@ -32,7 +32,7 @@ impl Searcher<'_> {
                         }
                     }
                 }
-                Some(entry.mv)
+                (Some(entry.mv), Some(entry.eval))
             }
         };
 
@@ -46,7 +46,7 @@ impl Searcher<'_> {
         if depth <= 6 {
             let margin = 250 * depth as i16;
             let rfp_window = Window::null(window.lb() + margin);
-            let eval = self.qsearch(position, rfp_window);
+            let eval = tteval.unwrap_or_else(|| self.qsearch(position, rfp_window));
             if rfp_window.fail_high(eval) {
                 return Some(eval);
             }
