@@ -27,7 +27,6 @@ impl Searcher<'_> {
         let mut captures = Vec::with_capacity(16);
         let mut quiets = Vec::with_capacity(64);
         let mut underpromotions = vec![];
-        let killer = *self.killer(position.ply);
 
         position.board.generate_moves(|mvs| {
             for mv in mvs {
@@ -47,10 +46,6 @@ impl Searcher<'_> {
                         let attacker = PIECE_ORDINALS[mvs.piece as usize];
                         let victim = PIECE_ORDINALS[victim as usize] * 4;
                         captures.push((mv, victim - attacker));
-                    }
-                    _ if mv == killer => {
-                        // Killer is legal; give it the same rank as PxP
-                        captures.push((mv, 0));
                     }
                     _ => {
                         quiets.push((mv, mvs.piece));

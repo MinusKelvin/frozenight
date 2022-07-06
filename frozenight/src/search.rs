@@ -25,14 +25,12 @@ pub const INVALID_MOVE: Move = Move {
 };
 
 pub(crate) struct SearchState {
-    killers: Vec<Move>,
     history: HistoryTable,
 }
 
 impl Default for SearchState {
     fn default() -> Self {
         SearchState {
-            killers: vec![INVALID_MOVE; 128],
             history: HistoryTable::new(),
         }
     }
@@ -93,16 +91,6 @@ impl<'a> Searcher<'a> {
             Window::default(),
             depth,
         )
-    }
-
-    fn killer(&mut self, ply_index: u16) -> &mut Move {
-        let idx = ply_index as usize;
-        if idx >= self.state.killers.len() {
-            self.state
-                .killers
-                .extend((self.state.killers.len()..=idx).map(|_| INVALID_MOVE));
-        }
-        &mut self.state.killers[idx]
     }
 
     fn visit_node(
@@ -261,7 +249,6 @@ impl<'a> Searcher<'a> {
         );
         if !position.is_capture(mv) {
             self.state.history.caused_cutoff(&position.board, mv);
-            *self.killer(position.ply) = mv;
         }
     }
 }
