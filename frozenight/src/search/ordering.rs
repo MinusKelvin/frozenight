@@ -2,7 +2,7 @@ use cozy_chess::{Board, Color, Move, Piece, Square};
 
 use crate::position::Position;
 
-use super::Searcher;
+use super::{Searcher, INVALID_MOVE};
 
 const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 
@@ -28,6 +28,10 @@ impl Searcher<'_> {
         let mut quiets = Vec::with_capacity(64);
         let mut underpromotions = vec![];
         let killer = *self.killer(position.ply);
+        let killer2 = match position.ply >= 2 {
+            true => *self.killer(position.ply - 2),
+            false => INVALID_MOVE,
+        };
 
         position.board.generate_moves(|mvs| {
             for mv in mvs {
@@ -77,15 +81,18 @@ impl Searcher<'_> {
         // Iterate quiets
         while !quiets.is_empty() {
             let mut index = 0;
-            let mut rank =
-                self.state
-                    .history
-                    .rank(quiets[0].1, quiets[0].0, position.board.side_to_move());
+            let mut rank = self.state.history.rank(
+                quiets[0].1,
+                quiets[0].0,
+                position.board.side_to_move(),
+                killer2,
+            );
             for i in 1..quiets.len() {
                 let r = self.state.history.rank(
                     quiets[i].1,
                     quiets[i].0,
                     position.board.side_to_move(),
+                    killer2,
                 );
                 if r > rank {
                     index = i;
@@ -157,9 +164,13 @@ impl HistoryTable {
         *from_to -= *from_to / *total;
     }
 
-    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> u32 {
+    fn rank(&self, piece: Piece, mv: Move, stm: Color, killer2: Move) -> u32 {
         let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        piece_to + from_to
+        let killer2_rank = match mv == killer2 {
+            true => 50_000_000,
+            false => 0,
+        };
+        piece_to + from_to + killer2_rank
     }
 }
