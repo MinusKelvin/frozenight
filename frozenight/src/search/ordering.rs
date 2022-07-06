@@ -5,6 +5,7 @@ use crate::position::Position;
 use super::Searcher;
 
 const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
+const MAX_HISTORY: u16 = 64_000;
 
 pub const CONTINUE: bool = false;
 pub const BREAK: bool = true;
@@ -110,15 +111,15 @@ impl Searcher<'_> {
 }
 
 pub struct HistoryTable {
-    piece_to_sq: [[[(u32, u32); Square::NUM]; Piece::NUM]; Color::NUM],
-    from_sq_to_sq: [[[(u32, u32); Square::NUM]; Square::NUM]; Color::NUM],
+    piece_to_sq: [[[(u16, u16); Square::NUM]; Piece::NUM]; Color::NUM],
+    from_sq_to_sq: [[[(u16, u16); Square::NUM]; Square::NUM]; Color::NUM],
 }
 
 impl HistoryTable {
     pub fn new() -> Self {
         HistoryTable {
-            piece_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
-            from_sq_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Square::NUM]; Color::NUM],
+            piece_to_sq: [[[(MAX_HISTORY / 2, 0); Square::NUM]; Piece::NUM]; Color::NUM],
+            from_sq_to_sq: [[[(MAX_HISTORY / 2, 0); Square::NUM]; Square::NUM]; Color::NUM],
         }
     }
 
@@ -135,13 +136,13 @@ impl HistoryTable {
         let stm = board.side_to_move();
         let piece = board.piece_on(mv.from).unwrap();
         let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        let diff = 2_000_000_000 - *piece_to;
-        *total += 1;
+        let diff = MAX_HISTORY - *piece_to;
+        *total = total.saturating_add(1);
         *piece_to += diff / *total;
         let (from_to, total) =
             &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        let diff = 2_000_000_000 - *from_to;
-        *total += 1;
+        let diff = MAX_HISTORY - *from_to;
+        *total = total.saturating_add(1);
         *from_to += diff / *total;
     }
 
@@ -149,17 +150,17 @@ impl HistoryTable {
         let stm = board.side_to_move();
         let piece = board.piece_on(mv.from).unwrap();
         let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        *total += 1;
+        *total = total.saturating_add(1);
         *piece_to -= *piece_to / *total;
         let (from_to, total) =
             &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        *total += 1;
+            *total = total.saturating_add(1);
         *from_to -= *from_to / *total;
     }
 
     fn rank(&self, piece: Piece, mv: Move, stm: Color) -> u32 {
         let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        piece_to + from_to
+        piece_to as u32 + from_to as u32
     }
 }
