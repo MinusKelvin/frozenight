@@ -97,9 +97,7 @@ impl Searcher<'_> {
                     return Some(v);
                 }
 
-                if !position.is_capture(mv) {
-                    this.state.history.did_not_cause_cutoff(&position.board, mv);
-                }
+                this.state.history.did_not_cause_cutoff(position, mv);
 
                 Some(v)
             },

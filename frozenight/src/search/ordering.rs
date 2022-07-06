@@ -1,8 +1,8 @@
-use cozy_chess::{Board, Color, Move, Piece, Square};
+use cozy_chess::{Color, Move, Piece, Square};
 
 use crate::position::Position;
 
-use super::Searcher;
+use super::{Searcher, INVALID_MOVE};
 
 const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 
@@ -27,7 +27,7 @@ impl Searcher<'_> {
         let mut captures = Vec::with_capacity(16);
         let mut quiets = Vec::with_capacity(64);
         let mut underpromotions = vec![];
-        let killer = *self.killer(position.ply);
+        let killer = self.state.history.killer(position.ply);
 
         position.board.generate_moves(|mvs| {
             for mv in mvs {
@@ -109,16 +109,18 @@ impl Searcher<'_> {
     }
 }
 
-pub struct HistoryTable {
+pub struct OrderingState {
     piece_to_sq: [[[(u32, u32); Square::NUM]; Piece::NUM]; Color::NUM],
     from_sq_to_sq: [[[(u32, u32); Square::NUM]; Square::NUM]; Color::NUM],
+    killers: [Move; 256],
 }
 
-impl HistoryTable {
+impl OrderingState {
     pub fn new() -> Self {
-        HistoryTable {
+        OrderingState {
             piece_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
             from_sq_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Square::NUM]; Color::NUM],
+            killers: [INVALID_MOVE; 256],
         }
     }
 
@@ -131,35 +133,58 @@ impl HistoryTable {
         }
     }
 
-    pub fn caused_cutoff(&mut self, board: &Board, mv: Move) {
-        let stm = board.side_to_move();
-        let piece = board.piece_on(mv.from).unwrap();
-        let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        let diff = 2_000_000_000 - *piece_to;
-        *total += 1;
-        *piece_to += diff / *total;
-        let (from_to, total) =
-            &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        let diff = 2_000_000_000 - *from_to;
-        *total += 1;
-        *from_to += diff / *total;
+    pub fn caused_cutoff(&mut self, pos: &Position, mv: Move) {
+        let stm = pos.board.side_to_move();
+        let piece = pos.board.piece_on(mv.from).unwrap();
+        let capture = pos.is_capture(mv);
+
+        if !capture {
+            let (piece_to, total) =
+                &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+            let diff = 2_000_000_000 - *piece_to;
+            *total += 1;
+            *piece_to += diff / *total;
+
+            let (from_to, total) =
+                &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
+            let diff = 2_000_000_000 - *from_to;
+            *total += 1;
+            *from_to += diff / *total;
+
+            if let Some(killer) = self.killers.get_mut(pos.ply as usize) {
+                *killer = mv;
+            }
+        }
     }
 
-    pub fn did_not_cause_cutoff(&mut self, board: &Board, mv: Move) {
-        let stm = board.side_to_move();
-        let piece = board.piece_on(mv.from).unwrap();
-        let (piece_to, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        *total += 1;
-        *piece_to -= *piece_to / *total;
-        let (from_to, total) =
-            &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        *total += 1;
-        *from_to -= *from_to / *total;
+    pub fn did_not_cause_cutoff(&mut self, pos: &Position, mv: Move) {
+        let stm = pos.board.side_to_move();
+        let piece = pos.board.piece_on(mv.from).unwrap();
+        let capture = pos.is_capture(mv);
+
+        if !capture {
+            let (piece_to, total) =
+                &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+            *total += 1;
+            *piece_to -= *piece_to / *total;
+
+            let (from_to, total) =
+                &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
+            *total += 1;
+            *from_to -= *from_to / *total;
+        }
     }
 
     fn rank(&self, piece: Piece, mv: Move, stm: Color) -> u32 {
         let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
         piece_to + from_to
+    }
+
+    fn killer(&self, ply: u16) -> Move {
+        self.killers
+            .get(ply as usize)
+            .copied()
+            .unwrap_or(INVALID_MOVE)
     }
 }
