@@ -28,6 +28,10 @@ impl Searcher<'_> {
         let mut quiets = Vec::with_capacity(64);
         let mut underpromotions = vec![];
         let killer = self.state.history.killer(position.ply);
+        let counter = self
+            .state
+            .history
+            .counter_move(position.prev, position.board.side_to_move());
 
         position.board.generate_moves(|mvs| {
             for mv in mvs {
@@ -77,15 +81,18 @@ impl Searcher<'_> {
         // Iterate quiets
         while !quiets.is_empty() {
             let mut index = 0;
-            let mut rank =
-                self.state
-                    .history
-                    .rank(quiets[0].1, quiets[0].0, position.board.side_to_move());
+            let mut rank = self.state.history.rank(
+                quiets[0].1,
+                quiets[0].0,
+                position.board.side_to_move(),
+                counter,
+            );
             for i in 1..quiets.len() {
                 let r = self.state.history.rank(
                     quiets[i].1,
                     quiets[i].0,
                     position.board.side_to_move(),
+                    counter,
                 );
                 if r > rank {
                     index = i;
@@ -112,6 +119,7 @@ impl Searcher<'_> {
 pub struct OrderingState {
     piece_to_sq: [[[(u32, u32); Square::NUM]; Piece::NUM]; Color::NUM],
     from_sq_to_sq: [[[(u32, u32); Square::NUM]; Square::NUM]; Color::NUM],
+    counters: [[[Move; Square::NUM]; Square::NUM]; Color::NUM],
     killers: [Move; 256],
 }
 
@@ -120,6 +128,7 @@ impl OrderingState {
         OrderingState {
             piece_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
             from_sq_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Square::NUM]; Color::NUM],
+            counters: [[[INVALID_MOVE; Square::NUM]; Square::NUM]; Color::NUM],
             killers: [INVALID_MOVE; 256],
         }
     }
@@ -154,6 +163,9 @@ impl OrderingState {
             if let Some(killer) = self.killers.get_mut(pos.ply as usize) {
                 *killer = mv;
             }
+            if pos.prev != INVALID_MOVE {
+                self.counters[stm as usize][pos.prev.from as usize][pos.prev.to as usize] = mv;
+            }
         }
     }
 
@@ -175,10 +187,18 @@ impl OrderingState {
         }
     }
 
-    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> u32 {
+    fn rank(&self, piece: Piece, mv: Move, stm: Color, counter: Move) -> u32 {
         let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        piece_to + from_to
+        let counter_score = match mv == counter {
+            true => 30_000_000,
+            false => 0,
+        };
+        piece_to + from_to + counter_score
+    }
+
+    fn counter_move(&self, mv: Move, stm: Color) -> Move {
+        self.counters[stm as usize][mv.from as usize][mv.to as usize]
     }
 
     fn killer(&self, ply: u16) -> Move {

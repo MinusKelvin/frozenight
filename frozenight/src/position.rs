@@ -2,11 +2,13 @@ use cozy_chess::{Board, Move};
 
 use crate::nnue::{Nnue, NnueAccumulator};
 use crate::Eval;
+use crate::search::INVALID_MOVE;
 
 #[derive(Clone)]
 pub struct Position {
     pub board: Board,
     pub ply: u16,
+    pub prev: Move,
     nnue: NnueAccumulator,
 }
 
@@ -16,6 +18,7 @@ impl Position {
             nnue: NnueAccumulator::new(&board, nn),
             board,
             ply: 0,
+            prev: INVALID_MOVE,
         }
     }
 
@@ -26,6 +29,7 @@ impl Position {
             board,
             nnue: self.nnue.play_move(nn, &self.board, mv),
             ply: self.ply + 1,
+            prev: mv,
         }
     }
 
@@ -34,6 +38,7 @@ impl Position {
             board: self.board.null_move()?,
             nnue: self.nnue,
             ply: self.ply + 1,
+            prev: INVALID_MOVE,
         })
     }
 
