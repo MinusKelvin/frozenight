@@ -17,7 +17,7 @@ impl Searcher<'_> {
         self.qsearch_impl(position, window, 0)
     }
 
-    fn qsearch_impl(&mut self, position: &Position, mut window: Window, qply: u16) -> Eval {
+    fn qsearch_impl(&mut self, position: &Position, orig_window: Window, qply: u16) -> Eval {
         self.stats
             .selective_depth
             .fetch_max(position.ply, Ordering::Relaxed);
@@ -28,6 +28,7 @@ impl Searcher<'_> {
         let king = position.board.king(us);
 
         let permitted;
+        let mut window = orig_window;
         let mut best;
         let mut best_mv = INVALID_MOVE;
         let do_for;
@@ -169,7 +170,10 @@ impl Searcher<'_> {
                     mv: best_mv,
                     eval: best,
                     depth: -(qply as i16),
-                    kind: NodeKind::UpperBound,
+                    kind: match orig_window.fail_low(best) {
+                        true => NodeKind::UpperBound,
+                        false => NodeKind::Exact,
+                    },
                 },
             );
         }
