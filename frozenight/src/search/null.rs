@@ -52,7 +52,8 @@ impl Searcher<'_> {
             }
         }
 
-        // null move pruning
+        // null move reductions
+        let mut nmr = 0;
         if depth >= 4 {
             let sliders = position.board.pieces(Piece::Rook)
                 | position.board.pieces(Piece::Bishop)
@@ -65,7 +66,7 @@ impl Searcher<'_> {
                     };
                     let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
                     if window.fail_high(v) {
-                        return Some(v);
+                        nmr = reduction;
                     }
                 }
             }
@@ -81,7 +82,7 @@ impl Searcher<'_> {
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
                     _ => ((2 * depth + i as i16) / 8).min(i as i16),
-                };
+                } + nmr;
 
                 if depth - reduction - 1 < 0 {
                     return Some(-Eval::MATE);
