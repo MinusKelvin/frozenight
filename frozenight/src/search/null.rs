@@ -80,7 +80,7 @@ impl Searcher<'_> {
                 let reduction = match () {
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
-                    _ => ((2 * depth + i as i16) / 8).min(i as i16),
+                    _ => ((2 * depth + i as i16) / 7).min(i as i16),
                 };
 
                 if depth - reduction - 1 < 0 {
