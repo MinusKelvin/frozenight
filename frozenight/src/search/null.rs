@@ -54,10 +54,12 @@ impl Searcher<'_> {
 
         // null move pruning
         if depth >= 4 {
+            let our_pieces = position.board.colors(position.board.side_to_move());
             let sliders = position.board.pieces(Piece::Rook)
                 | position.board.pieces(Piece::Bishop)
                 | position.board.pieces(Piece::Queen);
-            if !(sliders & position.board.colors(position.board.side_to_move())).is_empty() {
+            let has_sliders = !(sliders & our_pieces).is_empty();
+            if has_sliders && our_pieces.popcnt() > 3 {
                 if let Some(nm) = position.null_move() {
                     let reduction = match () {
                         _ if depth > 6 => 4,
