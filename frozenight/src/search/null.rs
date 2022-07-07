@@ -71,6 +71,16 @@ impl Searcher<'_> {
             }
         }
 
+        // Prob-cut-like thing
+        if depth == 8 {
+            let offset = 400;
+            let lower_window = Window::null(window.lb() - offset);
+            let v = self.null_search(position, lower_window, 4)?;
+            if lower_window.fail_low(v) {
+                return Some(v);
+            }
+        }
+
         self.search_moves(
             position,
             hashmove,
