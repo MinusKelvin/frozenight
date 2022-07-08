@@ -9,3 +9,4 @@ edition = "2021"
 bytemuck = { version = "1.7.3", features = ["derive"] }
 cozy-chess = "0.3"
 nohash = "0.2.0"
+parking_lot = "0.12.1"

@@ -1,6 +1,5 @@
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 
-use bytemuck::{Pod, Zeroable};
 use cozy_chess::{Board, Move, Piece, Square};
 
 use crate::position::Position;
@@ -25,38 +24,21 @@ impl TranspositionTable {
 
     pub fn get_move(&self, board: &Board) -> Option<Move> {
         let index = board.hash() as usize % self.entries.len();
-        let data = self.entries[index].data.load(Ordering::Relaxed);
-        let hxd = self.entries[index].hash.load(Ordering::Relaxed);
-        if hxd ^ data != board.hash() {
-            return None;
-        }
-        let data: TtData = bytemuck::cast(data);
-        data.unmarshall_move(board)
+        self.entries[index]
+            .lock()
+            .find(board.hash())
+            .and_then(|data| data.unmarshall_move(board))
     }
 
     pub fn get(&self, position: &Position) -> Option<TableEntry> {
         let index = position.board.hash() as usize % self.entries.len();
-        let data = self.entries[index].data.load(Ordering::Relaxed);
-        let hxd = self.entries[index].hash.load(Ordering::Relaxed);
-        if hxd ^ data != position.board.hash() {
-            return None;
-        }
-        // marshal between usable type and stored data
-        // also validates the data
-        let data: TtData = bytemuck::cast(data);
-
-        let kind = match data.kind {
-            0 => NodeKind::Exact,
-            1 => NodeKind::LowerBound,
-            2 => NodeKind::UpperBound,
-            _ => return None, // invalid
-        };
+        let data = *self.entries[index].lock().find(position.board.hash())?;
 
         let mv = data.unmarshall_move(&position.board)?;
 
         Some(TableEntry {
             mv,
-            kind,
+            kind: data.kind,
             eval: data.eval.add_time(position.ply),
             depth: data.depth,
         })
@@ -64,24 +46,13 @@ impl TranspositionTable {
 
     pub fn store(&self, position: &Position, data: TableEntry) {
         let index = position.board.hash() as usize % self.entries.len();
-        let entry = &self.entries[index];
+        let mut bucket = self.entries[index].lock();
 
         let age = self.search_number.load(Ordering::Relaxed);
-        let old_data = entry.data.load(Ordering::Relaxed);
-        let old_hash = entry.hash.load(Ordering::Relaxed) ^ old_data;
-        let old_data: TtData = bytemuck::cast(old_data);
-
-        let mut replace = false;
-        // always replace existing position data with PV data
-        replace |= old_hash == position.board.hash() && data.kind == NodeKind::Exact;
-        // prefer deeper data
-        replace |= data.depth >= old_data.depth;
-        // prefer replacing stale data
-        replace |= age.wrapping_sub(old_data.age) >= 2;
-
-        if !replace {
-            return;
-        }
+        let entry = match bucket.replace(position.board.hash(), &data, age) {
+            Some(v) => v,
+            None => return,
+        };
 
         let promo = match data.mv.promotion {
             None => 0,
@@ -91,17 +62,15 @@ impl TranspositionTable {
             Some(Piece::Queen) => 4,
             _ => unreachable!(),
         };
-        let data = bytemuck::cast(TtData {
+
+        *entry = TtData {
+            upper_hash: (position.board.hash() >> 32) as u32,
             mv: data.mv.from as u16 | (data.mv.to as u16) << 6 | promo << 12,
             eval: data.eval.sub_time(position.ply),
             depth: data.depth,
-            kind: data.kind as u8,
+            kind: data.kind,
             age,
-        });
-        entry.data.store(data, Ordering::Relaxed);
-        entry
-            .hash
-            .store(position.board.hash() ^ data, Ordering::Relaxed);
+        };
     }
 
     pub fn increment_age(&self, by: u8) {
@@ -124,19 +93,18 @@ pub enum NodeKind {
     UpperBound,
 }
 
-#[derive(Default)]
-struct TtEntry {
-    hash: AtomicU64,
-    data: AtomicU64,
-}
+type TtEntry = parking_lot::Mutex<TtBucket>;
 
-#[derive(Copy, Clone, Pod, Zeroable)]
-#[repr(C)]
+#[derive(Default)]
+struct TtBucket([TtData; 5]);
+
+#[derive(Copy, Clone)]
 struct TtData {
+    upper_hash: u32,
     mv: u16,
     eval: Eval,
     depth: i16,
-    kind: u8,
+    kind: NodeKind,
     age: u8,
 }
 
@@ -156,5 +124,59 @@ impl TtData {
         };
 
         board.is_legal(mv).then(|| mv)
+    }
+}
+
+impl TtBucket {
+    fn find(&mut self, hash: u64) -> Option<&mut TtData> {
+        let upper_hash = (hash >> 32) as u32;
+        self.0.iter_mut().find(|data| data.upper_hash == upper_hash)
+    }
+
+    fn replace(&mut self, hash: u64, data: &TableEntry, age: u8) -> Option<&mut TtData> {
+        let upper_hash = (hash >> 32) as u32;
+
+        let entry = self
+            .0
+            .iter_mut()
+            .min_by_key(|entry| {
+                if entry.upper_hash == upper_hash {
+                    return i16::MIN;
+                }
+                let age_score = match age.wrapping_sub(entry.age) {
+                    0 | 1 => 0,
+                    v => v as i16 * -64,
+                };
+                let depth_score = entry.depth * 2;
+                let node_type_score = match entry.kind {
+                    NodeKind::Exact => 5,
+                    _ => 0,
+                };
+                age_score + depth_score + node_type_score
+            })
+            .unwrap();
+
+        if entry.upper_hash != upper_hash
+            || data.kind == NodeKind::Exact
+            || data.depth >= entry.depth
+            || age.wrapping_sub(entry.age) >= 2
+        {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+}
+
+impl Default for TtData {
+    fn default() -> Self {
+        Self {
+            upper_hash: 0,
+            mv: 0,
+            eval: Eval::DRAW,
+            depth: 0,
+            kind: NodeKind::Exact,
+            age: 0,
+        }
     }
 }
