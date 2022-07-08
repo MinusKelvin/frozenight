@@ -19,10 +19,19 @@ pub(crate) struct Options {
     nodes: u64,
     #[structopt(default_value = "10_000_000", parse(try_from_str = crate::parse_filter_underscore))]
     positions: usize,
+    #[structopt(long)]
+    frc: bool,
+    #[structopt(long)]
+    dfrc: bool,
 }
 
 impl Options {
     pub(crate) fn run(self, opt: CommonOptions) {
+        if self.frc && self.dfrc {
+            eprintln!("Only one of --frc and --dfrc can be specified");
+            return;
+        }
+
         let output = OpenOptions::new()
             .create(true)
             .append(true)
@@ -81,7 +90,14 @@ impl Options {
     }
 
     fn generate_starting_position(&self) -> Board {
-        let mut board = Board::default();
+        let mut board = match () {
+            _ if self.frc => Board::chess960_startpos(thread_rng().gen_range(0..960)),
+            _ if self.dfrc => Board::double_chess960_startpos(
+                thread_rng().gen_range(0..960),
+                thread_rng().gen_range(0..960),
+            ),
+            _ => Board::default(),
+        };
         for _ in 0..8 {
             let mut moves = vec![];
             board.generate_moves(|mvs| {
