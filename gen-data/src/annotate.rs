@@ -91,12 +91,12 @@ impl Options {
                             if thread_rng().gen_bool(self.skip) {
                                 continue;
                             }
-                            if self.filter_tb_positions
-                                && board.occupied().popcnt() <= tb.max_pieces() as u32
-                                && tb.probe_wdl(&board).is_some()
-                            {
-                                continue
-                            }
+                            // if self.filter_tb_positions
+                            //     && board.occupied().popcnt() <= tb.max_pieces() as u32
+                            //     && tb.probe_wdl(&board).is_some()
+                            // {
+                            //     continue
+                            // }
                             if !seen_positions.lock().unwrap().insert(board.hash()) {
                                 continue;
                             }

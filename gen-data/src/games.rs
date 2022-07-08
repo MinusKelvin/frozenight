@@ -129,14 +129,14 @@ impl Options {
             game.push(mv);
             board.play(mv);
 
-            if board.occupied().popcnt() <= tb.max_pieces() as u32 {
-                match tb.probe_wdl(&board) {
-                    Some((Wdl::Win, _)) => break Some(board.side_to_move()),
-                    Some((Wdl::Loss, _)) => break Some(!board.side_to_move()),
-                    Some(_) => break None,
-                    None => {}
-                }
-            }
+            // if board.occupied().popcnt() <= tb.max_pieces() as u32 {
+            //     match tb.probe_wdl(&board) {
+            //         Some((Wdl::Win, _)) => break Some(board.side_to_move()),
+            //         Some((Wdl::Loss, _)) => break Some(!board.side_to_move()),
+            //         Some(_) => break None,
+            //         None => {}
+            //     }
+            // }
         };
 
         (start_pos, game, winner)

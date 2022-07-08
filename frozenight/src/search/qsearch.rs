@@ -71,10 +71,11 @@ impl Searcher<'_> {
                 mvs.to &= permitted;
             }
             had_moves = true;
+            let piece = mvs.piece;
             for mv in mvs {
                 match position.board.piece_on(mv.to) {
                     Some(victim) => {
-                        let attacker = PIECE_ORDINALS[mvs.piece as usize];
+                        let attacker = PIECE_ORDINALS[piece as usize];
                         let victim = PIECE_ORDINALS[victim as usize] * 4;
                         moves.push((mv, victim - attacker));
                     }

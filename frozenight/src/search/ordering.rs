@@ -30,6 +30,7 @@ impl Searcher<'_> {
         let killer = self.state.history.killer(position.ply);
 
         position.board.generate_moves(|mvs| {
+            let piece = mvs.piece;
             for mv in mvs {
                 if Some(mv) == hashmove {
                     continue;
@@ -44,7 +45,7 @@ impl Searcher<'_> {
 
                 match position.board.piece_on(mv.to) {
                     Some(victim) => {
-                        let attacker = PIECE_ORDINALS[mvs.piece as usize];
+                        let attacker = PIECE_ORDINALS[piece as usize];
                         let victim = PIECE_ORDINALS[victim as usize] * 4;
                         captures.push((mv, victim - attacker));
                     }
@@ -53,7 +54,7 @@ impl Searcher<'_> {
                         captures.push((mv, 0));
                     }
                     _ => {
-                        quiets.push((mv, mvs.piece));
+                        quiets.push((mv, piece));
                     }
                 }
             }
