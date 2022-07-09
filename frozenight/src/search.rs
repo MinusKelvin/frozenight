@@ -158,6 +158,7 @@ impl<'a> Searcher<'a> {
                     return Some(CONTINUE);
                 }
 
+                this.shared.tt.prefetch(&new_pos.board);
                 let _guard = match this.multithreaded {
                     true => this.shared.abdada.enter(new_pos.board.hash()),
                     false => None,
@@ -187,6 +188,7 @@ impl<'a> Searcher<'a> {
         })?;
 
         for (i, mv, new_pos) in remaining {
+            self.shared.tt.prefetch(&new_pos.board);
             self.repetition.insert(new_pos.board.hash());
             let _guard = self.shared.abdada.enter(new_pos.board.hash());
             let v = f(self, i, mv, &new_pos, window)?;

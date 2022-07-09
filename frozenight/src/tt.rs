@@ -62,6 +62,16 @@ impl TranspositionTable {
         })
     }
 
+    pub fn prefetch(&self, board: &Board) {
+        let index = board.hash() as usize % self.entries.len();
+        let entry = &self.entries[index];
+        #[cfg(target_arch = "x86_64")]
+        unsafe {
+            use std::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
+            _mm_prefetch(entry as *const _ as *const _, _MM_HINT_T0);
+        }
+    }
+
     pub fn store(&self, position: &Position, data: TableEntry) {
         let index = position.board.hash() as usize % self.entries.len();
         let entry = &self.entries[index];
