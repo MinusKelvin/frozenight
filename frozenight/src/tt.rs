@@ -1,50 +1,40 @@
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, AtomicU8, Ordering};
 
 use bytemuck::{Pod, Zeroable};
 use cozy_chess::{Board, Move, Piece, Square};
+use parking_lot::Mutex;
 
 use crate::position::Position;
 use crate::Eval;
 
 pub struct TranspositionTable {
-    entries: Box<[TtEntry]>,
+    entries: Box<[TtBucket]>,
     search_number: AtomicU8,
 }
 
-const ENTRIES_PER_MB: usize = 1024 * 1024 / std::mem::size_of::<TtEntry>();
+const ENTRIES_PER_MB: usize = 1024 * 1024 / std::mem::size_of::<TtBucket>();
 
 impl TranspositionTable {
     pub fn new(hash_mb: usize) -> Self {
         TranspositionTable {
             entries: (0..hash_mb * ENTRIES_PER_MB)
-                .map(|_| TtEntry::default())
+                .map(|_| TtBucket::default())
                 .collect(),
             search_number: AtomicU8::default(),
         }
     }
 
     pub fn get_move(&self, board: &Board) -> Option<Move> {
-        let index = board.hash() as usize % self.entries.len();
-        let data = self.entries[index].data.load(Ordering::Relaxed);
-        let hxd = self.entries[index].hash.load(Ordering::Relaxed);
-        if hxd ^ data != board.hash() {
-            return None;
-        }
-        let data: TtData = bytemuck::cast(data);
-        data.unmarshall_move(board)
+        let bucket = &self.entries[board.hash() as usize % self.entries.len()];
+        bucket.find(board.hash())?.unmarshall_move(board)
     }
 
     pub fn get(&self, position: &Position) -> Option<TableEntry> {
-        let index = position.board.hash() as usize % self.entries.len();
-        let data = self.entries[index].data.load(Ordering::Relaxed);
-        let hxd = self.entries[index].hash.load(Ordering::Relaxed);
-        if hxd ^ data != position.board.hash() {
-            return None;
-        }
+        let bucket = &self.entries[position.board.hash() as usize % self.entries.len()];
+        let data = bucket.find(position.board.hash())?;
+
         // marshal between usable type and stored data
         // also validates the data
-        let data: TtData = bytemuck::cast(data);
-
         let kind = match data.kind {
             0 => NodeKind::Exact,
             1 => NodeKind::LowerBound,
@@ -73,26 +63,15 @@ impl TranspositionTable {
     }
 
     pub fn store(&self, position: &Position, data: TableEntry) {
-        let index = position.board.hash() as usize % self.entries.len();
-        let entry = &self.entries[index];
-
+        let bucket = &self.entries[position.board.hash() as usize % self.entries.len()];
+        let _guard = bucket.write_lock.lock();
         let age = self.search_number.load(Ordering::Relaxed);
-        let old_data = entry.data.load(Ordering::Relaxed);
-        let old_hash = entry.hash.load(Ordering::Relaxed) ^ old_data;
-        let old_data: TtData = bytemuck::cast(old_data);
+        let entry = match bucket.replace(position.board.hash(), &data, age) {
+            Some(v) => v,
+            None => return,
+        };
 
-        let mut replace = false;
-        // always replace existing position data with PV data
-        replace |= old_hash == position.board.hash() && data.kind == NodeKind::Exact;
-        // prefer deeper data
-        replace |= data.depth >= old_data.depth;
-        // prefer replacing stale data
-        replace |= age.wrapping_sub(old_data.age) >= 2;
-
-        if !replace {
-            return;
-        }
-
+        let upper_hash = (position.board.hash() >> 32) as u32;
         let promo = match data.mv.promotion {
             None => 0,
             Some(Piece::Knight) => 1,
@@ -108,10 +87,10 @@ impl TranspositionTable {
             kind: data.kind as u8,
             age,
         });
-        entry.data.store(data, Ordering::Relaxed);
+        entry.data_ptr.store(data, Ordering::Relaxed);
         entry
-            .hash
-            .store(position.board.hash() ^ data, Ordering::Relaxed);
+            .hash_ptr
+            .store(upper_hash ^ data as u32, Ordering::Relaxed);
     }
 
     pub fn increment_age(&self, by: u8) {
@@ -135,9 +114,10 @@ pub enum NodeKind {
 }
 
 #[derive(Default)]
-struct TtEntry {
-    hash: AtomicU64,
-    data: AtomicU64,
+struct TtBucket {
+    data: [AtomicU64; 5],
+    hash: [AtomicU32; 5],
+    write_lock: Mutex<()>,
 }
 
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -166,5 +146,75 @@ impl TtData {
         };
 
         board.is_legal(mv).then(|| mv)
+    }
+}
+
+struct Entry<'a> {
+    data_ptr: &'a AtomicU64,
+    hash_ptr: &'a AtomicU32,
+    data: TtData,
+    upper_hash: u32,
+}
+
+impl TtBucket {
+    fn entries(&self) -> impl Iterator<Item = Entry> + '_ {
+        self.data
+            .iter()
+            .zip(self.hash.iter())
+            .map(|(data_ptr, hash_ptr)| {
+                let data = data_ptr.load(Ordering::Relaxed);
+                let hash = hash_ptr.load(Ordering::Relaxed);
+                let upper_hash = hash ^ data as u32;
+                Entry {
+                    data_ptr,
+                    hash_ptr,
+                    data: bytemuck::cast(data),
+                    upper_hash,
+                }
+            })
+    }
+
+    fn find(&self, hash: u64) -> Option<TtData> {
+        let upper_hash = (hash >> 32) as u32;
+        for entry in self.entries() {
+            if entry.upper_hash == upper_hash {
+                return Some(entry.data);
+            }
+        }
+        None
+    }
+
+    fn replace(&self, hash: u64, data: &TableEntry, age: u8) -> Option<Entry> {
+        let upper_hash = (hash >> 32) as u32;
+
+        let entry = self
+            .entries()
+            .min_by_key(|entry| {
+                if entry.upper_hash == upper_hash {
+                    return i16::MIN;
+                }
+                let age_score = match age.wrapping_sub(entry.data.age) {
+                    0 | 1 => 0,
+                    v => v as i16 * -64,
+                };
+                let depth_score = entry.data.depth * 2;
+                const NODE_KIND_EXACT: u8 = NodeKind::Exact as u8;
+                let node_type_score = match entry.data.kind {
+                    NODE_KIND_EXACT => 5,
+                    _ => 0,
+                };
+                age_score + depth_score + node_type_score
+            })
+            .unwrap();
+
+        if entry.upper_hash != upper_hash
+            || data.kind == NodeKind::Exact
+            || data.depth >= entry.data.depth
+            || age.wrapping_sub(entry.data.age) >= 2
+        {
+            Some(entry)
+        } else {
+            None
+        }
     }
 }
