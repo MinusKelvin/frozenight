@@ -15,24 +15,21 @@ impl Searcher<'_> {
     }
 
     fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
-        let (hashmove, tteval) = match self.shared.tt.get(&position) {
-            None => (None, None),
-            Some(entry) => {
-                match entry.kind {
-                    _ if entry.depth < depth => {}
-                    NodeKind::Exact => return Some(entry.eval),
-                    NodeKind::LowerBound => {
-                        if window.fail_high(entry.eval) {
-                            return Some(entry.eval);
-                        }
-                    }
-                    NodeKind::UpperBound => {
-                        if window.fail_low(entry.eval) {
-                            return Some(entry.eval);
-                        }
+        let entry = self.shared.tt.get(&position);
+        if let Some(entry) = entry {
+            match entry.kind {
+                _ if entry.depth < depth => {}
+                NodeKind::Exact => return Some(entry.eval),
+                NodeKind::LowerBound => {
+                    if window.fail_high(entry.eval) {
+                        return Some(entry.eval);
                     }
                 }
-                (Some(entry.mv), Some(entry.eval))
+                NodeKind::UpperBound => {
+                    if window.fail_low(entry.eval) {
+                        return Some(entry.eval);
+                    }
+                }
             }
         };
 
@@ -46,7 +43,9 @@ impl Searcher<'_> {
         if depth <= 6 {
             let margin = 250 * depth as i16;
             let rfp_window = Window::null(window.lb() + margin);
-            let eval = tteval.unwrap_or_else(|| self.qsearch(position, rfp_window));
+            let eval = entry
+                .map(|e| e.eval)
+                .unwrap_or_else(|| self.qsearch(position, rfp_window));
             if rfp_window.fail_high(eval) {
                 return Some(eval);
             }
@@ -73,7 +72,7 @@ impl Searcher<'_> {
 
         self.search_moves(
             position,
-            hashmove,
+            entry.map(|e| e.mv),
             window,
             depth,
             |this, i, mv, new_pos, window| {
