@@ -1,8 +1,8 @@
 use cozy_chess::Move;
 
+use crate::eval::InternalEval;
 use crate::position::Position;
 use crate::tt::NodeKind;
-use crate::Eval;
 
 use super::window::Window;
 use super::Searcher;
@@ -13,7 +13,7 @@ impl Searcher<'_> {
         position: &Position,
         window: Window,
         depth: i16,
-    ) -> Option<(Eval, Move)> {
+    ) -> Option<(InternalEval, Move)> {
         let hashmove = match self.shared.tt.get(&position) {
             None => None,
             Some(entry) => {
@@ -21,19 +21,20 @@ impl Searcher<'_> {
                     match entry.kind {
                         NodeKind::Exact => {
                             if depth < 2 {
-                                return Some((entry.eval, entry.mv));
+                                return Some((entry.eval.into(), entry.mv));
                             }
                         }
                         NodeKind::LowerBound => {
                             if window.fail_high(entry.eval) {
-                                return Some((entry.eval, entry.mv));
+                                return Some((entry.eval.into(), entry.mv));
                             }
                         }
                         NodeKind::UpperBound => {
                             if window.fail_low(entry.eval) {
-                                return Some((entry.eval, entry.mv));
+                                return Some((entry.eval.into(), entry.mv));
                             }
                         }
+                        NodeKind::NoEval => {}
                     }
                 }
                 let tt_not_good_enough = entry.depth < depth - 2 || entry.kind != NodeKind::Exact;
@@ -66,18 +67,18 @@ impl Searcher<'_> {
                 let mut v =
                     -this.visit_null(new_pos, -Window::null(window.lb()), depth - reduction - 1)?;
 
-                if window.fail_low(v) {
+                if window.fail_low(v.apparent_value()) {
                     return Some(v);
                 }
 
                 if reduction > 0 {
                     v = -this.visit_null(new_pos, -Window::null(window.lb()), depth - 1)?;
-                    if window.fail_low(v) {
+                    if window.fail_low(v.apparent_value()) {
                         return Some(v);
                     }
                 }
 
-                if window.fail_high(v) {
+                if window.fail_high(v.apparent_value()) {
                     // null window search search returned a lower bound that exceeds beta,
                     // so there's no need to re-search
                     return Some(v);
@@ -88,7 +89,7 @@ impl Searcher<'_> {
         )
     }
 
-    fn visit_pv(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+    fn visit_pv(&mut self, position: &Position, window: Window, depth: i16) -> Option<InternalEval> {
         self.visit_node(position, window, depth, |this| {
             this.pv_search(position, window, depth)
                 .map(|(eval, _)| eval)

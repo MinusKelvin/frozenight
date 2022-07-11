@@ -1,3 +1,4 @@
+use crate::eval::InternalEval;
 use crate::position::Position;
 use crate::tt::NodeKind;
 use crate::Eval;
@@ -8,35 +9,46 @@ use super::Searcher;
 use cozy_chess::Piece;
 
 impl Searcher<'_> {
-    pub fn visit_null(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+    pub fn visit_null(
+        &mut self,
+        position: &Position,
+        window: Window,
+        depth: i16,
+    ) -> Option<InternalEval> {
         self.visit_node(position, window, depth, |this| {
             this.null_search(position, window, depth)
         })
     }
 
-    fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+    fn null_search(
+        &mut self,
+        position: &Position,
+        window: Window,
+        depth: i16,
+    ) -> Option<InternalEval> {
         let entry = self.shared.tt.get(&position);
         if let Some(entry) = entry {
             match entry.kind {
                 _ if entry.depth < depth => {}
-                NodeKind::Exact => return Some(entry.eval),
+                NodeKind::Exact => return Some(entry.eval.into()),
                 NodeKind::LowerBound => {
                     if window.fail_high(entry.eval) {
-                        return Some(entry.eval);
+                        return Some(entry.eval.into());
                     }
                 }
                 NodeKind::UpperBound => {
                     if window.fail_low(entry.eval) {
-                        return Some(entry.eval);
+                        return Some(entry.eval.into());
                     }
                 }
+                NodeKind::NoEval => {}
             }
         };
 
         // mate distance pruning
         let mate_score = Eval::MATE.add_time(position.ply);
         if window.fail_low(mate_score) {
-            return Some(mate_score);
+            return Some(InternalEval::Fake(mate_score));
         }
 
         // reverse futility pruning... but with qsearch
@@ -44,10 +56,13 @@ impl Searcher<'_> {
             let margin = 250 * depth as i16;
             let rfp_window = Window::null(window.lb() + margin);
             let eval = entry
-                .map(|e| e.eval)
+                .and_then(|e| match e.kind {
+                    NodeKind::NoEval => None,
+                    _ => Some(e.eval),
+                })
                 .unwrap_or_else(|| self.qsearch(position, rfp_window));
             if rfp_window.fail_high(eval) {
-                return Some(eval);
+                return Some(eval.into());
             }
         }
 
@@ -63,7 +78,7 @@ impl Searcher<'_> {
                         _ => 3,
                     };
                     let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
-                    if window.fail_high(v) {
+                    if window.fail_high(v.apparent_value()) {
                         return Some(v);
                     }
                 }
@@ -83,16 +98,16 @@ impl Searcher<'_> {
                 };
 
                 if depth - reduction - 1 < 0 {
-                    return Some(-Eval::MATE);
+                    return Some(InternalEval::Fake(-Eval::MATE));
                 }
 
                 let mut v = -this.visit_null(new_pos, -window, depth - reduction - 1)?;
 
-                if window.fail_high(v) && reduction > 0 {
+                if window.fail_high(v.apparent_value()) && reduction > 0 {
                     v = -this.visit_null(new_pos, -window, depth - 1)?;
                 }
 
-                if window.fail_high(v) {
+                if window.fail_high(v.apparent_value()) {
                     return Some(v);
                 }
 

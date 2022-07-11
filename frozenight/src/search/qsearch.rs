@@ -61,6 +61,7 @@ impl Searcher<'_> {
                         return entry.eval;
                     }
                 }
+                NodeKind::NoEval => {}
             }
         }
 

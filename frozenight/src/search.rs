@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use cozy_chess::{Board, Move, Square};
 use nohash::IntSet;
 
+use crate::eval::InternalEval;
 use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, SharedState, Statistics};
@@ -91,6 +92,7 @@ impl<'a> Searcher<'a> {
             Window::default(),
             depth,
         )
+        .map(|(e, mv)| (e.apparent_value(), mv))
     }
 
     fn visit_node(
@@ -98,11 +100,16 @@ impl<'a> Searcher<'a> {
         position: &Position,
         window: Window,
         depth: i16,
-        f: impl FnOnce(&mut Self) -> Option<Eval>,
-    ) -> Option<Eval> {
+        f: impl FnOnce(&mut Self) -> Option<InternalEval>,
+    ) -> Option<InternalEval> {
         match position.board.status() {
-            cozy_chess::GameStatus::Drawn => return Some(Eval::DRAW),
-            cozy_chess::GameStatus::Won => return Some(-Eval::MATE.add_time(position.ply)),
+            cozy_chess::GameStatus::Drawn if position.board.halfmove_clock() >= 100 => {
+                return Some(InternalEval::Fake(Eval::DRAW))
+            }
+            cozy_chess::GameStatus::Drawn => return Some(Eval::DRAW.into()),
+            cozy_chess::GameStatus::Won => {
+                return Some((-Eval::MATE.add_time(position.ply)).into())
+            }
             cozy_chess::GameStatus::Ongoing => {}
         }
 
@@ -111,7 +118,7 @@ impl<'a> Searcher<'a> {
         }
 
         let result = if depth <= 0 {
-            self.qsearch(position, window)
+            self.qsearch(position, window).into()
         } else {
             if self.stats.nodes.fetch_add(1, Ordering::Relaxed) >= self.node_limit {
                 return None;
@@ -121,7 +128,7 @@ impl<'a> Searcher<'a> {
 
         // Sanity check that conclusive scores are valid
         #[cfg(debug_assertions)]
-        if let Some(plys) = result.plys_to_conclusion() {
+        if let Some(plys) = result.apparent_value().plys_to_conclusion() {
             debug_assert!(plys.abs() >= position.ply as i16);
         }
 
@@ -134,10 +141,10 @@ impl<'a> Searcher<'a> {
         hashmove: Option<Move>,
         mut window: Window,
         depth: i16,
-        mut f: impl FnMut(&mut Searcher, usize, Move, &Position, Window) -> Option<Eval>,
-    ) -> Option<(Eval, Move)> {
+        mut f: impl FnMut(&mut Searcher, usize, Move, &Position, Window) -> Option<InternalEval>,
+    ) -> Option<(InternalEval, Move)> {
         let mut best_move = INVALID_MOVE;
-        let mut best_score = -Eval::MATE;
+        let mut best_score = InternalEval::Fake(-Eval::MATE);
         let mut raised_alpha = false;
         let mut i = 0;
 
@@ -167,7 +174,7 @@ impl<'a> Searcher<'a> {
                 this.repetition.remove(&new_pos.board.hash());
             } else {
                 // repetition
-                v = Eval::DRAW;
+                v = InternalEval::Repetition(new_pos.board.hash());
             };
 
             if v > best_score {
@@ -175,11 +182,11 @@ impl<'a> Searcher<'a> {
                 best_score = v;
             }
 
-            if window.fail_high(v) {
+            if window.fail_high(v.apparent_value()) {
                 return Some(BREAK);
             }
 
-            if window.raise_lb(v) {
+            if window.raise_lb(v.apparent_value()) {
                 raised_alpha = true;
             }
 
@@ -199,25 +206,32 @@ impl<'a> Searcher<'a> {
                 best_score = v;
             }
 
-            if window.fail_high(v) {
+            if window.fail_high(v.apparent_value()) {
                 break;
             }
 
-            if window.raise_lb(v) {
+            if window.raise_lb(v.apparent_value()) {
                 raised_alpha = true;
             }
         }
 
-        if window.fail_high(best_score) {
+        if matches!(best_score, InternalEval::Repetition(h) if h == position.board.hash()) {
+            best_score = Eval::DRAW.into();
+        }
+
+        if window.fail_high(best_score.apparent_value()) {
             self.failed_high(position, depth, best_score, best_move);
         } else if raised_alpha {
             self.shared.tt.store(
                 &position,
                 TableEntry {
                     mv: best_move,
-                    eval: best_score,
+                    eval: best_score.apparent_value(),
                     depth,
-                    kind: NodeKind::Exact,
+                    kind: match best_score {
+                        InternalEval::Real(_) => NodeKind::Exact,
+                        _ => NodeKind::NoEval,
+                    },
                 },
             );
         } else {
@@ -227,26 +241,32 @@ impl<'a> Searcher<'a> {
         Some((best_score, best_move))
     }
 
-    fn failed_low(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
+    fn failed_low(&mut self, position: &Position, depth: i16, eval: InternalEval, mv: Move) {
         self.shared.tt.store(
             &position,
             TableEntry {
                 mv,
-                eval,
+                eval: eval.apparent_value(),
                 depth,
-                kind: NodeKind::UpperBound,
+                kind: match eval {
+                    InternalEval::Real(_) => NodeKind::UpperBound,
+                    _ => NodeKind::NoEval,
+                }
             },
         );
     }
 
-    fn failed_high(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
+    fn failed_high(&mut self, position: &Position, depth: i16, eval: InternalEval, mv: Move) {
         self.shared.tt.store(
             &position,
             TableEntry {
                 mv,
-                eval,
+                eval: eval.apparent_value(),
                 depth,
-                kind: NodeKind::LowerBound,
+                kind: match eval {
+                    InternalEval::Real(_) => NodeKind::LowerBound,
+                    _ => NodeKind::NoEval,
+                },
             },
         );
         self.state.history.caused_cutoff(position, mv);

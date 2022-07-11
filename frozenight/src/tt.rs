@@ -49,6 +49,7 @@ impl TranspositionTable {
             0 => NodeKind::Exact,
             1 => NodeKind::LowerBound,
             2 => NodeKind::UpperBound,
+            3 => NodeKind::NoEval,
             _ => return None, // invalid
         };
 
@@ -132,6 +133,7 @@ pub enum NodeKind {
     Exact,
     LowerBound,
     UpperBound,
+    NoEval,
 }
 
 #[derive(Default)]

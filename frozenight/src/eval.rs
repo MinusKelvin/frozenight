@@ -1,8 +1,17 @@
+use std::cmp::Ordering;
+
 use bytemuck::{Pod, Zeroable};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Pod, Zeroable, Default)]
 #[repr(transparent)]
 pub struct Eval(i16);
+
+#[derive(Clone, Copy, Debug, Eq)]
+pub enum InternalEval {
+    Real(Eval),
+    Repetition(u64),
+    Fake(Eval),
+}
 
 impl Eval {
     pub const MATE: Eval = Eval(300_00);
@@ -103,6 +112,66 @@ impl std::fmt::Display for Eval {
         match self.plys_to_conclusion() {
             Some(plys) => write!(f, "mate {}", (plys + plys.signum()) / 2),
             None => write!(f, "cp {}", self.0 / 5),
+        }
+    }
+}
+
+impl InternalEval {
+    pub fn apparent_value(&self) -> Eval {
+        match *self {
+            InternalEval::Real(v) => v,
+            InternalEval::Repetition(_) => Eval::DRAW,
+            InternalEval::Fake(v) => v,
+        }
+    }
+}
+
+impl From<Eval> for InternalEval {
+    fn from(v: Eval) -> Self {
+        InternalEval::Real(v)
+    }
+}
+
+impl PartialEq for InternalEval {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl PartialOrd for InternalEval {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for InternalEval {
+    fn cmp(&self, rhs: &Self) -> Ordering {
+        self.apparent_value()
+            .cmp(&rhs.apparent_value())
+            .then_with(|| {
+                let l = match self {
+                    InternalEval::Real(_) => 0,
+                    InternalEval::Repetition(_) => 1,
+                    InternalEval::Fake(_) => 2,
+                };
+                let r = match rhs {
+                    InternalEval::Real(_) => 0,
+                    InternalEval::Repetition(_) => 1,
+                    InternalEval::Fake(_) => 2,
+                };
+                l.cmp(&r)
+            })
+    }
+}
+
+impl std::ops::Neg for InternalEval {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        match self {
+            InternalEval::Real(v) => InternalEval::Real(-v),
+            InternalEval::Repetition(v) => InternalEval::Repetition(v),
+            InternalEval::Fake(v) => InternalEval::Fake(-v),
         }
     }
 }
