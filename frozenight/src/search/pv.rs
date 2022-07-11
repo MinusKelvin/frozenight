@@ -25,12 +25,12 @@ impl Searcher<'_> {
                             }
                         }
                         NodeKind::LowerBound => {
-                            if window.fail_high(entry.eval) {
+                            if !window.lb().is_conclusive() && window.fail_high(entry.eval) {
                                 return Some((entry.eval, entry.mv));
                             }
                         }
                         NodeKind::UpperBound => {
-                            if window.fail_low(entry.eval) {
+                            if !window.ub().is_conclusive() && window.fail_low(entry.eval) {
                                 return Some((entry.eval, entry.mv));
                             }
                         }

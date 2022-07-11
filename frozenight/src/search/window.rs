@@ -15,6 +15,10 @@ impl Window {
         self.lb
     }
 
+    pub fn ub(&self) -> Eval {
+        self.ub
+    }
+
     pub fn fail_low(&self, v: Eval) -> bool {
         v <= self.lb
     }

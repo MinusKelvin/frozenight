@@ -40,7 +40,7 @@ impl Searcher<'_> {
         }
 
         // reverse futility pruning... but with qsearch
-        if depth <= 6 {
+        if depth <= 6 && !window.lb().is_conclusive() {
             let margin = 250 * depth as i16;
             let rfp_window = Window::null(window.lb() + margin);
             let eval = entry
@@ -52,7 +52,7 @@ impl Searcher<'_> {
         }
 
         // null move pruning
-        if depth >= 4 {
+        if depth >= 4 && !window.lb().is_conclusive() {
             let sliders = position.board.pieces(Piece::Rook)
                 | position.board.pieces(Piece::Bishop)
                 | position.board.pieces(Piece::Queen);
