@@ -11,5 +11,5 @@ lto = true
 panic = "abort"
 
 [patch.crates-io]
-cozy-chess = { git = "https://github.com/analog-hors/cozy-chess" }
-cozy-chess-types = { git = "https://github.com/analog-hors/cozy-chess" }
+cozy-chess = { git = "https://github.com/analog-hors/cozy-chess", rev = "8177893" }
+cozy-chess-types = { git = "https://github.com/analog-hors/cozy-chess", rev = "8177893" }

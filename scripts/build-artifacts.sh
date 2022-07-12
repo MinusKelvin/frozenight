@@ -1,6 +1,6 @@
 #!/bin/sh
 
-VERSION=$(cargo pkgid frozenight-uci | grep -Eo '[^:]+$')
+VERSION=$(cargo pkgid frozenight-uci | grep -Eo '[^@]+$')
 
 build() {
     RUSTFLAGS="-C strip=symbols -C target-cpu=$2" cargo build --release --bin frozenight-uci --target $1

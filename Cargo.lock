@@ -93,7 +93,7 @@ dependencies = [
 [[package]]
 name = "cozy-chess"
 version = "0.3.0"
-source = "git+https://github.com/analog-hors/cozy-chess#8177893170b5bea035d5c985fe6f4b6023ecca90"
+source = "git+https://github.com/analog-hors/cozy-chess?rev=8177893#8177893170b5bea035d5c985fe6f4b6023ecca90"
 dependencies = [
  "cozy-chess-types 0.2.0",
 ]
@@ -107,7 +107,7 @@ checksum = "847c4608e7a1ec5968d182493cdab14836def5aa950d2191662bab1f831ab903"
 [[package]]
 name = "cozy-chess-types"
 version = "0.2.0"
-source = "git+https://github.com/analog-hors/cozy-chess#8177893170b5bea035d5c985fe6f4b6023ecca90"
+source = "git+https://github.com/analog-hors/cozy-chess?rev=8177893#8177893170b5bea035d5c985fe6f4b6023ecca90"
 
 [[package]]
 name = "cozy-syzygy"
@@ -150,7 +150,7 @@ dependencies = [
 
 [[package]]
 name = "frozenight-uci"
-version = "4.0.0-dev"
+version = "4.0.0"
 dependencies = [
  "cozy-chess 0.3.0",
  "frozenight",
