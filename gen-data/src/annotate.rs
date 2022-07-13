@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::Instant;
 
-use cozy_chess::{Board, Color, Piece, Square};
+use cozy_chess::{Board, Color};
 use cozy_syzygy::Tablebase;
 use frozenight::{Eval, Frozenight};
 use rand::prelude::*;
@@ -37,7 +37,7 @@ pub(crate) struct Options {
 
 impl Options {
     pub fn run(self, opt: CommonOptions) {
-        let output = Mutex::new(BufWriter::new(File::create("data.bin").unwrap()));
+        let output = Mutex::new(BufWriter::new(File::create("data.txt").unwrap()));
 
         let mut tb = Tablebase::new();
         for path in opt.syzygy_path {
@@ -158,47 +158,9 @@ impl Options {
 }
 
 fn emit_sample(mut out: impl Write, board: &Board, eval: Eval, winner: Option<Color>) {
-    write_features(&mut out, board, board.side_to_move() == Color::Black);
-    write_features(&mut out, board, board.side_to_move() == Color::White);
-    out.write_all(&eval.raw().to_le_bytes()).unwrap();
-    let material = board.pieces(Piece::Pawn).popcnt() as u8
-        + 3 * board.pieces(Piece::Bishop).popcnt() as u8
-        + 3 * board.pieces(Piece::Knight).popcnt() as u8
-        + 5 * board.pieces(Piece::Rook).popcnt() as u8
-        + 8 * board.pieces(Piece::Queen).popcnt() as u8;
-    let outcome = match (winner, board.side_to_move()) {
-        (Some(win), stm) if win == stm => 2,
-        (Some(win), stm) if win != stm => 0,
-        (None, _) => 1,
-        _ => unreachable!(),
-    };
-    out.write_all(&[outcome, material]).unwrap();
-}
-
-fn write_features(mut out: impl Write, board: &Board, flip: bool) {
-    let color_flip = |c: Color| match flip {
-        false => c,
-        true => !c,
-    };
-    let sq_flip = |sq: Square| match flip {
-        false => sq,
-        true => sq.flip_rank(),
-    };
-    for sq in board.occupied() {
-        let index = feature(
-            color_flip(board.color_on(sq).unwrap()),
-            board.piece_on(sq).unwrap(),
-            sq_flip(sq),
-        );
-        out.write_all(&u16::try_from(index).unwrap().to_le_bytes())
-            .unwrap();
-    }
-    for _ in board.occupied().popcnt()..32 {
-        out.write_all(&u16::MAX.to_le_bytes()).unwrap();
-    }
-}
-
-// note: duplicate of function in /frozenight/src/nnue.rs
-fn feature(color: Color, piece: Piece, sq: Square) -> usize {
-    sq as usize + Square::NUM * (piece as usize + Piece::NUM * color as usize)
+    writeln!(out, "{board} | {} | {}", eval.raw(), match winner {
+        Some(c) if board.side_to_move() == c => "1.0",
+        Some(_) => "0.0",
+        None => "0.5"
+    }).unwrap();
 }
