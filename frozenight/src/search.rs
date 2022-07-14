@@ -251,4 +251,12 @@ impl<'a> Searcher<'a> {
         );
         self.state.history.caused_cutoff(position, mv);
     }
+
+    fn psuedo_random(&self) -> u64 {
+        let mut x = self.stats.nodes.load(Ordering::Relaxed);
+        // https://stackoverflow.com/questions/664014/what-integer-hash-function-are-good-that-accepts-an-integer-hash-key
+        x = (x ^ (x >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+        x = (x ^ (x >> 27)).wrapping_mul(0x94d049bb133111eb);
+        x ^ (x >> 31)
+    }
 }
