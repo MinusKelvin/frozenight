@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use cozy_chess::Move;
 
 use crate::position::Position;
@@ -52,12 +54,20 @@ impl Searcher<'_> {
             window,
             depth,
             |this, i, mv, new_pos, window| {
+                let rng = this.stats.nodes.load(Ordering::Relaxed);
+
+                let extension = match () {
+                    _ if !new_pos.board.checkers().is_empty() && rng & 1 == 0 => 1,
+                    _ => 0,
+                };
+
                 if i == 0 {
                     // First move; search as PV node
-                    return Some(-this.visit_pv(&new_pos, -window, depth - 1)?);
+                    return Some(-this.visit_pv(&new_pos, -window, depth + extension - 1)?);
                 }
 
                 let reduction = match () {
+                    _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
                     _ => ((2 * depth + i as i16) / 8).min(i as i16) * 2 / 3,
@@ -83,7 +93,7 @@ impl Searcher<'_> {
                     return Some(v);
                 }
 
-                Some(-this.visit_pv(new_pos, -window, depth - 1)?)
+                Some(-this.visit_pv(new_pos, -window, depth + extension - 1)?)
             },
         )
     }
