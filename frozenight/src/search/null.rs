@@ -76,7 +76,13 @@ impl Searcher<'_> {
             window,
             depth,
             |this, i, mv, new_pos, window| {
+                let extension = match () {
+                    _ if !new_pos.board.checkers().is_empty() => 1,
+                    _ => 0,
+                };
+
                 let reduction = match () {
+                    _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
                     _ => ((2 * depth + i as i16) / 8).min(i as i16),
