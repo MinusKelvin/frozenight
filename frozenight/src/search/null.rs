@@ -70,13 +70,22 @@ impl Searcher<'_> {
             }
         }
 
+        const FIFTY_PERCENT: u64 = 1 << 63;
+        let rng = |chance: u64| position.board.hash() < chance;
+
         self.search_moves(
             position,
             entry.map(|e| e.mv),
             window,
             depth,
             |this, i, mv, new_pos, window| {
+                let extension = match () {
+                    _ if !new_pos.board.checkers().is_empty() && rng(FIFTY_PERCENT) => 1,
+                    _ => 0,
+                };
+
                 let reduction = match () {
+                    _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
                     _ => ((2 * depth + i as i16) / 8).min(i as i16),
