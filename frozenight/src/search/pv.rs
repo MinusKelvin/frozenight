@@ -12,7 +12,7 @@ impl Searcher<'_> {
         &mut self,
         position: &Position,
         window: Window,
-        depth: i16,
+        mut depth: i16,
     ) -> Option<(Eval, Move)> {
         let hashmove = match self.shared.tt.get(&position) {
             None => None,
@@ -45,6 +45,12 @@ impl Searcher<'_> {
                 }
             }
         };
+
+        if hashmove.is_none() && depth > 4 {
+            depth -= 1;
+        }
+
+        let depth = depth;
 
         self.search_moves(
             position,
