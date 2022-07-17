@@ -6,10 +6,10 @@ use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
 use crate::Eval;
 
+use super::see::static_exchange_eval;
 use super::window::Window;
 use super::{Searcher, INVALID_MOVE};
 
-const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
 
 impl Searcher<'_> {
@@ -71,15 +71,14 @@ impl Searcher<'_> {
                 mvs.to &= permitted;
             }
             had_moves = true;
-            let piece = mvs.piece;
             for mv in mvs {
-                match position.board.piece_on(mv.to) {
-                    Some(victim) => {
-                        let attacker = PIECE_ORDINALS[piece as usize];
-                        let victim = PIECE_ORDINALS[victim as usize] * 4;
-                        moves.push((mv, victim - attacker));
+                if position.board.occupied().has(mv.to) {
+                    let see = static_exchange_eval(&position.board, mv);
+                    if see >= 0 || in_check {
+                        moves.push((mv, see));
                     }
-                    None => moves.push((mv, 0)),
+                } else {
+                    moves.push((mv, 0))
                 }
             }
             false
@@ -94,13 +93,13 @@ impl Searcher<'_> {
                 };
                 if position.board.is_legal(mv) {
                     had_moves = true;
-                    match position.board.piece_on(to) {
-                        Some(victim) => {
-                            let attacker = PIECE_ORDINALS[Piece::King as usize];
-                            let victim = PIECE_ORDINALS[victim as usize] * 4;
-                            moves.push((mv, victim - attacker));
+                    if position.board.occupied().has(mv.to) {
+                        let see = static_exchange_eval(&position.board, mv);
+                        if see >= 0 {
+                            moves.push((mv, see));
                         }
-                        None => moves.push((mv, 0)),
+                    } else {
+                        moves.push((mv, 0))
                     }
                 }
             }

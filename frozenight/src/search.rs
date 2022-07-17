@@ -16,6 +16,7 @@ mod null;
 mod ordering;
 mod pv;
 mod qsearch;
+mod see;
 mod window;
 
 pub const INVALID_MOVE: Move = Move {

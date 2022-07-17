@@ -2,9 +2,8 @@ use cozy_chess::{Color, Move, Piece, Square};
 
 use crate::position::Position;
 
+use super::see::static_exchange_eval;
 use super::{Searcher, INVALID_MOVE};
-
-const PIECE_ORDINALS: [i8; Piece::NUM] = [0, 1, 1, 2, 3, 4];
 
 pub const CONTINUE: bool = false;
 pub const BREAK: bool = true;
@@ -43,19 +42,13 @@ impl Searcher<'_> {
                     continue;
                 }
 
-                match position.board.piece_on(mv.to) {
-                    Some(victim) => {
-                        let attacker = PIECE_ORDINALS[piece as usize];
-                        let victim = PIECE_ORDINALS[victim as usize] * 4;
-                        captures.push((mv, victim - attacker));
-                    }
-                    _ if mv == killer => {
-                        // Killer is legal; give it the same rank as PxP
-                        captures.push((mv, 0));
-                    }
-                    _ => {
-                        quiets.push((mv, piece));
-                    }
+                if position.is_capture(mv) {
+                    captures.push((mv, static_exchange_eval(&position.board, mv)));
+                } else if mv == killer {
+                    // Killer is legal; give it the same rank as neutral captures
+                    captures.push((mv, 0));
+                } else {
+                    quiets.push((mv, piece));
                 }
             }
             false
