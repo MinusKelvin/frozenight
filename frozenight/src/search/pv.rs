@@ -54,6 +54,7 @@ impl Searcher<'_> {
             |this, i, mv, new_pos, window| {
                 let extension = match () {
                     _ if !new_pos.board.checkers().is_empty() => 1,
+                    _ if position.is_capture(mv) => 1,
                     _ => 0,
                 };
 
