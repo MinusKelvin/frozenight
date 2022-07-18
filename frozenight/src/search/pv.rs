@@ -83,12 +83,6 @@ impl Searcher<'_> {
                     }
                 }
 
-                if window.fail_high(v) {
-                    // null window search search returned a lower bound that exceeds beta,
-                    // so there's no need to re-search
-                    return Some(v);
-                }
-
                 Some(-this.visit_pv(new_pos, -window, depth + extension - 1)?)
             },
         )
