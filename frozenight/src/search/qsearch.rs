@@ -10,8 +10,6 @@ use super::see::static_exchange_eval;
 use super::window::Window;
 use super::{Searcher, INVALID_MOVE};
 
-const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
-
 impl Searcher<'_> {
     pub fn qsearch(&mut self, position: &Position, window: Window) -> Eval {
         self.qsearch_impl(position, window, 0)
@@ -122,12 +120,7 @@ impl Searcher<'_> {
             }
         }
 
-        let mut i = 0;
-        let limit = match in_check {
-            true => 100,
-            false => BREADTH_LIMIT.get(qply as usize).copied().unwrap_or(0),
-        };
-        while !moves.is_empty() && i < limit {
+        while !moves.is_empty() {
             let mut index = 0;
             for i in 1..moves.len() {
                 if moves[i].1 > moves[index].1 {
@@ -158,8 +151,6 @@ impl Searcher<'_> {
                 best = v;
                 best_mv = mv;
             }
-
-            i += 1;
         }
 
         if best_mv != INVALID_MOVE {
