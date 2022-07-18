@@ -3,7 +3,7 @@ use cozy_chess::{
     Board, Color, Move, Piece, Square,
 };
 
-const VALUES: [i32; Piece::NUM] = [100, 300, 325, 500, 900, 0];
+const VALUES: [i32; Piece::NUM] = [100, 300, 300, 500, 900, 0];
 
 pub fn static_exchange_eval(board: &Board, capture: Move) -> i32 {
     VALUES[board.piece_on(capture.to).unwrap() as usize]
