@@ -88,7 +88,7 @@ impl Searcher<'_> {
                     _ => ((2 * depth + i as i16) / 8).min(i as i16),
                 };
 
-                if depth - reduction - 1 < 0 {
+                if window.lb() >= -Eval::MAX_INCONCLUSIVE && depth - reduction - 1 < 0 {
                     return Some(-Eval::MATE);
                 }
 
