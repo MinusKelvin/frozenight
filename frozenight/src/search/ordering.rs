@@ -45,8 +45,8 @@ impl Searcher<'_> {
                 if position.is_capture(mv) {
                     captures.push((mv, static_exchange_eval(&position.board, mv)));
                 } else if mv == killer {
-                    // Killer is legal; give it the same rank as neutral captures
-                    captures.push((mv, 0));
+                    // Killer is legal; order it after neutral captures
+                    captures.push((mv, -1));
                 } else {
                     quiets.push((mv, piece));
                 }
