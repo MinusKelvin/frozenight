@@ -57,7 +57,7 @@ impl Searcher<'_> {
                     _ => 0,
                 };
 
-                if i == 0 {
+                if i == 0 || depth <= 1 {
                     // First move; search as PV node
                     return Some(-this.visit_pv(&new_pos, -window, depth + extension - 1)?);
                 }
