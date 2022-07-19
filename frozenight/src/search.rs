@@ -13,6 +13,7 @@ use self::window::Window;
 
 mod abdada;
 mod null;
+mod oracle;
 mod ordering;
 mod pv;
 mod qsearch;
@@ -148,7 +149,9 @@ impl<'a> Searcher<'a> {
             let new_pos = position.play_move(&this.shared.nnue, mv);
 
             let v;
-            if this.repetition.insert(new_pos.board.hash()) {
+            if let Some(eval) = oracle::oracle(&new_pos.board) {
+                v = eval;
+            } else if this.repetition.insert(new_pos.board.hash()) {
                 if this.multithreaded
                     && i > 0
                     && this.shared.abdada.is_searching(new_pos.board.hash())
