@@ -54,7 +54,7 @@ impl Searcher<'_> {
             false
         });
 
-        // Iterate captures
+        // Iterate winning & netrual captures
         while !captures.is_empty() {
             let mut index = 0;
             for i in 1..captures.len() {
@@ -63,6 +63,9 @@ impl Searcher<'_> {
                 }
             }
 
+            if captures[index].1 < 0 {
+                break;
+            }
             if search(self, captures.swap_remove(index).0)? {
                 return Some(());
             }
@@ -88,6 +91,20 @@ impl Searcher<'_> {
             }
 
             if search(self, quiets.swap_remove(index).0)? {
+                return Some(());
+            }
+        }
+
+        // Iterate losing captures
+        while !captures.is_empty() {
+            let mut index = 0;
+            for i in 1..captures.len() {
+                if captures[i].1 > captures[index].1 {
+                    index = i;
+                }
+            }
+
+            if search(self, captures.swap_remove(index).0)? {
                 return Some(());
             }
         }
