@@ -8,16 +8,26 @@ use super::{Searcher, INVALID_MOVE};
 pub const CONTINUE: bool = false;
 pub const BREAK: bool = true;
 
+pub enum MoveKind {
+    Hash,
+    WinningCapture(i32),
+    Killer,
+    NeutralCapture,
+    Quiet,
+    LosingCapture(i32),
+    Underpromotion,
+}
+
 impl Searcher<'_> {
     pub fn visit_moves(
         &mut self,
         position: &Position,
         hashmove: Option<Move>,
-        mut search: impl FnMut(&mut Searcher, Move) -> Option<bool>,
+        mut search: impl FnMut(&mut Searcher, Move, MoveKind) -> Option<bool>,
     ) -> Option<()> {
         // Hashmove
         if let Some(mv) = hashmove {
-            if search(self, mv)? {
+            if search(self, mv, MoveKind::Hash)? {
                 return Some(());
             }
         }
@@ -63,7 +73,14 @@ impl Searcher<'_> {
                 }
             }
 
-            if search(self, captures.swap_remove(index).0)? {
+            let (mv, see) = captures.swap_remove(index);
+            let kind = match see {
+                i32::MIN..=-1 => MoveKind::LosingCapture(see),
+                0 if mv == killer => MoveKind::Killer,
+                0 => MoveKind::NeutralCapture,
+                1.. => MoveKind::WinningCapture(see),
+            };
+            if search(self, mv, kind)? {
                 return Some(());
             }
         }
@@ -87,14 +104,14 @@ impl Searcher<'_> {
                 }
             }
 
-            if search(self, quiets.swap_remove(index).0)? {
+            if search(self, quiets.swap_remove(index).0, MoveKind::Quiet)? {
                 return Some(());
             }
         }
 
         // Iterate underpromotions
         while let Some(mv) = underpromotions.pop() {
-            if search(self, mv)? {
+            if search(self, mv, MoveKind::Underpromotion)? {
                 return Some(());
             }
         }

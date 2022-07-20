@@ -2,6 +2,7 @@ use crate::position::Position;
 use crate::tt::NodeKind;
 use crate::Eval;
 
+use super::ordering::MoveKind;
 use super::window::Window;
 use super::Searcher;
 
@@ -75,9 +76,10 @@ impl Searcher<'_> {
             entry.map(|e| e.mv),
             window,
             depth,
-            |this, i, mv, new_pos, window| {
+            |this, i, mv, kind, new_pos, window| {
                 let extension = match () {
                     _ if !new_pos.board.checkers().is_empty() => 1,
+                    _ if matches!(kind, MoveKind::WinningCapture(_)) => 1,
                     _ => 0,
                 };
 

@@ -8,7 +8,7 @@ use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, SharedState, Statistics};
 
 pub use self::abdada::AbdadaTable;
-use self::ordering::{OrderingState, BREAK, CONTINUE};
+use self::ordering::{OrderingState, BREAK, CONTINUE, MoveKind};
 use self::window::Window;
 
 mod abdada;
@@ -136,7 +136,7 @@ impl<'a> Searcher<'a> {
         hashmove: Option<Move>,
         mut window: Window,
         depth: i16,
-        mut f: impl FnMut(&mut Searcher, usize, Move, &Position, Window) -> Option<Eval>,
+        mut f: impl FnMut(&mut Searcher, usize, Move, MoveKind, &Position, Window) -> Option<Eval>,
     ) -> Option<(Eval, Move)> {
         let mut best_move = INVALID_MOVE;
         let mut best_score = -Eval::MATE;
@@ -145,7 +145,7 @@ impl<'a> Searcher<'a> {
 
         let mut remaining = vec![];
 
-        self.visit_moves(position, hashmove, |this, mv| {
+        self.visit_moves(position, hashmove, |this, mv, kind| {
             let new_pos = position.play_move(&this.shared.nnue, mv);
 
             let v;
@@ -157,7 +157,7 @@ impl<'a> Searcher<'a> {
                     && this.shared.abdada.is_searching(new_pos.board.hash())
                 {
                     this.repetition.remove(&new_pos.board.hash());
-                    remaining.push((i, mv, new_pos));
+                    remaining.push((i, mv, kind, new_pos));
                     i += 1;
                     return Some(CONTINUE);
                 }
@@ -167,7 +167,7 @@ impl<'a> Searcher<'a> {
                     true => this.shared.abdada.enter(new_pos.board.hash()),
                     false => None,
                 };
-                v = f(this, i, mv, &new_pos, window)?;
+                v = f(this, i, mv, kind, &new_pos, window)?;
                 this.repetition.remove(&new_pos.board.hash());
             } else {
                 // repetition
@@ -191,11 +191,11 @@ impl<'a> Searcher<'a> {
             Some(CONTINUE)
         })?;
 
-        for (i, mv, new_pos) in remaining {
+        for (i, mv, kind, new_pos) in remaining {
             self.shared.tt.prefetch(&new_pos.board);
             self.repetition.insert(new_pos.board.hash());
             let _guard = self.shared.abdada.enter(new_pos.board.hash());
-            let v = f(self, i, mv, &new_pos, window)?;
+            let v = f(self, i, mv, kind, &new_pos, window)?;
             self.repetition.remove(&new_pos.board.hash());
 
             if v > best_score {
