@@ -4,6 +4,7 @@ use crate::position::Position;
 use crate::tt::NodeKind;
 use crate::Eval;
 
+use super::ordering::MoveKind;
 use super::window::Window;
 use super::Searcher;
 
@@ -51,7 +52,7 @@ impl Searcher<'_> {
             hashmove,
             window,
             depth,
-            |this, i, mv, new_pos, window| {
+            |this, i, _mv, kind, new_pos, window| {
                 let extension = match () {
                     _ if !new_pos.board.checkers().is_empty() => 1,
                     _ => 0,
@@ -62,9 +63,10 @@ impl Searcher<'_> {
                     return Some(-this.visit_pv(&new_pos, -window, depth + extension - 1)?);
                 }
 
-                let reduction = match () {
+                let reduction = match kind {
                     _ if extension > 0 => -extension,
-                    _ if position.is_capture(mv) => 0,
+                    MoveKind::WinningCapture(_) => 0,
+                    MoveKind::NeutralCapture => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
                     _ => ((2 * depth + i as i16) / 8).min(i as i16) * 2 / 3,
                 };
