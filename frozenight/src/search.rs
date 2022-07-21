@@ -256,3 +256,16 @@ impl<'a> Searcher<'a> {
         self.state.history.caused_cutoff(position, mv);
     }
 }
+
+pub(super) fn lmr_table() -> [[i16; 32]; 32] {
+    let mut result = [[0; 32]; 32];
+    for d in 1..32 {
+        for i in 1..32 {
+            let depth = d as f64;
+            let index = i as f64;
+            let reduction = depth.ln() * index.ln() / 1.12;
+            result[d][i] = reduction as i16;
+        }
+    }
+    result
+}

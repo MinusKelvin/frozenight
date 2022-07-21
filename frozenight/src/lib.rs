@@ -28,6 +28,7 @@ struct SharedState {
     nnue: Nnue,
     tt: TranspositionTable,
     abdada: AbdadaTable,
+    lmr_table: [[i16; 32]; 32],
 }
 
 struct CurrentSearch<I, B> {
@@ -48,6 +49,7 @@ impl Frozenight {
                 nnue: Nnue::new(),
                 tt: TranspositionTable::new(hash_mb),
                 abdada: AbdadaTable::new(),
+                lmr_table: search::lmr_table(),
             }),
             tl_data: vec![],
             abort: Default::default(),
@@ -67,6 +69,7 @@ impl Frozenight {
                     nnue: Nnue::new(),
                     tt: TranspositionTable::new(hash_mb),
                     abdada: AbdadaTable::new(),
+                    lmr_table: search::lmr_table(),
                 });
             }
         }
