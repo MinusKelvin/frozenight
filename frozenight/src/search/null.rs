@@ -70,6 +70,8 @@ impl Searcher<'_> {
             }
         }
 
+        let mut yielded = Vec::with_capacity(64);
+
         self.search_moves(
             position,
             entry.map(|e| e.mv),
@@ -99,10 +101,13 @@ impl Searcher<'_> {
                 }
 
                 if window.fail_high(v) {
+                    for &mv in &yielded {
+                        this.state.history.did_not_cause_cutoff(position, mv);
+                    }
                     return Some(v);
                 }
 
-                this.state.history.did_not_cause_cutoff(position, mv);
+                yielded.push(mv);
 
                 Some(v)
             },
