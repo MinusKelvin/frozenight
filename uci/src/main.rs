@@ -176,8 +176,9 @@ fn main() {
                                 .max(Duration::from_millis(1))
                         }),
                         time_available.map(|d| {
-                            now + (d / 2)
+                            now + ((d / 8) + increment)
                                 .saturating_sub(move_overhead)
+                                .min(d * 3 / 4)
                                 .max(Duration::from_millis(1))
                         }),
                         depth,
