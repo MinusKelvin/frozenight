@@ -48,6 +48,7 @@ pub(crate) struct Searcher<'a> {
     multithreaded: bool,
     repetition: IntSet<u64>,
     state: &'a mut SearchState,
+    root_ordering: Box<[[u64; Square::NUM]; Square::NUM]>,
 }
 
 impl<'a> Searcher<'a> {
@@ -71,6 +72,7 @@ impl<'a> Searcher<'a> {
             multithreaded,
             node_limit: u64::MAX,
             valid: true,
+            root_ordering: Box::new([[0; Square::NUM]; Square::NUM]),
         }
     }
 
@@ -167,7 +169,14 @@ impl<'a> Searcher<'a> {
                     true => this.shared.abdada.enter(new_pos.board.hash()),
                     false => None,
                 };
+
+                let start_nodes = this.stats.nodes.load(Ordering::Relaxed);
                 v = f(this, i, mv, &new_pos, window)?;
+                if position.ply == 0 {
+                    this.root_ordering[mv.from as usize][mv.to as usize] =
+                        this.stats.nodes.load(Ordering::Relaxed) - start_nodes;
+                }
+
                 this.repetition.remove(&new_pos.board.hash());
             } else {
                 // repetition
@@ -195,7 +204,14 @@ impl<'a> Searcher<'a> {
             self.shared.tt.prefetch(&new_pos.board);
             self.repetition.insert(new_pos.board.hash());
             let _guard = self.shared.abdada.enter(new_pos.board.hash());
+
+            let start_nodes = self.stats.nodes.load(Ordering::Relaxed);
             let v = f(self, i, mv, &new_pos, window)?;
+            if position.ply == 0 {
+                self.root_ordering[mv.from as usize][mv.to as usize] =
+                    self.stats.nodes.load(Ordering::Relaxed) - start_nodes;
+            }
+
             self.repetition.remove(&new_pos.board.hash());
 
             if v > best_score {

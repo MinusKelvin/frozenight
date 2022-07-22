@@ -22,6 +22,27 @@ impl Searcher<'_> {
             }
         }
 
+        if position.ply == 0 {
+            // Order root moves according to subtree size
+            let mut moves = Vec::with_capacity(64);
+            position.board.generate_moves(|mvs| {
+                for mv in mvs {
+                    if Some(mv) == hashmove {
+                        continue;
+                    }
+                    moves.push((mv, self.root_ordering[mv.from as usize][mv.to as usize]));
+                }
+                false
+            });
+            moves.sort_by_key(|&(_, v)| std::cmp::Reverse(v));
+            for (mv, _) in moves {
+                if search(self, mv)? {
+                    unreachable!()
+                }
+            }
+            return Some(());
+        }
+
         // Generate moves.
         let mut captures = Vec::with_capacity(16);
         let mut quiets = Vec::with_capacity(64);
