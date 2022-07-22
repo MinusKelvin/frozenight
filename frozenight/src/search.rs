@@ -144,6 +144,7 @@ impl<'a> Searcher<'a> {
         let mut i = 0;
 
         let mut remaining = vec![];
+        let mut searched = Vec::with_capacity(64);
 
         self.visit_moves(position, hashmove, |this, mv| {
             let new_pos = position.play_move(&this.shared.nnue, mv);
@@ -187,6 +188,8 @@ impl<'a> Searcher<'a> {
                 raised_alpha = true;
             }
 
+            searched.push(mv);
+
             i += 1;
             Some(CONTINUE)
         })?;
@@ -210,9 +213,14 @@ impl<'a> Searcher<'a> {
             if window.raise_lb(v) {
                 raised_alpha = true;
             }
+
+            searched.push(mv);
         }
 
         if window.fail_high(best_score) {
+            for &mv in &searched {
+                self.state.history.did_not_cause_cutoff(position, mv);
+            }
             self.failed_high(position, depth, best_score, best_move);
         } else if raised_alpha {
             self.shared.tt.store(
