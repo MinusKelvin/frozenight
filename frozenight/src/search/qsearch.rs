@@ -74,9 +74,7 @@ impl Searcher<'_> {
             for mv in mvs {
                 if position.board.occupied().has(mv.to) {
                     let see = static_exchange_eval(&position.board, mv);
-                    if see >= 0 || in_check {
-                        moves.push((mv, see));
-                    }
+                    moves.push((mv, see));
                 } else {
                     moves.push((mv, 0))
                 }
@@ -95,9 +93,7 @@ impl Searcher<'_> {
                     had_moves = true;
                     if position.board.occupied().has(mv.to) {
                         let see = static_exchange_eval(&position.board, mv);
-                        if see >= 0 {
-                            moves.push((mv, see));
-                        }
+                        moves.push((mv, see));
                     } else {
                         moves.push((mv, 0))
                     }
