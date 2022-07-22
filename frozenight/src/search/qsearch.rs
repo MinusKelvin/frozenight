@@ -10,7 +10,7 @@ use super::see::static_exchange_eval;
 use super::window::Window;
 use super::{Searcher, INVALID_MOVE};
 
-const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
+const BREADTH_LIMIT: [u8; 14] = [16, 12, 8, 6, 4, 3, 3, 2, 2, 2, 1, 1, 1, 1];
 
 impl Searcher<'_> {
     pub fn qsearch(&mut self, position: &Position, window: Window) -> Eval {
