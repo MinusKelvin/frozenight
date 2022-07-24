@@ -10,14 +10,8 @@ use super::see::static_exchange_eval;
 use super::window::Window;
 use super::{Searcher, INVALID_MOVE};
 
-const BREADTH_LIMIT: [u8; 12] = [16, 8, 4, 3, 2, 2, 2, 2, 1, 1, 1, 1];
-
 impl Searcher<'_> {
-    pub fn qsearch(&mut self, position: &Position, window: Window) -> Eval {
-        self.qsearch_impl(position, window, 0)
-    }
-
-    fn qsearch_impl(&mut self, position: &Position, orig_window: Window, qply: u16) -> Eval {
+    pub fn qsearch(&mut self, position: &Position, orig_window: Window) -> Eval {
         self.stats
             .selective_depth
             .fetch_max(position.ply, Ordering::Relaxed);
@@ -50,7 +44,6 @@ impl Searcher<'_> {
 
         if let Some(entry) = self.shared.tt.get(position) {
             match entry.kind {
-                _ if entry.depth < -(qply as i16) => {}
                 NodeKind::Exact => return entry.eval,
                 NodeKind::LowerBound => {
                     if window.fail_high(entry.eval) {
@@ -123,12 +116,7 @@ impl Searcher<'_> {
             }
         }
 
-        let mut i = 0;
-        let limit = match in_check {
-            true => 100,
-            false => BREADTH_LIMIT.get(qply as usize).copied().unwrap_or(0),
-        };
-        while !moves.is_empty() && i < limit {
+        while !moves.is_empty() {
             let mut index = 0;
             for i in 1..moves.len() {
                 if moves[i].1 > moves[index].1 {
@@ -137,18 +125,14 @@ impl Searcher<'_> {
             }
             let mv = moves.swap_remove(index).0;
 
-            let v = -self.qsearch_impl(
-                &position.play_move(&self.shared.nnue, mv),
-                -window,
-                qply + 1,
-            );
+            let v = -self.qsearch(&position.play_move(&self.shared.nnue, mv), -window);
             if window.fail_high(v) {
                 self.shared.tt.store(
                     &position,
                     TableEntry {
                         mv,
                         eval: v,
-                        depth: -(qply as i16),
+                        depth: 0,
                         kind: NodeKind::LowerBound,
                     },
                 );
@@ -159,8 +143,6 @@ impl Searcher<'_> {
                 best = v;
                 best_mv = mv;
             }
-
-            i += 1;
         }
 
         if best_mv != INVALID_MOVE {
@@ -169,12 +151,12 @@ impl Searcher<'_> {
                 TableEntry {
                     mv: best_mv,
                     eval: best,
-                    depth: -(qply as i16),
                     kind: if window.fail_low(best) {
                         NodeKind::UpperBound
                     } else {
                         NodeKind::Exact
                     },
+                    depth: 0,
                 },
             );
         }
