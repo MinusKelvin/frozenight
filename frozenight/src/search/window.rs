@@ -31,6 +31,11 @@ impl Window {
         }
         raised
     }
+
+    pub fn new(lb: Eval, ub: Eval) -> Self {
+        assert!(lb < ub);
+        Window { lb, ub }
+    }
 }
 
 impl Default for Window {

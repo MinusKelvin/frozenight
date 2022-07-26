@@ -78,7 +78,7 @@ impl<'a> Searcher<'a> {
     ///
     /// Invariant: `self` is unchanged if this function returns `Some`. If it returns none, then
     /// calling this function again will result in a panic.
-    pub fn search(&mut self, depth: i16) -> Option<(Eval, Move)> {
+    pub fn search(&mut self, depth: i16, around: Option<Eval>) -> Option<(Eval, Move)> {
         assert!(depth > 0);
         if !self.valid {
             panic!("attempt to search using an aborted searcher");
@@ -88,11 +88,22 @@ impl<'a> Searcher<'a> {
             panic!("root position (FEN: {}) has no moves", self.root);
         }
 
-        self.pv_search(
-            &Position::from_root(self.root.clone(), &self.shared.nnue),
-            Window::default(),
-            depth,
-        )
+        let window = match around {
+            Some(around) if depth >= 3 && !around.is_conclusive() => {
+                Window::new(around - 500, around + 500)
+            }
+            _ => Window::default(),
+        };
+
+        let position = &Position::from_root(self.root.clone(), &self.shared.nnue);
+
+        let (eval, mv) = self.pv_search(position, window, depth)?;
+
+        if window.fail_low(eval) || window.fail_high(eval) {
+            self.pv_search(position, Window::default(), depth)
+        } else {
+            Some((eval, mv))
+        }
     }
 
     fn visit_node(

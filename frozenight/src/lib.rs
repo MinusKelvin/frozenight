@@ -282,7 +282,7 @@ fn iterative_deepening(
     let mut pv = Vec::with_capacity(32);
     for depth in 1..depth_limit + 1 {
         let check_tm;
-        if let Some(result) = searcher.search(depth as i16) {
+        if let Some(result) = searcher.search(depth as i16, best_move.map(|(v, _)| v)) {
             pv.clear();
             pv.push(result.1);
             let mut b = searcher.root.clone();
