@@ -89,8 +89,13 @@ impl<'a> Searcher<'a> {
         }
 
         let window = match around {
-            Some(around) if depth >= 3 && !around.is_conclusive() => {
-                Window::new(around - 500, around + 500)
+            _ if depth < 3 => Window::default(),
+            Some(around) if !around.is_conclusive() => Window::new(around - 500, around + 500),
+            Some(around) if around.is_conclusive() && around < Eval::DRAW => {
+                Window::new(-Eval::MATE, around)
+            }
+            Some(around) if around.is_conclusive() && around > Eval::DRAW => {
+                Window::new(around, Eval::MATE)
             }
             _ => Window::default(),
         };
