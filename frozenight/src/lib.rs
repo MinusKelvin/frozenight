@@ -290,7 +290,7 @@ fn iterative_deepening(
             let mut mvs = 0;
             while let Some(mv) = searcher.shared.tt.get_move(&b) {
                 mvs += 1;
-                if mvs < depth && b.try_play(mv).unwrap() {
+                if mvs < depth && b.try_play(mv).is_ok() {
                     pv.push(mv);
                 } else {
                     break;

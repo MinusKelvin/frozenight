@@ -93,7 +93,7 @@ dependencies = [
 [[package]]
 name = "cozy-chess"
 version = "0.3.0"
-source = "git+https://github.com/analog-hors/cozy-chess?rev=16b8477#16b8477e0ce9c06a634154fcff2bfae73a8c0f69"
+source = "git+https://github.com/analog-hors/cozy-chess?rev=1b1eeb7#1b1eeb7fd6d4bbcc5c07b353ebbf58fae6636cef"
 dependencies = [
  "cozy-chess-types 0.2.0",
 ]
@@ -107,7 +107,7 @@ checksum = "847c4608e7a1ec5968d182493cdab14836def5aa950d2191662bab1f831ab903"
 [[package]]
 name = "cozy-chess-types"
 version = "0.2.0"
-source = "git+https://github.com/analog-hors/cozy-chess?rev=16b8477#16b8477e0ce9c06a634154fcff2bfae73a8c0f69"
+source = "git+https://github.com/analog-hors/cozy-chess?rev=1b1eeb7#1b1eeb7fd6d4bbcc5c07b353ebbf58fae6636cef"
 
 [[package]]
 name = "cozy-syzygy"

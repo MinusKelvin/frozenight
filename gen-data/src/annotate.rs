@@ -161,11 +161,11 @@ fn emit_sample(mut out: impl Write, board: &Board, eval: Eval, winner: Option<Co
     write_features(&mut out, board, board.side_to_move() == Color::Black);
     write_features(&mut out, board, board.side_to_move() == Color::White);
     out.write_all(&eval.raw().to_le_bytes()).unwrap();
-    let material = board.pieces(Piece::Pawn).popcnt() as u8
-        + 3 * board.pieces(Piece::Bishop).popcnt() as u8
-        + 3 * board.pieces(Piece::Knight).popcnt() as u8
-        + 5 * board.pieces(Piece::Rook).popcnt() as u8
-        + 8 * board.pieces(Piece::Queen).popcnt() as u8;
+    let material = board.pieces(Piece::Pawn).len() as u8
+        + 3 * board.pieces(Piece::Bishop).len() as u8
+        + 3 * board.pieces(Piece::Knight).len() as u8
+        + 5 * board.pieces(Piece::Rook).len() as u8
+        + 8 * board.pieces(Piece::Queen).len() as u8;
     let outcome = match (winner, board.side_to_move()) {
         (Some(win), stm) if win == stm => 2,
         (Some(win), stm) if win != stm => 0,
@@ -193,7 +193,7 @@ fn write_features(mut out: impl Write, board: &Board, flip: bool) {
         out.write_all(&u16::try_from(index).unwrap().to_le_bytes())
             .unwrap();
     }
-    for _ in board.occupied().popcnt()..32 {
+    for _ in board.occupied().len()..32 {
         out.write_all(&u16::MAX.to_le_bytes()).unwrap();
     }
 }

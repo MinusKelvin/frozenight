@@ -43,11 +43,11 @@ impl NnueAccumulator {
         NnueAccumulator {
             white,
             black,
-            material: board.pieces(Piece::Pawn).popcnt() as usize
-                + 3 * board.pieces(Piece::Bishop).popcnt() as usize
-                + 3 * board.pieces(Piece::Knight).popcnt() as usize
-                + 5 * board.pieces(Piece::Rook).popcnt() as usize
-                + 8 * board.pieces(Piece::Queen).popcnt() as usize,
+            material: board.pieces(Piece::Pawn).len() as usize
+                + 3 * board.pieces(Piece::Bishop).len() as usize
+                + 3 * board.pieces(Piece::Knight).len() as usize
+                + 5 * board.pieces(Piece::Rook).len() as usize
+                + 8 * board.pieces(Piece::Queen).len() as usize,
         }
     }
 

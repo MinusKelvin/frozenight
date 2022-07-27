@@ -35,13 +35,13 @@ pub fn oracle(board: &Board) -> Option<Eval> {
     }
 
     // bishops of same color draw
-    if board.occupied().popcnt() - 2 == bishops.popcnt() {
+    if board.occupied().len() - 2 == bishops.len() {
         if bishops.is_subset(CHECKERBOARD) || bishops.is_subset(!CHECKERBOARD) {
             return Some(Eval::DRAW);
         }
     }
 
-    match board.occupied().popcnt() {
+    match board.occupied().len() {
         0..=3 => Some(Eval::DRAW), // KvK, KBvK, KNvK
         4 => {
             let minors = bishops | knights;
