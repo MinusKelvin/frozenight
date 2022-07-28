@@ -90,7 +90,8 @@ impl<'a> Searcher<'a> {
 
         let window = match around {
             Some(around) if depth >= 3 && !around.is_conclusive() => {
-                Window::new(around - 500, around + 500)
+                let window_size = around.raw().abs() / 8 + 250;
+                Window::new(around - window_size, around + window_size)
             }
             _ => Window::default(),
         };
