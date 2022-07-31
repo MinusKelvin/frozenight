@@ -1,7 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use cozy_chess::{Board, Move, Square};
-use nohash::IntSet;
 
 use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
@@ -46,8 +45,9 @@ pub(crate) struct Searcher<'a> {
     pub abort: &'a AtomicBool,
     valid: bool,
     multithreaded: bool,
-    repetition: IntSet<u64>,
     state: &'a mut SearchState,
+    rep_list: Vec<u64>,
+    rep_table: [u8; 1024],
 }
 
 impl<'a> Searcher<'a> {
@@ -56,21 +56,26 @@ impl<'a> Searcher<'a> {
         shared: &'a SharedState,
         state: &'a mut SearchState,
         stats: &'a Statistics,
-        repetition: IntSet<u64>,
         root: Board,
         multithreaded: bool,
+        rep_list: Vec<u64>,
     ) -> Self {
         state.history.decay();
+        let mut rep_table = [0; 1024];
+        for &b in &rep_list {
+            rep_table[b as usize % 1024] += 1;
+        }
         Searcher {
             root,
             shared,
             abort,
-            repetition,
             state,
             stats,
             multithreaded,
+            rep_table,
             node_limit: u64::MAX,
             valid: true,
+            rep_list,
         }
     }
 
@@ -162,12 +167,13 @@ impl<'a> Searcher<'a> {
             let v;
             if let Some(eval) = oracle::oracle(&new_pos.board) {
                 v = eval;
-            } else if this.repetition.insert(new_pos.board.hash()) {
+            } else if this.is_repetition(&new_pos.board) {
+                v = Eval::DRAW;
+            } else {
                 if this.multithreaded
                     && i > 0
                     && this.shared.abdada.is_searching(new_pos.board.hash())
                 {
-                    this.repetition.remove(&new_pos.board.hash());
                     remaining.push((i, mv, new_pos));
                     i += 1;
                     return Some(CONTINUE);
@@ -178,12 +184,10 @@ impl<'a> Searcher<'a> {
                     true => this.shared.abdada.enter(new_pos.board.hash()),
                     false => None,
                 };
+                this.push_repetition(&new_pos.board);
                 v = f(this, i, mv, &new_pos, window)?;
-                this.repetition.remove(&new_pos.board.hash());
-            } else {
-                // repetition
-                v = Eval::DRAW;
-            };
+                this.pop_repetition();
+            }
 
             if v > best_score {
                 best_move = mv;
@@ -204,10 +208,10 @@ impl<'a> Searcher<'a> {
 
         for (i, mv, new_pos) in remaining {
             self.shared.tt.prefetch(&new_pos.board);
-            self.repetition.insert(new_pos.board.hash());
+            self.push_repetition(&new_pos.board);
             let _guard = self.shared.abdada.enter(new_pos.board.hash());
             let v = f(self, i, mv, &new_pos, window)?;
-            self.repetition.remove(&new_pos.board.hash());
+            self.pop_repetition();
 
             if v > best_score {
                 best_move = mv;
@@ -265,5 +269,29 @@ impl<'a> Searcher<'a> {
             },
         );
         self.state.history.caused_cutoff(position, mv);
+    }
+
+    fn push_repetition(&mut self, board: &Board) {
+        self.rep_table[board.hash() as usize % 1024] += 1;
+        self.rep_list.push(board.hash());
+    }
+
+    fn pop_repetition(&mut self) {
+        let hash = self.rep_list.pop().unwrap();
+        self.rep_table[hash as usize % 1024] -= 1;
+    }
+
+    fn is_repetition(&self, board: &Board) -> bool {
+        if self.rep_table[board.hash() as usize % 1024] == 0 {
+            return false;
+        }
+
+        self
+            .rep_list
+            .iter()
+            .rev()
+            .take(board.halfmove_clock() as usize)
+            .skip(1)
+            .any(|&b| b == board.hash())
     }
 }

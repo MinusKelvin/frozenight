@@ -8,4 +8,3 @@ edition = "2021"
 [dependencies]
 bytemuck = { version = "1.7.3", features = ["derive"] }
 cozy-chess = "0.3"
-nohash = "0.2.0"

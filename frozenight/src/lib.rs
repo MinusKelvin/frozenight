@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move};
-use nohash::{IntMap, IntSet};
 
 mod eval;
 mod nnue;
@@ -18,7 +17,7 @@ use tt::TranspositionTable;
 
 pub struct Frozenight {
     board: Board,
-    history: IntSet<u64>,
+    prehistory: Vec<u64>,
     shared_state: Arc<SharedState>,
     tl_data: Vec<Arc<(Statistics, Mutex<SearchState>)>>,
     abort: Arc<AtomicBool>,
@@ -43,7 +42,7 @@ impl Frozenight {
     pub fn new(hash_mb: usize) -> Self {
         Frozenight {
             board: Default::default(),
-            history: Default::default(),
+            prehistory: vec![],
             shared_state: Arc::new(SharedState {
                 nnue: Nnue::new(),
                 tt: TranspositionTable::new(hash_mb),
@@ -77,31 +76,31 @@ impl Frozenight {
     }
 
     pub fn set_position(&mut self, start: Board, mut moves: impl FnMut(&Board) -> Option<Move>) {
-        let old_hash = self.board.hash();
+        let old = self.board.clone();
         let mut moves_since_occurance = -1;
         self.board = start;
-        let mut occurances = IntMap::<_, usize>::default();
+        self.prehistory.clear();
         while let Some(mv) = moves(&self.board) {
-            *occurances.entry(self.board.hash()).or_default() += 1;
-            if self.board.hash() == old_hash {
+            self.prehistory.push(self.board.hash());
+
+            if self.board.same_position(&old) {
                 moves_since_occurance = 0;
             } else if moves_since_occurance >= 0 {
                 moves_since_occurance += 1;
             }
+
             self.board.play(mv);
+            if self.board.halfmove_clock() == 0 {
+                self.prehistory.clear();
+            }
         }
+        self.prehistory.push(self.board.hash());
         self.shared_state
             .tt
             .increment_age(match moves_since_occurance {
                 0..=4 => 1,
                 _ => 2,
             });
-        self.history = occurances
-            .into_iter()
-            .filter(|&(_, count)| count > 1)
-            .map(|(hash, _)| hash)
-            .collect();
-        self.history.insert(self.board.hash());
     }
 
     pub fn start_search(
@@ -233,7 +232,7 @@ impl Frozenight {
         let tl_data = self.tl_data[thread].clone();
         tl_data.0.nodes.store(0, Ordering::Relaxed);
         tl_data.0.selective_depth.store(0, Ordering::Relaxed);
-        let repetitions = self.history.clone();
+        let prehistory = self.prehistory.clone();
         let board = self.board.clone();
         move |f| {
             f(Searcher::new(
@@ -241,9 +240,9 @@ impl Frozenight {
                 &shared,
                 &mut tl_data.1.lock().unwrap(),
                 &tl_data.0,
-                repetitions,
                 board,
                 multithreaded,
+                prehistory
             ))
         }
     }
