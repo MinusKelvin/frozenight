@@ -272,8 +272,8 @@ impl<'a> Searcher<'a> {
     }
 
     fn push_repetition(&mut self, board: &Board) {
-        self.rep_table[board.hash() as usize % 1024] += 1;
-        self.rep_list.push(board.hash());
+        self.rep_table[board.hash_without_ep() as usize % 1024] += 1;
+        self.rep_list.push(board.hash_without_ep());
     }
 
     fn pop_repetition(&mut self) {
@@ -282,7 +282,7 @@ impl<'a> Searcher<'a> {
     }
 
     fn is_repetition(&self, board: &Board) -> bool {
-        if self.rep_table[board.hash() as usize % 1024] == 0 {
+        if self.rep_table[board.hash_without_ep() as usize % 1024] == 0 {
             return false;
         }
 
@@ -292,6 +292,7 @@ impl<'a> Searcher<'a> {
             .rev()
             .take(board.halfmove_clock() as usize)
             .skip(1)
+            .step_by(2)
             .any(|&b| b == board.hash())
     }
 }

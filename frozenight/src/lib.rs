@@ -81,7 +81,7 @@ impl Frozenight {
         self.board = start;
         self.prehistory.clear();
         while let Some(mv) = moves(&self.board) {
-            self.prehistory.push(self.board.hash());
+            self.prehistory.push(self.board.hash_without_ep());
 
             if self.board.same_position(&old) {
                 moves_since_occurance = 0;
@@ -94,7 +94,7 @@ impl Frozenight {
                 self.prehistory.clear();
             }
         }
-        self.prehistory.push(self.board.hash());
+        self.prehistory.push(self.board.hash_without_ep());
         self.shared_state
             .tt
             .increment_age(match moves_since_occurance {
