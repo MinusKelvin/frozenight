@@ -90,7 +90,7 @@ impl Frozenight {
             }
 
             self.board.play(mv);
-            if self.board.halfmove_clock() == 0 {
+            if self.board.halfmove_clock == 0 {
                 self.prehistory.clear();
             }
         }

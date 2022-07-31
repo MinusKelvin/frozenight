@@ -30,8 +30,10 @@ impl Position {
     }
 
     pub fn null_move(&self) -> Option<Position> {
+        let mut board = self.board.null_move()?;
+        board.halfmove_clock = 0;
         Some(Position {
-            board: self.board.null_move()?,
+            board,
             nnue: self.nnue,
             ply: self.ply + 1,
         })

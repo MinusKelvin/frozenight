@@ -290,7 +290,7 @@ impl<'a> Searcher<'a> {
             .rep_list
             .iter()
             .rev()
-            .take(board.halfmove_clock() as usize)
+            .take(board.halfmove_clock as usize)
             .skip(1)
             .any(|&b| b == board.hash())
     }
