@@ -63,7 +63,7 @@ impl Searcher<'_> {
                         _ => 3,
                     };
                     let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
-                    if window.fail_high(v) {
+                    if window.fail_high(v) && !v.is_conclusive() && v != Eval::DRAW {
                         return Some(v);
                     }
                 }
