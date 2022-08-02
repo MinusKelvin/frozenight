@@ -44,7 +44,9 @@ impl Searcher<'_> {
             let margin = 250 * depth as i16;
             let rfp_window = Window::null(window.lb() + margin);
             let eval = entry
-                .map(|e| e.eval)
+                .and_then(|e| {
+                    matches!(e.kind, NodeKind::Exact | NodeKind::LowerBound).then(|| e.eval)
+                })
                 .unwrap_or_else(|| self.qsearch(position, rfp_window));
             if rfp_window.fail_high(eval) {
                 return Some(eval);
