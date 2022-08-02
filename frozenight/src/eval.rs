@@ -86,7 +86,7 @@ impl std::ops::Add<i16> for Eval {
     type Output = Eval;
 
     fn add(self, rhs: i16) -> Self::Output {
-        Eval::new(self.0 + rhs)
+        Eval(self.0 + rhs)
     }
 }
 
@@ -94,7 +94,7 @@ impl std::ops::Sub<i16> for Eval {
     type Output = Eval;
 
     fn sub(self, rhs: i16) -> Self::Output {
-        Eval::new(self.0 - rhs)
+        Eval(self.0 - rhs)
     }
 }
 
