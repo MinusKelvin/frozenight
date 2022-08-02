@@ -40,7 +40,7 @@ impl Searcher<'_> {
         }
 
         // reverse futility pruning... but with qsearch
-        if depth <= 6 {
+        if depth <= 6 && position.board.checkers().is_empty() {
             let margin = 250 * depth as i16;
             let rfp_window = Window::null(window.lb() + margin);
             let eval = entry
