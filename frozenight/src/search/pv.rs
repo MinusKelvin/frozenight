@@ -14,9 +14,9 @@ impl Searcher<'_> {
         window: Window,
         depth: i16,
     ) -> Option<(Eval, Move)> {
-        let hashmove = match self.shared.tt.get(&position) {
+        let entry = match self.shared.tt.get(&position) {
             None => None,
-            Some(entry) => {
+            Some(mut entry) => {
                 if entry.depth >= depth {
                     match entry.kind {
                         NodeKind::Exact => {
@@ -39,23 +39,47 @@ impl Searcher<'_> {
                 let tt_not_good_enough = entry.depth < depth - 2 || entry.kind != NodeKind::Exact;
                 if tt_not_good_enough && depth > 3 {
                     // internal iterative deepening
-                    Some(self.pv_search(position, window, depth - 2)?.1)
-                } else {
-                    Some(entry.mv)
+                    (entry.eval, entry.mv) = self.pv_search(position, window, depth - 2)?;
+                    entry.depth = depth - 2;
+                    entry.kind = match () {
+                        _ if window.fail_high(entry.eval) => NodeKind::LowerBound,
+                        _ if window.fail_low(entry.eval) => NodeKind::UpperBound,
+                        _ => NodeKind::Exact,
+                    };
                 }
+                Some(entry)
             }
         };
 
         self.search_moves(
             position,
-            hashmove,
+            entry.map(|e| e.mv),
+            None,
             window,
             depth,
             |this, i, mv, new_pos, window| {
-                let extension = match () {
+                let mut extension = match () {
                     _ if !new_pos.board.checkers().is_empty() => 1,
                     _ => 0,
                 };
+
+                // Singular extension
+                if let Some(entry) = entry {
+                    if i == 0
+                        && extension < 1
+                        && entry.depth >= depth - 2
+                        && matches!(entry.kind, NodeKind::Exact | NodeKind::LowerBound)
+                        && depth >= 7
+                    {
+                        let singular_window = Window::null(entry.eval - 500);
+                        let v =
+                            this.null_search(position, singular_window, depth / 2, Some(entry.mv))?;
+
+                        if singular_window.fail_low(v) {
+                            extension = 1;
+                        }
+                    }
+                }
 
                 if i == 0 {
                     // First move; search as PV node
