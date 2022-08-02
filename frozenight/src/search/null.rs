@@ -42,11 +42,20 @@ impl Searcher<'_> {
         // reverse futility pruning... but with qsearch
         if depth <= 6 {
             let margin = 250 * depth as i16;
+
             let rfp_window = Window::null(window.lb() + margin);
             let eval = entry
                 .map(|e| e.eval)
                 .unwrap_or_else(|| self.qsearch(position, rfp_window));
             if rfp_window.fail_high(eval) {
+                return Some(eval);
+            }
+
+            let rfp_window = Window::null(window.lb() - margin);
+            let eval = entry
+                .map(|e| e.eval)
+                .unwrap_or_else(|| self.qsearch(position, rfp_window));
+            if rfp_window.fail_low(eval) {
                 return Some(eval);
             }
         }
