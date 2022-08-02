@@ -2,6 +2,7 @@ use crate::position::Position;
 use crate::tt::NodeKind;
 use crate::Eval;
 
+use super::ordering::{CONTINUE, BREAK};
 use super::window::Window;
 use super::Searcher;
 
@@ -67,6 +68,30 @@ impl Searcher<'_> {
                         return Some(v);
                     }
                 }
+            }
+        }
+
+        // Multi-cut
+        if depth > 4 && entry.map_or(false, |e| e.kind == NodeKind::LowerBound) {
+            let mut i = 0;
+            let mut cuts = 0;
+            let mut highest = -Eval::MATE;
+            self.visit_moves(position, entry.map(|e| e.mv), |this, mv| {
+                let new_pos = &position.play_move(&self.shared.nnue, mv);
+                let v = -this.visit_null(new_pos, -window, depth - 4 - 1)?;
+                if window.fail_high(v) {
+                    cuts += 1;
+                    highest = highest.max(v);
+                }
+                i += 1;
+                if cuts < 3 && 6 - i >= 3 - cuts {
+                    Some(CONTINUE)
+                } else {
+                    Some(BREAK)
+                }
+            });
+            if cuts >= 3 {
+                return Some(highest);
             }
         }
 
