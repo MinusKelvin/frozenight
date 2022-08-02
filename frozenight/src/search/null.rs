@@ -46,7 +46,7 @@ impl Searcher<'_> {
             let eval = entry
                 .map(|e| e.eval)
                 .unwrap_or_else(|| self.qsearch(position, rfp_window));
-            if rfp_window.fail_high(eval) {
+            if !eval.is_conclusive() && rfp_window.fail_high(eval) {
                 return Some(eval);
             }
         }
