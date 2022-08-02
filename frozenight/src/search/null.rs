@@ -5,17 +5,26 @@ use crate::Eval;
 use super::window::Window;
 use super::Searcher;
 
-use cozy_chess::Piece;
+use cozy_chess::{Move, Piece};
 
 impl Searcher<'_> {
     pub fn visit_null(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
         self.visit_node(position, window, depth, |this| {
-            this.null_search(position, window, depth)
+            this.null_search(position, window, depth, None)
         })
     }
 
-    fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
-        let entry = self.shared.tt.get(&position);
+    pub fn null_search(
+        &mut self,
+        position: &Position,
+        window: Window,
+        depth: i16,
+        skip: Option<Move>,
+    ) -> Option<Eval> {
+        let entry = match skip.is_some() {
+            false => self.shared.tt.get(&position),
+            true => None,
+        };
         if let Some(entry) = entry {
             match entry.kind {
                 _ if entry.depth < depth => {}
@@ -72,6 +81,7 @@ impl Searcher<'_> {
         self.search_moves(
             position,
             entry.map(|e| e.mv),
+            skip,
             window,
             depth,
             |this, i, mv, new_pos, window| {
