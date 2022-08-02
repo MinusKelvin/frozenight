@@ -150,6 +150,7 @@ impl<'a> Searcher<'a> {
         &mut self,
         position: &Position,
         hashmove: Option<Move>,
+        skip: Option<Move>,
         mut window: Window,
         depth: i16,
         mut f: impl FnMut(&mut Searcher, usize, Move, &Position, Window) -> Option<Eval>,
@@ -162,6 +163,9 @@ impl<'a> Searcher<'a> {
         let mut remaining = vec![];
 
         self.visit_moves(position, hashmove, |this, mv| {
+            if Some(mv) == skip {
+                return Some(CONTINUE);
+            }
             let new_pos = position.play_move(&this.shared.nnue, mv);
 
             let v;
