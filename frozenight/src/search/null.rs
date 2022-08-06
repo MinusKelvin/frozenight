@@ -2,6 +2,7 @@ use crate::position::Position;
 use crate::tt::NodeKind;
 use crate::Eval;
 
+use super::params::*;
 use super::window::Window;
 use super::Searcher;
 
@@ -40,8 +41,8 @@ impl Searcher<'_> {
         }
 
         // reverse futility pruning... but with qsearch
-        if depth <= 6 {
-            let margin = 250 * depth as i16;
+        if depth <= 8 {
+            let margin = RFP_MARGINS[depth as usize - 1].get();
             let rfp_window = Window::null(window.lb() + margin);
             let eval = entry
                 .map(|e| e.eval)

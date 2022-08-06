@@ -49,6 +49,13 @@ fn main() {
                     println!("option name Threads type spin default 1 min 1 max 64");
                     println!("option name OB_noadj type check default false");
                     println!("option name UCI_Chess960 type check default false");
+                    #[cfg(feature = "tweakable")]
+                    for param in frozenight::all_parameters() {
+                        println!(
+                            "option name {} type spin default {} min {} max {}",
+                            param.name(), param.default, param.min, param.max
+                        );
+                    }
                     println!("uciok");
                 }
                 "quit" => {
@@ -85,7 +92,17 @@ fn main() {
                         "Threads" => {
                             threads = stream.next()?.parse().ok()?;
                         }
-                        _ => {}
+                        _ =>
+                        {
+                            #[cfg(feature = "tweakable")]
+                            for param in frozenight::all_parameters() {
+                                if opt != param.name() {
+                                    continue;
+                                }
+                                param.set(stream.next()?.parse().ok()?);
+                                break;
+                            }
+                        }
                     }
                 }
                 "position" => {

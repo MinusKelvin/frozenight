@@ -15,6 +15,8 @@ use nnue::Nnue;
 use search::{AbdadaTable, SearchState, Searcher, INVALID_MOVE};
 use tt::TranspositionTable;
 
+pub use search::all_parameters;
+
 pub struct Frozenight {
     board: Board,
     prehistory: Vec<u64>,
