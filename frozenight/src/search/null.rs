@@ -58,10 +58,7 @@ impl Searcher<'_> {
                 | position.board.pieces(Piece::Queen);
             if !(sliders & position.board.colors(position.board.side_to_move())).is_empty() {
                 if let Some(nm) = position.null_move() {
-                    let reduction = match () {
-                        _ if depth > 6 => 4,
-                        _ => 3,
-                    };
+                    let reduction = depth / 2;
                     let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
                     if window.fail_high(v) {
                         return Some(v);
