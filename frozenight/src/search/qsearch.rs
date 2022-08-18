@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 
-use cozy_chess::{get_king_moves, BitBoard, Move, Piece, Rank};
+use cozy_chess::{Piece, Rank};
 
 use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
@@ -19,28 +19,18 @@ impl Searcher<'_> {
 
         let in_check = !position.board.checkers().is_empty();
         let us = position.board.side_to_move();
-        let king = position.board.king(us);
 
-        let permitted;
-        let mut best;
+        let permitted = position.board.colors(!us);
+        let mut best = position.static_eval(&self.shared.nnue);
         let mut best_mv = INVALID_MOVE;
         let mut window = orig_window;
-        let do_for;
 
-        if in_check {
-            best = -Eval::MATE.add_time(position.ply);
-            permitted = BitBoard::FULL;
-            do_for = BitBoard::FULL;
-        } else {
-            best = position.static_eval(&self.shared.nnue);
-            permitted = position.board.colors(!us);
-            do_for = !king.bitboard();
+        if !in_check {
+            if window.fail_high(best) {
+                return best;
+            }
+            window.raise_lb(best);
         }
-
-        if window.fail_high(best) {
-            return best;
-        }
-        window.raise_lb(best);
 
         if let Some(entry) = self.shared.tt.get(position) {
             match entry.kind {
@@ -60,7 +50,7 @@ impl Searcher<'_> {
 
         let mut moves = Vec::with_capacity(16);
         let mut had_moves = false;
-        position.board.generate_moves_for(do_for, |mut mvs| {
+        position.board.generate_moves(|mut mvs| {
             if !(mvs.piece == Piece::Pawn && mvs.from.rank() == Rank::Seventh.relative_to(us)) {
                 mvs.to &= permitted;
             }
@@ -78,42 +68,18 @@ impl Searcher<'_> {
             false
         });
 
-        if !in_check {
-            for to in get_king_moves(king) & permitted {
-                let mv = Move {
-                    from: king,
-                    to,
-                    promotion: None,
-                };
-                if position.board.is_legal(mv) {
-                    had_moves = true;
-                    if position.board.occupied().has(mv.to) {
-                        let see = static_exchange_eval(&position.board, mv);
-                        if see >= 0 {
-                            moves.push((mv, see));
-                        }
-                    } else {
-                        moves.push((mv, 0))
-                    }
-                }
-            }
-            if !had_moves {
-                for to in get_king_moves(king) & !permitted {
-                    let mv = Move {
-                        from: king,
-                        to,
-                        promotion: None,
-                    };
-                    if position.board.is_legal(mv) {
-                        had_moves = true;
-                        break;
-                    }
-                }
-            }
+        if !had_moves {
+            return match in_check {
+                true => -Eval::MATE.add_time(position.ply),
+                false => Eval::DRAW,
+            };
+        }
 
-            if !had_moves {
-                return Eval::DRAW;
+        if in_check {
+            if window.fail_high(best) {
+                return best;
             }
+            window.raise_lb(best);
         }
 
         while !moves.is_empty() {
