@@ -58,6 +58,27 @@ impl Searcher<'_> {
                 }
             }
             hashmv = Some(entry.mv);
+
+            if in_check || position.is_capture(entry.mv) {
+                let v = -self.qsearch(&position.play_move(&self.shared.nnue, entry.mv), -window);
+                if window.fail_high(v) {
+                    self.shared.tt.store(
+                        &position,
+                        TableEntry {
+                            mv: entry.mv,
+                            eval: v,
+                            depth: 0,
+                            kind: NodeKind::LowerBound,
+                        },
+                    );
+                    return v;
+                }
+                window.raise_lb(v);
+                if v > best {
+                    best = v;
+                    best_mv = entry.mv;
+                }
+            }
         } else {
             hashmv = None;
         }
@@ -71,9 +92,8 @@ impl Searcher<'_> {
             had_moves = true;
             for mv in mvs {
                 if Some(mv) == hashmv {
-                    moves.push((mv, 1_000_000));
-                } else
-                if position.board.occupied().has(mv.to) {
+                    continue;
+                } else if position.board.occupied().has(mv.to) {
                     let see = static_exchange_eval(&position.board, mv);
                     if see >= 0 || in_check {
                         moves.push((mv, see));
@@ -94,7 +114,9 @@ impl Searcher<'_> {
                 };
                 if position.board.is_legal(mv) {
                     had_moves = true;
-                    if position.board.occupied().has(mv.to) {
+                    if Some(mv) == hashmv {
+                        continue;
+                    } else if position.board.occupied().has(mv.to) {
                         let see = static_exchange_eval(&position.board, mv);
                         if see >= 0 {
                             moves.push((mv, see));
