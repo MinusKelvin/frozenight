@@ -42,6 +42,7 @@ impl Searcher<'_> {
         }
         window.raise_lb(best);
 
+        let hashmv;
         if let Some(entry) = self.shared.tt.get(position) {
             match entry.kind {
                 NodeKind::Exact => return entry.eval,
@@ -56,6 +57,9 @@ impl Searcher<'_> {
                     }
                 }
             }
+            hashmv = Some(entry.mv);
+        } else {
+            hashmv = None;
         }
 
         let mut moves = Vec::with_capacity(16);
@@ -66,6 +70,9 @@ impl Searcher<'_> {
             }
             had_moves = true;
             for mv in mvs {
+                if Some(mv) == hashmv {
+                    moves.push((mv, 1_000_000));
+                } else
                 if position.board.occupied().has(mv.to) {
                     let see = static_exchange_eval(&position.board, mv);
                     if see >= 0 || in_check {
