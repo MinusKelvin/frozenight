@@ -67,13 +67,13 @@ impl Searcher<'_> {
                 if let Some(entry) = entry {
                     if i == 0
                         && extension < 1
-                        && entry.depth >= depth - 2
+                        && entry.depth >= depth - 3
                         && matches!(entry.kind, NodeKind::Exact | NodeKind::LowerBound)
-                        && depth >= 7
+                        && depth >= 5
                     {
-                        let singular_window = Window::null(entry.eval - depth * 50);
+                        let singular_window = Window::null(entry.eval - depth * 40);
                         let v =
-                            this.null_search(position, singular_window, depth / 2, Some(entry.mv))?;
+                            this.null_search(position, singular_window, depth / 3, Some(entry.mv))?;
 
                         if singular_window.fail_low(v) {
                             extension = 1;
