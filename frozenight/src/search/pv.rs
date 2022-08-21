@@ -51,6 +51,8 @@ impl Searcher<'_> {
             }
         };
 
+        let mut singular = false;
+
         self.search_moves(
             position,
             entry.map(|e| e.mv),
@@ -77,6 +79,7 @@ impl Searcher<'_> {
 
                         if singular_window.fail_low(v) {
                             extension = 1;
+                            singular = true;
                         }
                     }
                 }
@@ -86,12 +89,16 @@ impl Searcher<'_> {
                     return Some(-this.visit_pv(&new_pos, -window, depth + extension - 1)?);
                 }
 
-                let reduction = match () {
+                let mut reduction = match () {
                     _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
                     _ => ((2 * depth + i as i16) / 8).min(i as i16) * 2 / 3,
                 };
+
+                if extension == 0 && singular {
+                    reduction += 1;
+                }
 
                 let mut v =
                     -this.visit_null(new_pos, -Window::null(window.lb()), depth - reduction - 1)?;
