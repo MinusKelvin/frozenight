@@ -85,10 +85,28 @@ impl Searcher<'_> {
             window,
             depth,
             |this, i, mv, new_pos, window| {
-                let extension = match () {
+                let mut extension = match () {
                     _ if !new_pos.board.checkers().is_empty() => 1,
                     _ => 0,
                 };
+
+                // Singular extension
+                if let Some(entry) = entry {
+                    if i == 0
+                        && extension < 1
+                        && entry.depth >= depth - 2
+                        && matches!(entry.kind, NodeKind::Exact | NodeKind::LowerBound)
+                        && depth >= 7
+                    {
+                        let singular_window = Window::null(entry.eval - depth * 50);
+                        let v =
+                            this.null_search(position, singular_window, depth / 2, Some(entry.mv))?;
+
+                        if singular_window.fail_low(v) {
+                            extension = 1;
+                        }
+                    }
+                }
 
                 let reduction = match () {
                     _ if extension > 0 => -extension,
