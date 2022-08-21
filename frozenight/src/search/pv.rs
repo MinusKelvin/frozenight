@@ -51,6 +51,8 @@ impl Searcher<'_> {
             }
         };
 
+
+
         self.search_moves(
             position,
             entry.map(|e| e.mv),
@@ -66,7 +68,6 @@ impl Searcher<'_> {
                 // Singular extension
                 if let Some(entry) = entry {
                     if i == 0
-                        && extension < 1
                         && entry.depth >= depth - 2
                         && matches!(entry.kind, NodeKind::Exact | NodeKind::LowerBound)
                         && depth >= 7
@@ -76,7 +77,7 @@ impl Searcher<'_> {
                             this.null_search(position, singular_window, depth / 2, Some(entry.mv))?;
 
                         if singular_window.fail_low(v) {
-                            extension = 1;
+                            extension += 1;
                         }
                     }
                 }
