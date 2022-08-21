@@ -71,9 +71,9 @@ impl Searcher<'_> {
                         && matches!(entry.kind, NodeKind::Exact | NodeKind::LowerBound)
                         && depth >= 7
                     {
-                        let singular_window = Window::null(entry.eval - depth * 50);
+                        let singular_window = Window::null(entry.eval - depth * 75);
                         let v =
-                            this.null_search(position, singular_window, depth / 2, Some(entry.mv))?;
+                            this.null_search(position, singular_window, depth / 4, Some(entry.mv))?;
 
                         if singular_window.fail_low(v) {
                             extension = 1;
