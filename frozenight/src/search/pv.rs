@@ -51,6 +51,19 @@ impl Searcher<'_> {
             }
         };
 
+        let mut singular = false;
+        if let Some(entry) = entry {
+            if entry.depth >= depth - 2
+                && matches!(entry.kind, NodeKind::Exact | NodeKind::LowerBound)
+                && depth >= 7
+            {
+                let singular_window = Window::null(entry.eval - depth * 50);
+                let v = self.null_search(position, singular_window, depth / 2, Some(entry.mv))?;
+
+                singular = singular_window.fail_low(v);
+            }
+        }
+
         self.search_moves(
             position,
             entry.map(|e| e.mv),
@@ -58,40 +71,27 @@ impl Searcher<'_> {
             window,
             depth,
             |this, i, mv, new_pos, window| {
-                let mut extension = match () {
+                let extension = match () {
                     _ if !new_pos.board.checkers().is_empty() => 1,
+                    _ if i == 0 && singular => 1,
                     _ => 0,
                 };
-
-                // Singular extension
-                if let Some(entry) = entry {
-                    if i == 0
-                        && extension < 1
-                        && entry.depth >= depth - 2
-                        && matches!(entry.kind, NodeKind::Exact | NodeKind::LowerBound)
-                        && depth >= 7
-                    {
-                        let singular_window = Window::null(entry.eval - depth * 50);
-                        let v =
-                            this.null_search(position, singular_window, depth / 2, Some(entry.mv))?;
-
-                        if singular_window.fail_low(v) {
-                            extension = 1;
-                        }
-                    }
-                }
 
                 if i == 0 {
                     // First move; search as PV node
                     return Some(-this.visit_pv(&new_pos, -window, depth + extension - 1)?);
                 }
 
-                let reduction = match () {
+                let mut reduction = match () {
                     _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
                     _ => ((2 * depth + i as i16) / 8).min(i as i16) * 2 / 3,
                 };
+
+                if i > 0 && singular {
+                    reduction += 1;
+                }
 
                 let mut v =
                     -this.visit_null(new_pos, -Window::null(window.lb()), depth - reduction - 1)?;
