@@ -44,12 +44,12 @@ impl Searcher<'_> {
 
         // mate distance pruning
         let mate_score = Eval::MATE.add_time(position.ply);
-        if window.fail_low(mate_score) {
+        if skip.is_none() && window.fail_low(mate_score) {
             return Some(mate_score);
         }
 
         // reverse futility pruning... but with qsearch
-        if depth <= 6 {
+        if skip.is_none() && depth <= 6 {
             let margin = 250 * depth as i16;
             let rfp_window = Window::null(window.lb() + margin);
             let eval = entry
@@ -61,7 +61,7 @@ impl Searcher<'_> {
         }
 
         // null move pruning
-        if depth >= 4 {
+        if skip.is_none() && depth >= 4 {
             let sliders = position.board.pieces(Piece::Rook)
                 | position.board.pieces(Piece::Bishop)
                 | position.board.pieces(Piece::Queen);
