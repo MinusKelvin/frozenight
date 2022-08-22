@@ -40,12 +40,6 @@ impl Searcher<'_> {
                 if tt_not_good_enough && depth > 3 {
                     // internal iterative deepening
                     (entry.eval, entry.mv) = self.pv_search(position, window, depth - 2)?;
-                    entry.depth = depth - 2;
-                    entry.kind = match () {
-                        _ if window.fail_high(entry.eval) => NodeKind::LowerBound,
-                        _ if window.fail_low(entry.eval) => NodeKind::UpperBound,
-                        _ => NodeKind::Exact,
-                    };
                 }
                 Some(entry)
             }
