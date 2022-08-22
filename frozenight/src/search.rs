@@ -268,7 +268,7 @@ impl<'a> Searcher<'a> {
                 kind: NodeKind::LowerBound,
             },
         );
-        self.state.history.caused_cutoff(position, mv);
+        self.state.history.caused_cutoff(position, mv, depth);
     }
 
     fn push_repetition(&mut self, board: &Board) {
