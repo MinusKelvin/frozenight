@@ -198,4 +198,8 @@ impl OrderingState {
             .copied()
             .unwrap_or(INVALID_MOVE)
     }
+
+    pub fn clear_killer(&mut self, ply: u16) {
+        self.killers[ply as usize] = INVALID_MOVE;
+    }
 }

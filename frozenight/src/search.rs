@@ -137,6 +137,9 @@ impl<'a> Searcher<'a> {
             f(self)?
         };
 
+        // we're done with siblings at the next ply, so clear killer move
+        self.state.history.clear_killer(position.ply + 1);
+
         // Sanity check that conclusive scores are valid
         #[cfg(debug_assertions)]
         if let Some(plys) = result.plys_to_conclusion() {
