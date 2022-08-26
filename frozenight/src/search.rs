@@ -137,6 +137,8 @@ impl<'a> Searcher<'a> {
             f(self)?
         };
 
+        self.state.history.clear_killer(position.ply + 2);
+
         // Sanity check that conclusive scores are valid
         #[cfg(debug_assertions)]
         if let Some(plys) = result.plys_to_conclusion() {
