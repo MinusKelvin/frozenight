@@ -112,7 +112,7 @@ impl Searcher<'_> {
             }
 
             if !had_moves {
-                return Eval::DRAW;
+                return position.random_draw();
             }
         }
 

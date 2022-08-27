@@ -44,4 +44,8 @@ impl Position {
     pub fn is_capture(&self, mv: Move) -> bool {
         self.board.colors(!self.board.side_to_move()).has(mv.to)
     }
+
+    pub fn random_draw(&self) -> Eval {
+        Eval::new((self.board.hash() % 9) as i16 - 4)
+    }
 }

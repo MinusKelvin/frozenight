@@ -119,7 +119,7 @@ impl<'a> Searcher<'a> {
         f: impl FnOnce(&mut Self) -> Option<Eval>,
     ) -> Option<Eval> {
         match position.board.status() {
-            cozy_chess::GameStatus::Drawn => return Some(Eval::DRAW),
+            cozy_chess::GameStatus::Drawn => return Some(position.random_draw()),
             cozy_chess::GameStatus::Won => return Some(-Eval::MATE.add_time(position.ply)),
             cozy_chess::GameStatus::Ongoing => {}
         }
@@ -165,10 +165,8 @@ impl<'a> Searcher<'a> {
             let new_pos = position.play_move(&this.shared.nnue, mv);
 
             let v;
-            if let Some(eval) = oracle::oracle(&new_pos.board) {
-                v = eval;
-            } else if this.is_repetition(&new_pos.board) {
-                v = Eval::DRAW;
+            if oracle::draw_oracle(&new_pos.board) || this.is_repetition(&new_pos.board) {
+                v = position.random_draw();
             } else {
                 if this.multithreaded
                     && i > 0
@@ -286,8 +284,7 @@ impl<'a> Searcher<'a> {
             return false;
         }
 
-        self
-            .rep_list
+        self.rep_list
             .iter()
             .rev()
             .take(board.halfmove_clock() as usize)
