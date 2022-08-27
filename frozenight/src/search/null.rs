@@ -2,6 +2,7 @@ use crate::position::Position;
 use crate::tt::NodeKind;
 use crate::Eval;
 
+use super::params::*;
 use super::window::Window;
 use super::Searcher;
 
@@ -40,9 +41,8 @@ impl Searcher<'_> {
         }
 
         // reverse futility pruning... but with qsearch
-        if depth <= 6 {
-            let margin = 250 * depth as i16;
-            let rfp_window = Window::null(window.lb() + margin);
+        if depth <= RFP_MAX_DEPTH.get() {
+            let rfp_window = Window::null(window.lb() + rfp_margin(depth));
             let eval = entry
                 .map(|e| e.eval)
                 .unwrap_or_else(|| self.qsearch(position, rfp_window));
@@ -52,13 +52,13 @@ impl Searcher<'_> {
         }
 
         // null move pruning
-        if depth >= 4 {
+        if depth >= NMP_MIN_DEPTH.get() {
             let sliders = position.board.pieces(Piece::Rook)
                 | position.board.pieces(Piece::Bishop)
                 | position.board.pieces(Piece::Queen);
             if !(sliders & position.board.colors(position.board.side_to_move())).is_empty() {
                 if let Some(nm) = position.null_move() {
-                    let reduction = depth / 2;
+                    let reduction = nmp_reduction(depth);
                     let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
                     if window.fail_high(v) {
                         return Some(v);
@@ -84,7 +84,7 @@ impl Searcher<'_> {
                     _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
-                    _ => ((2 * depth + i as i16) / 8).min(i as i16),
+                    _ => null_lmr(depth, i),
                 };
 
                 if window.lb() >= -Eval::MAX_INCONCLUSIVE && depth - reduction - 1 < 0 {
