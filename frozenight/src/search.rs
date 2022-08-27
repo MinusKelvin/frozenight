@@ -7,6 +7,7 @@ use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, SharedState, Statistics};
 
 pub use self::abdada::AbdadaTable;
+pub use self::params::all_parameters;
 use self::ordering::{OrderingState, BREAK, CONTINUE};
 use self::window::Window;
 
@@ -14,6 +15,7 @@ mod abdada;
 mod null;
 mod oracle;
 mod ordering;
+mod params;
 mod pv;
 mod qsearch;
 mod see;
@@ -286,8 +288,7 @@ impl<'a> Searcher<'a> {
             return false;
         }
 
-        self
-            .rep_list
+        self.rep_list
             .iter()
             .rev()
             .take(board.halfmove_clock() as usize)
