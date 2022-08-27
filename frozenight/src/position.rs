@@ -38,7 +38,7 @@ impl Position {
     }
 
     pub fn static_eval(&self, nn: &Nnue) -> Eval {
-        self.nnue.calculate(nn, self.board.side_to_move())
+        self.nnue.calculate(nn, self.board.side_to_move()) + ((self.board.hash() % 31) as i16 - 16)
     }
 
     pub fn is_capture(&self, mv: Move) -> bool {
