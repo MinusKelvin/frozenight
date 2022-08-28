@@ -52,12 +52,19 @@ impl NnueAccumulator {
     }
 
     pub fn calculate(&self, nn: &Nnue, stm: Color) -> Eval {
-        let l1_input = clipped_relu(bytemuck::cast(match stm {
-            Color::White => [self.white, self.black],
-            Color::Black => [self.black, self.white],
-        }));
         let bucket = (self.material * BUCKETS / 76).min(BUCKETS - 1);
-        let output = vdot(l1_input, nn.hidden_layer[bucket]) + nn.hidden_layer_bias[bucket];
+        let mut output = nn.hidden_layer_bias[bucket];
+        let (first, second) = match stm {
+            Color::White => (&self.white, &self.black),
+            Color::Black => (&self.black, &self.white),
+        };
+        for i in 0..first.len() {
+            output += first[i].clamp(0, 127) as i32 * nn.hidden_layer[bucket][i] as i32;
+        }
+        for i in 0..second.len() {
+            output +=
+                second[i].clamp(0, 127) as i32 * nn.hidden_layer[bucket][i + first.len()] as i32;
+        }
 
         Eval::new((output / 8) as i16)
     }
@@ -190,22 +197,6 @@ fn vsub<const N: usize>(a: [i16; N], b: [i16; N]) -> [i16; N] {
     let mut result = [0; N];
     for i in 0..N {
         result[i] = a[i] - b[i];
-    }
-    result
-}
-
-fn clipped_relu<const N: usize>(a: [i16; N]) -> [i8; N] {
-    let mut result = [0; N];
-    for i in 0..N {
-        result[i] = a[i].clamp(0, 127) as i8;
-    }
-    result
-}
-
-fn vdot<const N: usize>(a: [i8; N], b: [i8; N]) -> i32 {
-    let mut result = 0;
-    for i in 0..N {
-        result += a[i] as i32 * b[i] as i32;
     }
     result
 }
