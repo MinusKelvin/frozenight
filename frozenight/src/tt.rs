@@ -23,10 +23,20 @@ impl TranspositionTable {
         }
     }
 
+    fn entry(&self, hash: u64) -> &TtEntry {
+        unsafe {
+            // SAFETY: This is a fixed-point multiply of `self.entries.len()` by hash/2^64.
+            //         Since `hash` is in 0..1 and does not include 1, the result cannot overflow
+            //         and also cannot exceed `self.entries.len()` and therefore is in-bounds.
+            let index = hash as u128 * self.entries.len() as u128 >> 64;
+            self.entries.get_unchecked(index as usize)
+        }
+    }
+
     pub fn get_move(&self, board: &Board) -> Option<Move> {
-        let index = board.hash() as usize % self.entries.len();
-        let data = self.entries[index].data.load(Ordering::Relaxed);
-        let hxd = self.entries[index].hash.load(Ordering::Relaxed);
+        let entry = self.entry(board.hash());
+        let data = entry.data.load(Ordering::Relaxed);
+        let hxd = entry.hash.load(Ordering::Relaxed);
         if hxd ^ data != board.hash() {
             return None;
         }
@@ -35,9 +45,9 @@ impl TranspositionTable {
     }
 
     pub fn get(&self, position: &Position) -> Option<TableEntry> {
-        let index = position.board.hash() as usize % self.entries.len();
-        let data = self.entries[index].data.load(Ordering::Relaxed);
-        let hxd = self.entries[index].hash.load(Ordering::Relaxed);
+        let entry = self.entry(position.board.hash());
+        let data = entry.data.load(Ordering::Relaxed);
+        let hxd = entry.hash.load(Ordering::Relaxed);
         if hxd ^ data != position.board.hash() {
             return None;
         }
@@ -73,8 +83,7 @@ impl TranspositionTable {
     }
 
     pub fn store(&self, position: &Position, data: TableEntry) {
-        let index = position.board.hash() as usize % self.entries.len();
-        let entry = &self.entries[index];
+        let entry = self.entry(position.board.hash());
 
         let age = self.search_number.load(Ordering::Relaxed);
         let old_data = entry.data.load(Ordering::Relaxed);
