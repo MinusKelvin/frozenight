@@ -242,7 +242,7 @@ impl Frozenight {
                 &tl_data.0,
                 board,
                 multithreaded,
-                prehistory
+                prehistory,
             ))
         }
     }
@@ -278,27 +278,20 @@ fn iterative_deepening(
     });
 
     let mut best_move = None;
-    let mut pv = Vec::with_capacity(32);
     for depth in 1..depth_limit + 1 {
         let check_tm;
-        if let Some(result) = searcher.search(depth as i16, best_move.map(|(v, _)| v)) {
-            pv.clear();
-            pv.push(result.1);
-            let mut b = searcher.root.clone();
-            b.play(result.1);
-            let mut mvs = 0;
-            while let Some(mv) = searcher.shared.tt.get_move(&b) {
-                mvs += 1;
-                if mvs < depth && b.try_play(mv).is_ok() {
-                    pv.push(mv);
-                } else {
-                    break;
-                }
-            }
-            check_tm = info(depth, searcher.stats, result.0, &searcher.root, &pv);
-            best_move = Some(result);
+        if let Some(mut result) = searcher.search(depth as i16, best_move.map(|(v, _)| v)) {
+            best_move = Some((result.eval, result.best_move()));
+            result.reverse_pv.reverse();
+            check_tm = info(
+                depth,
+                searcher.stats,
+                result.eval,
+                &searcher.root,
+                &result.reverse_pv,
+            );
 
-            if let Some(done_in) = result.0.plys_to_conclusion() {
+            if let Some(done_in) = result.eval.plys_to_conclusion() {
                 if done_in.abs() < depth as i16 && time_use_suggestion.is_some() {
                     break;
                 }

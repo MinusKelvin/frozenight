@@ -33,17 +33,6 @@ impl TranspositionTable {
         }
     }
 
-    pub fn get_move(&self, board: &Board) -> Option<Move> {
-        let entry = self.entry(board.hash());
-        let data = entry.data.load(Ordering::Relaxed);
-        let hxd = entry.hash.load(Ordering::Relaxed);
-        if hxd ^ data != board.hash() {
-            return None;
-        }
-        let data: TtData = bytemuck::cast(data);
-        data.unmarshall_move(board)
-    }
-
     pub fn get(&self, position: &Position) -> Option<TableEntry> {
         let entry = self.entry(position.board.hash());
         let data = entry.data.load(Ordering::Relaxed);

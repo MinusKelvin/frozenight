@@ -48,6 +48,43 @@ pub(crate) struct Searcher<'a> {
     state: &'a mut SearchState,
     rep_list: Vec<u64>,
     rep_table: [u8; 1024],
+    reverse_pv: Vec<Move>,
+}
+
+pub struct SearchResult {
+    pub eval: Eval,
+    pub reverse_pv: Vec<Move>,
+}
+
+impl SearchResult {
+    fn eval(eval: Eval) -> Self {
+        SearchResult {
+            eval,
+            reverse_pv: vec![],
+        }
+    }
+
+    fn mv(eval: Eval, mv: Move) -> Self {
+        SearchResult {
+            eval,
+            reverse_pv: vec![mv],
+        }
+    }
+
+    pub fn best_move(&self) -> Move {
+        *self.reverse_pv.last().unwrap()
+    }
+}
+
+impl std::ops::Neg for SearchResult {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        SearchResult {
+            eval: -self.eval,
+            ..self
+        }
+    }
 }
 
 impl<'a> Searcher<'a> {
@@ -76,6 +113,7 @@ impl<'a> Searcher<'a> {
             node_limit: u64::MAX,
             valid: true,
             rep_list,
+            reverse_pv: vec![],
         }
     }
 
@@ -83,7 +121,7 @@ impl<'a> Searcher<'a> {
     ///
     /// Invariant: `self` is unchanged if this function returns `Some`. If it returns none, then
     /// calling this function again will result in a panic.
-    pub fn search(&mut self, depth: i16, around: Option<Eval>) -> Option<(Eval, Move)> {
+    pub fn search(&mut self, depth: i16, around: Option<Eval>) -> Option<SearchResult> {
         assert!(depth > 0);
         if !self.valid {
             panic!("attempt to search using an aborted searcher");
@@ -101,14 +139,18 @@ impl<'a> Searcher<'a> {
         };
 
         let position = &Position::from_root(self.root.clone(), &self.shared.nnue);
+        let reverse_pv = std::mem::take(&mut self.reverse_pv);
 
-        let (eval, mv) = self.pv_search(position, window, depth)?;
+        let result = self.pv_search(position, window, depth, &reverse_pv)?;
 
-        if window.fail_low(eval) || window.fail_high(eval) {
-            self.pv_search(position, Window::default(), depth)
+        let result = if window.fail_low(result.eval) || window.fail_high(result.eval) {
+            self.pv_search(position, Window::default(), depth, &result.reverse_pv)?
         } else {
-            Some((eval, mv))
-        }
+            result
+        };
+        self.reverse_pv = result.reverse_pv.clone();
+
+        Some(result)
     }
 
     fn visit_node(
@@ -116,11 +158,13 @@ impl<'a> Searcher<'a> {
         position: &Position,
         window: Window,
         depth: i16,
-        f: impl FnOnce(&mut Self) -> Option<Eval>,
-    ) -> Option<Eval> {
+        f: impl FnOnce(&mut Self) -> Option<SearchResult>,
+    ) -> Option<SearchResult> {
         match position.board.status() {
-            cozy_chess::GameStatus::Drawn => return Some(Eval::DRAW),
-            cozy_chess::GameStatus::Won => return Some(-Eval::MATE.add_time(position.ply)),
+            cozy_chess::GameStatus::Drawn => return Some(SearchResult::eval(Eval::DRAW)),
+            cozy_chess::GameStatus::Won => {
+                return Some(SearchResult::eval(-Eval::MATE.add_time(position.ply)))
+            }
             cozy_chess::GameStatus::Ongoing => {}
         }
 
@@ -129,7 +173,7 @@ impl<'a> Searcher<'a> {
         }
 
         let result = if depth <= 0 {
-            self.qsearch(position, window)
+            SearchResult::eval(self.qsearch(position, window))
         } else {
             if self.stats.nodes.fetch_add(1, Ordering::Relaxed) >= self.node_limit {
                 return None;
@@ -139,7 +183,7 @@ impl<'a> Searcher<'a> {
 
         // Sanity check that conclusive scores are valid
         #[cfg(debug_assertions)]
-        if let Some(plys) = result.plys_to_conclusion() {
+        if let Some(plys) = result.eval.plys_to_conclusion() {
             debug_assert!(plys.abs() >= position.ply as i16);
         }
 
@@ -152,10 +196,9 @@ impl<'a> Searcher<'a> {
         hashmove: Option<Move>,
         mut window: Window,
         depth: i16,
-        mut f: impl FnMut(&mut Searcher, usize, Move, &Position, Window) -> Option<Eval>,
-    ) -> Option<(Eval, Move)> {
-        let mut best_move = INVALID_MOVE;
-        let mut best_score = -Eval::MATE;
+        mut f: impl FnMut(&mut Searcher, usize, Move, &Position, Window) -> Option<SearchResult>,
+    ) -> Option<SearchResult> {
+        let mut best = SearchResult::eval(-Eval::MATE);
         let mut raised_alpha = false;
         let mut i = 0;
 
@@ -164,11 +207,11 @@ impl<'a> Searcher<'a> {
         self.visit_moves(position, hashmove, |this, mv| {
             let new_pos = position.play_move(&this.shared.nnue, mv);
 
-            let v;
+            let result;
             if let Some(eval) = oracle::oracle(&new_pos.board) {
-                v = eval;
+                result = SearchResult::eval(eval);
             } else if this.is_repetition(&new_pos.board) {
-                v = Eval::DRAW;
+                result = SearchResult::eval(Eval::DRAW);
             } else {
                 if this.multithreaded
                     && i > 0
@@ -185,20 +228,21 @@ impl<'a> Searcher<'a> {
                     false => None,
                 };
                 this.push_repetition(&new_pos.board);
-                v = f(this, i, mv, &new_pos, window)?;
+                result = f(this, i, mv, &new_pos, window)?;
                 this.pop_repetition();
             }
 
-            if v > best_score {
-                best_move = mv;
-                best_score = v;
+            let eval = result.eval;
+            if eval > best.eval {
+                best = result;
+                best.reverse_pv.push(mv);
             }
 
-            if window.fail_high(v) {
+            if window.fail_high(eval) {
                 return Some(BREAK);
             }
 
-            if window.raise_lb(v) {
+            if window.raise_lb(eval) {
                 raised_alpha = true;
             }
 
@@ -210,40 +254,41 @@ impl<'a> Searcher<'a> {
             self.shared.tt.prefetch(&new_pos.board);
             self.push_repetition(&new_pos.board);
             let _guard = self.shared.abdada.enter(new_pos.board.hash());
-            let v = f(self, i, mv, &new_pos, window)?;
+            let result = f(self, i, mv, &new_pos, window)?;
             self.pop_repetition();
 
-            if v > best_score {
-                best_move = mv;
-                best_score = v;
+            let eval = result.eval;
+            if eval > best.eval {
+                best = result;
+                best.reverse_pv.push(mv);
             }
 
-            if window.fail_high(v) {
+            if window.fail_high(eval) {
                 break;
             }
 
-            if window.raise_lb(v) {
+            if window.raise_lb(eval) {
                 raised_alpha = true;
             }
         }
 
-        if window.fail_high(best_score) {
-            self.failed_high(position, depth, best_score, best_move);
+        if window.fail_high(best.eval) {
+            self.failed_high(position, depth, best.eval, *best.reverse_pv.last().unwrap());
         } else if raised_alpha {
             self.shared.tt.store(
                 &position,
                 TableEntry {
-                    mv: best_move,
-                    eval: best_score,
+                    mv: *best.reverse_pv.last().unwrap(),
+                    eval: best.eval,
                     depth,
                     kind: NodeKind::Exact,
                 },
             );
         } else {
-            self.failed_low(position, depth, best_score, best_move);
+            self.failed_low(position, depth, best.eval, *best.reverse_pv.last().unwrap());
         }
 
-        Some((best_score, best_move))
+        Some(best)
     }
 
     fn failed_low(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
@@ -286,8 +331,7 @@ impl<'a> Searcher<'a> {
             return false;
         }
 
-        self
-            .rep_list
+        self.rep_list
             .iter()
             .rev()
             .take(board.halfmove_clock() as usize)
