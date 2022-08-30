@@ -199,11 +199,12 @@ fn main() {
                             let time = now.elapsed();
                             let nodes = stats.nodes.load(Ordering::Relaxed);
                             print!(
-                                "info depth {} seldepth {} nodes {} nps {} score {} time {} pv",
+                                "info depth {} seldepth {} nodes {} nps {} tbhits {} score {} time {} pv",
                                 depth,
                                 stats.selective_depth.load(Ordering::Relaxed),
                                 nodes,
                                 (nodes as f64 / time.as_secs_f64()).round() as u64,
+                                stats.tb_probes.load(Ordering::Relaxed),
                                 match ob_no_adj {
                                     true => frozenight::Eval::new(250),
                                     false => eval,

@@ -168,9 +168,11 @@ impl Frozenight {
                             let mut stats = Statistics::default();
                             let nodes = stats.nodes.get_mut();
                             let sd = stats.selective_depth.get_mut();
+                            let tb = stats.tb_probes.get_mut();
                             for (stat, _) in data.tl_datas.iter().map(|a| &**a) {
                                 *nodes += stat.nodes.load(Ordering::Relaxed);
-                                *sd = (*sd).max(stat.selective_depth.load(Ordering::Relaxed))
+                                *sd = (*sd).max(stat.selective_depth.load(Ordering::Relaxed));
+                                *tb += stat.tb_probes.load(Ordering::Relaxed);
                             }
 
                             (data.info)(depth, &stats, eval, board, pv);
@@ -247,6 +249,7 @@ impl Frozenight {
         let tl_data = self.tl_data[thread].clone();
         tl_data.0.nodes.store(0, Ordering::Relaxed);
         tl_data.0.selective_depth.store(0, Ordering::Relaxed);
+        tl_data.0.tb_probes.store(0, Ordering::Relaxed);
         let prehistory = self.prehistory.clone();
         let board = self.board.clone();
         move |f| {
@@ -340,4 +343,5 @@ fn iterative_deepening(
 pub struct Statistics {
     pub selective_depth: AtomicU16,
     pub nodes: AtomicU64,
+    pub tb_probes: AtomicU64,
 }
