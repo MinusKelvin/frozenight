@@ -17,30 +17,11 @@ impl Searcher<'_> {
             .fetch_max(position.ply, Ordering::Relaxed);
         self.stats.nodes.fetch_add(1, Ordering::Relaxed);
 
-        let in_check = !position.board.checkers().is_empty();
-        let us = position.board.side_to_move();
-        let king = position.board.king(us);
-
         let permitted;
         let mut best;
         let mut best_mv = INVALID_MOVE;
         let mut window = orig_window;
         let do_for;
-
-        if in_check {
-            best = -Eval::MATE.add_time(position.ply);
-            permitted = BitBoard::FULL;
-            do_for = BitBoard::FULL;
-        } else {
-            best = position.static_eval(&self.shared.nnue);
-            permitted = position.board.colors(!us);
-            do_for = !king.bitboard();
-        }
-
-        if window.fail_high(best) {
-            return best;
-        }
-        window.raise_lb(best);
 
         if let Some(entry) = self.shared.tt.get(position) {
             match entry.kind {
@@ -57,6 +38,25 @@ impl Searcher<'_> {
                 }
             }
         }
+
+        let in_check = !position.board.checkers().is_empty();
+        let us = position.board.side_to_move();
+        let king = position.board.king(us);
+
+        if in_check {
+            best = -Eval::MATE.add_time(position.ply);
+            permitted = BitBoard::FULL;
+            do_for = BitBoard::FULL;
+        } else {
+            best = position.static_eval(&self.shared.nnue);
+            permitted = position.board.colors(!us);
+            do_for = !king.bitboard();
+        }
+
+        if window.fail_high(best) {
+            return best;
+        }
+        window.raise_lb(best);
 
         let mut moves = Vec::with_capacity(16);
         let mut had_moves = false;
