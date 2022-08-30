@@ -276,6 +276,7 @@ impl<'a> Searcher<'a> {
 
     fn probe_tb(&mut self, position: &Position, depth: i16) -> Option<Eval> {
         if position.ply > 0
+            && depth >= 5
             && position.board.halfmove_clock() == 0
             && position.board.occupied().len() <= self.shared.tb.max_pieces()
         {
