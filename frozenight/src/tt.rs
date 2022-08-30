@@ -75,7 +75,7 @@ impl TranspositionTable {
             depth: data.depth
                 // undo large depth preference for TB entires
                 - match kind {
-                    NodeKind::Tablebase => 5,
+                    NodeKind::Tablebase => 10,
                     _ => 0,
                 },
         })
@@ -138,7 +138,7 @@ impl TranspositionTable {
             TableEntry {
                 mv: INVALID_MOVE,
                 eval,
-                depth: depth + 5, // tb entires very preferred
+                depth: depth + 10, // tb entries very preferred
                 kind: NodeKind::Tablebase,
             },
         );
