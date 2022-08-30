@@ -1,8 +1,9 @@
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move};
+use cozy_syzygy::Tablebase;
 
 mod eval;
 mod nnue;
@@ -18,7 +19,7 @@ use tt::TranspositionTable;
 pub struct Frozenight {
     board: Board,
     prehistory: Vec<u64>,
-    shared_state: Arc<SharedState>,
+    shared_state: Arc<RwLock<SharedState>>,
     tl_data: Vec<Arc<(Statistics, Mutex<SearchState>)>>,
     abort: Arc<AtomicBool>,
 }
@@ -27,6 +28,7 @@ struct SharedState {
     nnue: Nnue,
     tt: TranspositionTable,
     abdada: AbdadaTable,
+    tb: Tablebase,
 }
 
 struct CurrentSearch<I, B> {
@@ -43,32 +45,24 @@ impl Frozenight {
         Frozenight {
             board: Default::default(),
             prehistory: vec![],
-            shared_state: Arc::new(SharedState {
+            shared_state: Arc::new(RwLock::new(SharedState {
                 nnue: Nnue::new(),
                 tt: TranspositionTable::new(hash_mb),
                 abdada: AbdadaTable::new(),
-            }),
+                tb: Tablebase::new(),
+            })),
             tl_data: vec![],
             abort: Default::default(),
         }
     }
 
     pub fn set_hash(&mut self, hash_mb: usize) {
-        match Arc::get_mut(&mut self.shared_state) {
-            Some(state) => {
-                // put dummy value in to drop potentially large previous TT allocation
-                state.tt = TranspositionTable::new(1);
-                // then create potentially large new TT allocation
-                state.tt = TranspositionTable::new(hash_mb);
-            }
-            None => {
-                self.shared_state = Arc::new(SharedState {
-                    nnue: Nnue::new(),
-                    tt: TranspositionTable::new(hash_mb),
-                    abdada: AbdadaTable::new(),
-                });
-            }
-        }
+        self.abort.store(true, Ordering::Relaxed);
+        let mut state = self.shared_state.write().unwrap();
+        // put dummy value in to drop potentially large previous TT allocation
+        state.tt = TranspositionTable::new(1);
+        // then create potentially large new TT allocation
+        state.tt = TranspositionTable::new(hash_mb);
     }
 
     pub fn board(&self) -> &Board {
@@ -95,7 +89,10 @@ impl Frozenight {
             }
         }
         self.prehistory.push(self.board.hash());
+        self.abort.store(true, Ordering::Relaxed);
         self.shared_state
+            .write()
+            .unwrap()
             .tt
             .increment_age(match moves_since_occurance {
                 0..=4 => 1,
@@ -113,9 +110,8 @@ impl Frozenight {
         info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]) + Send + 'static,
         best_move: impl FnOnce(Eval, Move, &Board) + Send + 'static,
     ) -> Abort {
-        self.abort.store(true, Ordering::Relaxed);
-
         // Create a new abort search variable
+        self.abort.store(true, Ordering::Relaxed);
         self.abort = Arc::new(AtomicBool::new(false));
 
         let mut searchers = Vec::with_capacity(threads);
@@ -202,6 +198,10 @@ impl Frozenight {
         nodes_limit: u64,
         mut info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]),
     ) -> (Eval, Move) {
+        // Create a new abort search variable
+        self.abort.store(true, Ordering::Relaxed);
+        self.abort = Arc::new(AtomicBool::new(false));
+
         self.searcher(0, false)(|mut s| {
             s.node_limit = nodes_limit;
             iterative_deepening(
@@ -235,6 +235,7 @@ impl Frozenight {
         let prehistory = self.prehistory.clone();
         let board = self.board.clone();
         move |f| {
+            let shared = shared.read().unwrap();
             f(Searcher::new(
                 &abort,
                 &shared,
@@ -242,7 +243,7 @@ impl Frozenight {
                 &tl_data.0,
                 board,
                 multithreaded,
-                prehistory
+                prehistory,
             ))
         }
     }

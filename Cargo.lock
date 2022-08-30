@@ -93,7 +93,7 @@ dependencies = [
 [[package]]
 name = "cozy-chess"
 version = "0.3.0"
-source = "git+https://github.com/analog-hors/cozy-chess?rev=1b1eeb7#1b1eeb7fd6d4bbcc5c07b353ebbf58fae6636cef"
+source = "git+https://github.com/analog-hors/cozy-chess?rev=e529226#e529226293293dbeba593ca0d4af1d41cea5592e"
 dependencies = [
  "cozy-chess-types 0.2.0",
 ]
@@ -107,7 +107,7 @@ checksum = "847c4608e7a1ec5968d182493cdab14836def5aa950d2191662bab1f831ab903"
 [[package]]
 name = "cozy-chess-types"
 version = "0.2.0"
-source = "git+https://github.com/analog-hors/cozy-chess?rev=1b1eeb7#1b1eeb7fd6d4bbcc5c07b353ebbf58fae6636cef"
+source = "git+https://github.com/analog-hors/cozy-chess?rev=e529226#e529226293293dbeba593ca0d4af1d41cea5592e"
 
 [[package]]
 name = "cozy-syzygy"
@@ -115,6 +115,16 @@ version = "0.1.0"
 source = "git+https://github.com/MinusKelvin/cozy-syzygy.git?rev=e364942#e36494254114541d80691e4563e4f695d00d4205"
 dependencies = [
  "cozy-chess 0.2.2",
+ "memmap",
+ "ouroboros",
+]
+
+[[package]]
+name = "cozy-syzygy"
+version = "0.1.0"
+source = "git+https://github.com/MinusKelvin/cozy-syzygy#2a4bb3cdd91ee18fe71bc39456ba428f72f37ae2"
+dependencies = [
+ "cozy-chess 0.3.0",
  "memmap",
  "ouroboros",
 ]
@@ -145,6 +155,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "cozy-chess 0.3.0",
+ "cozy-syzygy 0.1.0 (git+https://github.com/MinusKelvin/cozy-syzygy)",
 ]
 
 [[package]]
@@ -160,7 +171,7 @@ name = "gen-data"
 version = "0.1.0"
 dependencies = [
  "cozy-chess 0.3.0",
- "cozy-syzygy",
+ "cozy-syzygy 0.1.0 (git+https://github.com/MinusKelvin/cozy-syzygy.git?rev=e364942)",
  "crossbeam-utils",
  "ctrlc",
  "frozenight",

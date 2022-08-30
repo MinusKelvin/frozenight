@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use bytemuck::{Pod, Zeroable};
 use cozy_chess::{Board, Move, Piece, Square};
@@ -8,7 +8,7 @@ use crate::Eval;
 
 pub struct TranspositionTable {
     entries: Box<[TtEntry]>,
-    search_number: AtomicU8,
+    search_number: u8,
 }
 
 const ENTRIES_PER_MB: usize = 1024 * 1024 / std::mem::size_of::<TtEntry>();
@@ -19,7 +19,7 @@ impl TranspositionTable {
             entries: (0..hash_mb * ENTRIES_PER_MB)
                 .map(|_| TtEntry::default())
                 .collect(),
-            search_number: AtomicU8::default(),
+            search_number: 2,
         }
     }
 
@@ -86,7 +86,6 @@ impl TranspositionTable {
     pub fn store(&self, position: &Position, data: TableEntry) {
         let entry = self.entry(position.board.hash());
 
-        let age = self.search_number.load(Ordering::Relaxed);
         let old_data = entry.data.load(Ordering::Relaxed);
         let old_hash = entry.hash.load(Ordering::Relaxed) ^ old_data;
         let old_data: TtData = bytemuck::cast(old_data);
@@ -97,7 +96,7 @@ impl TranspositionTable {
         // prefer deeper data
         replace |= data.depth >= old_data.depth;
         // prefer replacing stale data
-        replace |= age.wrapping_sub(old_data.age) >= 2;
+        replace |= self.search_number.wrapping_sub(old_data.age) >= 2;
 
         if !replace {
             return;
@@ -116,7 +115,7 @@ impl TranspositionTable {
             eval: data.eval.sub_time(position.ply),
             depth: data.depth,
             kind: data.kind as u8,
-            age,
+            age: self.search_number,
         });
         entry.data.store(data, Ordering::Relaxed);
         entry
@@ -124,8 +123,8 @@ impl TranspositionTable {
             .store(position.board.hash() ^ data, Ordering::Relaxed);
     }
 
-    pub fn increment_age(&self, by: u8) {
-        self.search_number.fetch_add(by, Ordering::Relaxed);
+    pub fn increment_age(&mut self, by: u8) {
+        self.search_number += by;
     }
 }
 
