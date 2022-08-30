@@ -5,7 +5,7 @@ use crate::tt::NodeKind;
 use crate::Eval;
 
 use super::window::Window;
-use super::Searcher;
+use super::{Searcher, INVALID_MOVE};
 
 impl Searcher<'_> {
     pub fn pv_search(
@@ -17,34 +17,48 @@ impl Searcher<'_> {
         let hashmove = match self.shared.tt.get(&position) {
             None => None,
             Some(entry) => {
-                if entry.depth >= depth {
-                    match entry.kind {
-                        NodeKind::Exact => {
-                            if depth < 2 {
-                                return Some((entry.eval, entry.mv));
-                            }
-                        }
-                        NodeKind::LowerBound => {
-                            if window.fail_high(entry.eval) {
-                                return Some((entry.eval, entry.mv));
-                            }
-                        }
-                        NodeKind::UpperBound => {
-                            if window.fail_low(entry.eval) {
-                                return Some((entry.eval, entry.mv));
-                            }
+                match entry.kind {
+                    NodeKind::Tablebase if position.ply > 0 => {
+                        self.shared.tt.update_tb_entry(
+                            position,
+                            depth.max(entry.depth),
+                            entry.eval,
+                        );
+                        return Some((entry.eval, INVALID_MOVE));
+                    }
+                    _ if entry.depth < depth => {}
+                    NodeKind::Exact => {
+                        if depth < 2 {
+                            return Some((entry.eval, entry.mv));
                         }
                     }
+                    NodeKind::LowerBound => {
+                        if window.fail_high(entry.eval) {
+                            return Some((entry.eval, entry.mv));
+                        }
+                    }
+                    NodeKind::UpperBound => {
+                        if window.fail_low(entry.eval) {
+                            return Some((entry.eval, entry.mv));
+                        }
+                    }
+                    _ => {}
                 }
                 let tt_not_good_enough = entry.depth < depth - 2 || entry.kind != NodeKind::Exact;
                 if tt_not_good_enough && depth > 3 {
                     // internal iterative deepening
                     Some(self.pv_search(position, window, depth - 2)?.1)
-                } else {
+                } else if entry.kind != NodeKind::Tablebase {
                     Some(entry.mv)
+                } else {
+                    None
                 }
             }
         };
+
+        if let Some(eval) = self.probe_tb(position, depth) {
+            return Some((eval, INVALID_MOVE));
+        }
 
         self.search_moves(
             position,

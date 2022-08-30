@@ -15,7 +15,11 @@ impl Eval {
     }
 
     pub fn is_conclusive(self) -> bool {
-        self.plys_to_conclusion().is_some()
+        self > Eval::MAX_INCONCLUSIVE || self < -Eval::MAX_INCONCLUSIVE
+    }
+
+    pub fn is_mate(self) -> bool {
+        self > Eval::TB_WIN || self < -Eval::TB_WIN
     }
 
     /// Returns `p` if winning or `-p` if losing, where `p` is the number of plys until conclusion.
@@ -101,7 +105,8 @@ impl std::ops::Sub<i16> for Eval {
 impl std::fmt::Display for Eval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.plys_to_conclusion() {
-            Some(plys) => write!(f, "mate {}", (plys + plys.signum()) / 2),
+            Some(plys) if self.is_mate() => write!(f, "mate {}", (plys + plys.signum()) / 2),
+            Some(plys) => write!(f, "cp {}", 10000 - (plys + plys.signum()) / 2),
             None => write!(f, "cp {}", self.0 / 5),
         }
     }
