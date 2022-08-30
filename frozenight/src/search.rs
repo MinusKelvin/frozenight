@@ -280,6 +280,7 @@ impl<'a> Searcher<'a> {
             && position.board.occupied().len() <= self.shared.tb.max_pieces()
         {
             if let Some((wdl, _)) = self.shared.tb.probe_wdl(&position.board) {
+                self.stats.tb_probes.fetch_add(1, Ordering::Relaxed);
                 let eval = match wdl {
                     Wdl::Win => Eval::TB_WIN.add_time(position.ply),
                     Wdl::CursedWin => Eval::DRAW + 1,
