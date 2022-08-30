@@ -168,7 +168,7 @@ impl<'a> Searcher<'a> {
             if let Some(eval) = oracle::oracle(&new_pos.board) {
                 v = eval;
             } else if this.is_repetition(&new_pos.board) {
-                v = Eval::DRAW;
+                v = Eval::new((self.stats.nodes.load(Ordering::Relaxed) % 9) as i16 - 4);
             } else {
                 if this.multithreaded
                     && i > 0
@@ -286,8 +286,7 @@ impl<'a> Searcher<'a> {
             return false;
         }
 
-        self
-            .rep_list
+        self.rep_list
             .iter()
             .rev()
             .take(board.halfmove_clock() as usize)
