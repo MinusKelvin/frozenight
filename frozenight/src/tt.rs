@@ -4,6 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use cozy_chess::{Board, Move, Piece, Square};
 
 use crate::position::Position;
+use crate::search::INVALID_MOVE;
 use crate::Eval;
 
 pub struct TranspositionTable {
@@ -62,13 +63,21 @@ impl TranspositionTable {
             _ => return None, // invalid
         };
 
-        let mv = data.unmarshall_move(&position.board)?;
+        let mv = match kind {
+            NodeKind::Tablebase => INVALID_MOVE,
+            _ => data.unmarshall_move(&position.board)?,
+        };
 
         Some(TableEntry {
             mv,
             kind,
             eval: data.eval.add_time(position.ply),
-            depth: data.depth,
+            depth: data.depth
+                // undo large depth preference for TB entires
+                - match kind {
+                    NodeKind::Tablebase => 5,
+                    _ => 0,
+                },
         })
     }
 
@@ -123,6 +132,18 @@ impl TranspositionTable {
             .store(position.board.hash() ^ data, Ordering::Relaxed);
     }
 
+    pub fn update_tb_entry(&self, position: &Position, depth: i16, eval: Eval) {
+        self.store(
+            position,
+            TableEntry {
+                mv: INVALID_MOVE,
+                eval,
+                depth: depth + 5, // tb entires very preferred
+                kind: NodeKind::Tablebase,
+            },
+        );
+    }
+
     pub fn increment_age(&mut self, by: u8) {
         self.search_number += by;
     }
@@ -141,6 +162,7 @@ pub enum NodeKind {
     Exact,
     LowerBound,
     UpperBound,
+    Tablebase,
 }
 
 #[derive(Default)]

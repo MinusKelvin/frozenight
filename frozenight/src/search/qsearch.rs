@@ -44,6 +44,7 @@ impl Searcher<'_> {
 
         if let Some(entry) = self.shared.tt.get(position) {
             match entry.kind {
+                NodeKind::Tablebase => return entry.eval,
                 NodeKind::Exact => return entry.eval,
                 NodeKind::LowerBound => {
                     if window.fail_high(entry.eval) {

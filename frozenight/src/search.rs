@@ -1,6 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use cozy_chess::{Board, Move, Square};
+use cozy_syzygy::Wdl;
 
 use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
@@ -271,6 +272,26 @@ impl<'a> Searcher<'a> {
             },
         );
         self.state.history.caused_cutoff(position, mv);
+    }
+
+    fn probe_tb(&mut self, position: &Position, depth: i16) -> Option<Eval> {
+        if position.ply > 0
+            && position.board.halfmove_clock() == 0
+            && position.board.occupied().len() <= self.shared.tb.max_pieces()
+        {
+            if let Some((wdl, _)) = self.shared.tb.probe_wdl(&position.board) {
+                let eval = match wdl {
+                    Wdl::Win => Eval::TB_WIN.add_time(position.ply),
+                    Wdl::CursedWin => Eval::DRAW + 1,
+                    Wdl::Draw => Eval::DRAW,
+                    Wdl::BlessedLoss => Eval::DRAW - 1,
+                    Wdl::Loss => -Eval::TB_WIN.add_time(position.ply),
+                };
+                self.shared.tt.update_tb_entry(position, depth, eval);
+                return Some(eval);
+            }
+        }
+        None
     }
 
     fn push_repetition(&mut self, board: &Board) {

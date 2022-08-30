@@ -49,11 +49,15 @@ fn main() {
                     println!("option name Threads type spin default 1 min 1 max 64");
                     println!("option name OB_noadj type check default false");
                     println!("option name UCI_Chess960 type check default false");
+                    println!("option name SyzygyPath type string default <empty>");
                     #[cfg(feature = "tweakable")]
                     for param in frozenight::all_parameters() {
                         println!(
                             "option name {} type spin default {} min {} max {}",
-                            param.name(), param.default, param.min, param.max
+                            param.name(),
+                            param.default,
+                            param.min,
+                            param.max
                         );
                     }
                     println!("uciok");
@@ -91,6 +95,17 @@ fn main() {
                         }
                         "Threads" => {
                             threads = stream.next()?.parse().ok()?;
+                        }
+                        "SyzygyPath" => {
+                            let paths = stream.next()?;
+                            frozenight.clear_tb();
+                            if paths != "<empty>" {
+                                for path in paths.split(':') {
+                                    if let Err(e) = frozenight.add_tb_path(path) {
+                                        eprintln!("Could not load TB from path `{}`: {}", path, e);
+                                    }
+                                }
+                            }
                         }
                         _ =>
                         {
