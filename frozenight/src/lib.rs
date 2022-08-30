@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
@@ -98,6 +99,20 @@ impl Frozenight {
                 0..=4 => 1,
                 _ => 2,
             });
+    }
+
+    pub fn clear_tb(&mut self) {
+        self.abort.store(true, Ordering::Relaxed);
+        self.shared_state.write().unwrap().tb = Tablebase::new();
+    }
+
+    pub fn add_tb_path(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
+        self.abort.store(true, Ordering::Relaxed);
+        self.shared_state
+            .write()
+            .unwrap()
+            .tb
+            .add_directory(path.as_ref())
     }
 
     pub fn start_search(

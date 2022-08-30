@@ -5,6 +5,7 @@ use cozy_chess::{Board, Move, Piece, Square};
 
 use crate::position::Position;
 use crate::Eval;
+use crate::search::INVALID_MOVE;
 
 pub struct TranspositionTable {
     entries: Box<[TtEntry]>,
@@ -62,7 +63,10 @@ impl TranspositionTable {
             _ => return None, // invalid
         };
 
-        let mv = data.unmarshall_move(&position.board)?;
+        let mv = match kind {
+            NodeKind::Tablebase => INVALID_MOVE,
+            _ => data.unmarshall_move(&position.board)?,
+        };
 
         Some(TableEntry {
             mv,
@@ -92,7 +96,8 @@ impl TranspositionTable {
 
         let mut replace = false;
         // always replace existing position data with PV data
-        replace |= old_hash == position.board.hash() && data.kind == NodeKind::Exact;
+        replace |= old_hash == position.board.hash()
+            && matches!(data.kind, NodeKind::Exact | NodeKind::Tablebase);
         // prefer deeper data
         replace |= data.depth >= old_data.depth;
         // prefer replacing stale data
@@ -123,8 +128,20 @@ impl TranspositionTable {
             .store(position.board.hash() ^ data, Ordering::Relaxed);
     }
 
+    pub fn update_tb_entry(&self, position: &Position, depth: i16, eval: Eval) {
+        self.store(
+            position,
+            TableEntry {
+                mv: INVALID_MOVE,
+                eval,
+                depth,
+                kind: NodeKind::Tablebase,
+            },
+        );
+    }
+
     pub fn increment_age(&mut self, by: u8) {
-        self.search_number += 1;
+        self.search_number += by;
     }
 }
 
@@ -141,6 +158,7 @@ pub enum NodeKind {
     Exact,
     LowerBound,
     UpperBound,
+    Tablebase,
 }
 
 #[derive(Default)]

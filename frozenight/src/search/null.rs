@@ -18,6 +18,10 @@ impl Searcher<'_> {
         let entry = self.shared.tt.get(&position);
         if let Some(entry) = entry {
             match entry.kind {
+                NodeKind::Tablebase if position.ply > 0 => {
+                    self.shared.tt.update_tb_entry(position, depth, entry.eval);
+                    return Some(entry.eval);
+                }
                 _ if entry.depth < depth => {}
                 NodeKind::Exact => return Some(entry.eval),
                 NodeKind::LowerBound => {
@@ -30,8 +34,13 @@ impl Searcher<'_> {
                         return Some(entry.eval);
                     }
                 }
+                _ => {}
             }
         };
+
+        if let Some(eval) = self.probe_tb(position, depth) {
+            return Some(eval);
+        }
 
         // mate distance pruning
         let mate_score = Eval::MATE.add_time(position.ply);
@@ -71,7 +80,7 @@ impl Searcher<'_> {
 
         self.search_moves(
             position,
-            entry.map(|e| e.mv),
+            entry.and_then(|e| (e.kind != NodeKind::Tablebase).then(|| e.mv)),
             window,
             depth,
             |this, i, mv, new_pos, window| {
