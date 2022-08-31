@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move};
-use cozy_syzygy::Tablebase;
 
 mod eval;
 mod nnue;
@@ -30,7 +29,6 @@ struct SharedState {
     nnue: Nnue,
     tt: TranspositionTable,
     abdada: AbdadaTable,
-    tb: Tablebase,
 }
 
 struct CurrentSearch<I, B> {
@@ -51,7 +49,6 @@ impl Frozenight {
                 nnue: Nnue::new(),
                 tt: TranspositionTable::new(hash_mb),
                 abdada: AbdadaTable::new(),
-                tb: Tablebase::new(),
             })),
             tl_data: vec![],
             abort: Default::default(),

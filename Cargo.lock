@@ -120,16 +120,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cozy-syzygy"
-version = "0.1.0"
-source = "git+https://github.com/MinusKelvin/cozy-syzygy#2a4bb3cdd91ee18fe71bc39456ba428f72f37ae2"
-dependencies = [
- "cozy-chess 0.3.0",
- "memmap",
- "ouroboros",
-]
-
-[[package]]
 name = "crossbeam-utils"
 version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -155,7 +145,6 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "cozy-chess 0.3.0",
- "cozy-syzygy 0.1.0 (git+https://github.com/MinusKelvin/cozy-syzygy)",
 ]
 
 [[package]]
@@ -171,7 +160,7 @@ name = "gen-data"
 version = "0.1.0"
 dependencies = [
  "cozy-chess 0.3.0",
- "cozy-syzygy 0.1.0 (git+https://github.com/MinusKelvin/cozy-syzygy.git?rev=e364942)",
+ "cozy-syzygy",
  "crossbeam-utils",
  "ctrlc",
  "frozenight",
