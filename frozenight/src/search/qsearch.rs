@@ -12,9 +12,6 @@ use super::{Searcher, INVALID_MOVE};
 
 impl Searcher<'_> {
     pub fn qsearch(&mut self, position: &Position, orig_window: Window) -> Eval {
-        self.stats
-            .selective_depth
-            .fetch_max(position.ply, Ordering::Relaxed);
         self.stats.nodes.fetch_add(1, Ordering::Relaxed);
 
         let in_check = !position.board.checkers().is_empty();

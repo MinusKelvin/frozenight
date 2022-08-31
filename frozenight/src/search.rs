@@ -131,6 +131,9 @@ impl<'a> Searcher<'a> {
         }
 
         let result = if depth <= 0 {
+            self.stats
+                .selective_depth
+                .fetch_max(position.ply, Ordering::Relaxed);
             self.qsearch(position, window)
         } else {
             if self.stats.nodes.fetch_add(1, Ordering::Relaxed) >= self.node_limit {
