@@ -63,10 +63,12 @@ impl Searcher<'_> {
             }
             had_moves = true;
             for mv in mvs {
-                if position.board.occupied().has(mv.to) {
+                if position.is_capture(mv) {
+                    let victim = position.board.piece_on(mv.to).unwrap();
+                    let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
                     let see = static_exchange_eval(&position.board, mv);
                     if see >= 0 || in_check {
-                        moves.push((mv, see));
+                        moves.push((mv, see + mvv_lva));
                     }
                 } else {
                     moves.push((mv, 0))

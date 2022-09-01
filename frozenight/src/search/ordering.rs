@@ -29,7 +29,6 @@ impl Searcher<'_> {
         let killer = self.state.history.killer(position.ply);
 
         position.board.generate_moves(|mvs| {
-            let piece = mvs.piece;
             for mv in mvs {
                 if Some(mv) == hashmove {
                     continue;
@@ -43,12 +42,14 @@ impl Searcher<'_> {
                 }
 
                 if position.is_capture(mv) {
-                    captures.push((mv, static_exchange_eval(&position.board, mv)));
+                    let victim = position.board.piece_on(mv.to).unwrap();
+                    let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
+                    captures.push((mv, static_exchange_eval(&position.board, mv) + mvv_lva));
                 } else if mv == killer {
-                    // Killer is legal; give it the same rank as neutral captures
+                    // Killer is legal; order it after neutral captures
                     captures.push((mv, 0));
                 } else {
-                    quiets.push((mv, piece));
+                    quiets.push((mv, mvs.piece));
                 }
             }
             false
