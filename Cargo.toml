@@ -9,6 +9,3 @@ members = [
 [profile.release]
 lto = true
 panic = "abort"
-
-[patch.crates-io]
-cozy-chess = { git = "https://github.com/analog-hors/cozy-chess", rev = "e529226" }

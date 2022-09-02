@@ -8,7 +8,7 @@ rust-version = "1.59"
 
 [dependencies]
 cozy-chess = "0.3"
-cozy-syzygy = { git = "https://github.com/MinusKelvin/cozy-syzygy.git", rev = "e364942" }
+cozy-syzygy = { git = "https://github.com/MinusKelvin/cozy-syzygy.git", rev = "57ed31e" }
 rand = "0.8.5"
 structopt = "0.3.26"
 frozenight = { path = "../frozenight" }

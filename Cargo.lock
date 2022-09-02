@@ -83,38 +83,25 @@ dependencies = [
 
 [[package]]
 name = "cozy-chess"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d4cfca0e2c49193765f49129cc635bd99788f4d25e7074dac556ccc362c7f39"
-dependencies = [
- "cozy-chess-types 0.1.4",
-]
-
-[[package]]
-name = "cozy-chess"
 version = "0.3.0"
-source = "git+https://github.com/analog-hors/cozy-chess?rev=e529226#e529226293293dbeba593ca0d4af1d41cea5592e"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b57277eecca9b3669532bc061ca4b624b8e79faa70b343927fa66eabcc12aa5c"
 dependencies = [
- "cozy-chess-types 0.2.0",
+ "cozy-chess-types",
 ]
 
 [[package]]
 name = "cozy-chess-types"
-version = "0.1.4"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "847c4608e7a1ec5968d182493cdab14836def5aa950d2191662bab1f831ab903"
-
-[[package]]
-name = "cozy-chess-types"
-version = "0.2.0"
-source = "git+https://github.com/analog-hors/cozy-chess?rev=e529226#e529226293293dbeba593ca0d4af1d41cea5592e"
+checksum = "6f4a557c6659b8705d301732f473c9a61659c740ffda3e3485e79d1d4b7a1e12"
 
 [[package]]
 name = "cozy-syzygy"
 version = "0.1.0"
-source = "git+https://github.com/MinusKelvin/cozy-syzygy.git?rev=e364942#e36494254114541d80691e4563e4f695d00d4205"
+source = "git+https://github.com/MinusKelvin/cozy-syzygy.git?rev=57ed31e#57ed31e84373beebbe9412de42bbb2582441f980"
 dependencies = [
- "cozy-chess 0.2.2",
+ "cozy-chess",
  "memmap",
  "ouroboros",
 ]
@@ -144,14 +131,14 @@ name = "frozenight"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "cozy-chess 0.3.0",
+ "cozy-chess",
 ]
 
 [[package]]
 name = "frozenight-uci"
 version = "5.0.0-dev"
 dependencies = [
- "cozy-chess 0.3.0",
+ "cozy-chess",
  "frozenight",
 ]
 
@@ -159,7 +146,7 @@ dependencies = [
 name = "gen-data"
 version = "0.1.0"
 dependencies = [
- "cozy-chess 0.3.0",
+ "cozy-chess",
  "cozy-syzygy",
  "crossbeam-utils",
  "ctrlc",
