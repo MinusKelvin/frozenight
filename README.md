@@ -7,13 +7,13 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
 ## Rating Lists
 
 [CCRL 40/15][CCRL4040]:
-- Frozenight 4.0: **2963**
+- Frozenight 4.0: **2957**
 - Frozenight 3.0: 2842
 - Frozenight 2.1: 2683
 - Frozenight 2.0: 2606
 
 [CCRL Blitz][CCRL404]:
-- Frozenight 4.0: **3003**
+- Frozenight 4.0: **3004**
 - Frozenight 3.0: 2893
 - Frozenight 2.1: 2677
 - Frozenight 1.0: 2448
@@ -34,9 +34,8 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
     - This is based on game phase tuning in Koivisto done by Luecx
   - Training data generated through self-play, originally starting with a random network
 - Quiescense search
-  - SEE ordering & pruning
+  - SEE ordering & pruning with MVV-LVA for ties
   - Check Evasions
-  - Late move pruning to prevent search explosion
 - Check Extensions
 - Late move reductions
 - Late move pruning
@@ -46,7 +45,7 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
   - Depth-preferred with aging
 - Move ordering
   - Hash move
-  - SEE captures, losing captures last
+  - SEE captures, losing captures last, with MVV-LVA for ties
   - Killer heuristic (ordered near pawn captures pawn)
   - Relative history heuristic (side-by-side piece-tosq and fromsq-tosq tables)
   - Underpromotions last
