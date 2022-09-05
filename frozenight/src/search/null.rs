@@ -34,6 +34,8 @@ impl Searcher<'_> {
             }
         };
 
+        let mut static_extension = 0;
+
         // mate distance pruning
         let mate_score = Eval::MATE.add_time(position.ply);
         if window.fail_low(mate_score) {
@@ -63,6 +65,10 @@ impl Searcher<'_> {
                     if window.fail_high(v) {
                         return Some(v);
                     }
+                    if v < -Eval::MAX_INCONCLUSIVE {
+                        // mate threat extension
+                        static_extension += 1;
+                    }
                 }
             }
         }
@@ -75,6 +81,8 @@ impl Searcher<'_> {
             window,
             depth,
             |this, i, mv, new_pos, window| {
+                let depth = depth + static_extension;
+
                 let extension = match () {
                     _ if !new_pos.board.checkers().is_empty() => 1,
                     _ => 0,
