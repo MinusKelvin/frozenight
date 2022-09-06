@@ -11,7 +11,11 @@ use super::window::Window;
 use super::{Searcher, INVALID_MOVE};
 
 impl Searcher<'_> {
-    pub fn qsearch(&mut self, position: &Position, orig_window: Window) -> Eval {
+    pub fn qsearch(&mut self, position: &Position, window: Window) -> Eval {
+        self.qsearch_impl(position, window, 0)
+    }
+
+    fn qsearch_impl(&mut self, position: &Position, orig_window: Window, depth: i16) -> Eval {
         self.stats.nodes.fetch_add(1, Ordering::Relaxed);
 
         let in_check = !position.board.checkers().is_empty();
@@ -41,6 +45,7 @@ impl Searcher<'_> {
 
         if let Some(entry) = self.shared.tt.get(position) {
             match entry.kind {
+                _ if entry.depth < depth => {}
                 NodeKind::Exact => return entry.eval,
                 NodeKind::LowerBound => {
                     if window.fail_high(entry.eval) {
@@ -67,7 +72,7 @@ impl Searcher<'_> {
                     let victim = position.board.piece_on(mv.to).unwrap();
                     let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
                     let see = static_exchange_eval(&position.board, mv);
-                    if see >= 0 || in_check {
+                    if see >= 0 || depth == 0 || in_check {
                         moves.push((mv, see + mvv_lva));
                     }
                 } else {
@@ -88,7 +93,7 @@ impl Searcher<'_> {
                     had_moves = true;
                     if position.board.occupied().has(mv.to) {
                         let see = static_exchange_eval(&position.board, mv);
-                        if see >= 0 {
+                        if see >= 0 || depth == 0 {
                             moves.push((mv, see));
                         }
                     } else {
@@ -124,14 +129,14 @@ impl Searcher<'_> {
             }
             let mv = moves.swap_remove(index).0;
 
-            let v = -self.qsearch(&position.play_move(&self.shared.nnue, mv), -window);
+            let v = -self.qsearch_impl(&position.play_move(&self.shared.nnue, mv), -window, -1);
             if window.fail_high(v) {
                 self.shared.tt.store(
                     &position,
                     TableEntry {
                         mv,
                         eval: v,
-                        depth: 0,
+                        depth,
                         kind: NodeKind::LowerBound,
                     },
                 );
@@ -155,7 +160,7 @@ impl Searcher<'_> {
                     } else {
                         NodeKind::Exact
                     },
-                    depth: 0,
+                    depth,
                 },
             );
         }
