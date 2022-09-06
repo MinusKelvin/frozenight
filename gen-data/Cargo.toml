@@ -9,9 +9,10 @@ rust-version = "1.59"
 [dependencies]
 cozy-chess = "0.3"
 cozy-syzygy = { git = "https://github.com/MinusKelvin/cozy-syzygy.git", rev = "57ed31e" }
+marlinformat = { git = "https://github.com/MinusKelvin/marlinflow", rev = "3b63022" }
 rand = "0.8.5"
 structopt = "0.3.26"
 frozenight = { path = "../frozenight" }
 once_cell = "1.10.0"
-crossbeam-utils = "0.8.7"
 ctrlc = "3.2.1"
+bytemuck = "1.12.1"
