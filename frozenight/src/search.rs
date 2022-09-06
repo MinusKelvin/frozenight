@@ -7,8 +7,8 @@ use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, SharedState, Statistics};
 
 pub use self::abdada::AbdadaTable;
-pub use self::params::all_parameters;
 use self::ordering::{OrderingState, BREAK, CONTINUE};
+pub use self::params::all_parameters;
 use self::window::Window;
 
 mod abdada;
@@ -46,6 +46,7 @@ pub(crate) struct Searcher<'a> {
     pub node_limit: u64,
     pub abort: &'a AtomicBool,
     valid: bool,
+    allow_abort: bool,
     multithreaded: bool,
     state: &'a mut SearchState,
     rep_list: Vec<u64>,
@@ -77,6 +78,7 @@ impl<'a> Searcher<'a> {
             rep_table,
             node_limit: u64::MAX,
             valid: true,
+            allow_abort: false,
             rep_list,
         }
     }
@@ -87,6 +89,7 @@ impl<'a> Searcher<'a> {
     /// calling this function again will result in a panic.
     pub fn search(&mut self, depth: i16, around: Option<Eval>) -> Option<(Eval, Move)> {
         assert!(depth > 0);
+        self.allow_abort = depth > 1;
         if !self.valid {
             panic!("attempt to search using an aborted searcher");
         }
@@ -126,7 +129,7 @@ impl<'a> Searcher<'a> {
             cozy_chess::GameStatus::Ongoing => {}
         }
 
-        if depth > 0 && self.abort.load(Ordering::Relaxed) {
+        if self.allow_abort && self.abort.load(Ordering::Relaxed) {
             return None;
         }
 
@@ -136,7 +139,9 @@ impl<'a> Searcher<'a> {
                 .fetch_max(position.ply, Ordering::Relaxed);
             self.qsearch(position, window)
         } else {
-            if self.stats.nodes.fetch_add(1, Ordering::Relaxed) >= self.node_limit {
+            if self.stats.nodes.fetch_add(1, Ordering::Relaxed) >= self.node_limit
+                && self.allow_abort
+            {
                 return None;
             }
             f(self)?
