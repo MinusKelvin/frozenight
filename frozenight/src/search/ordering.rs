@@ -1,4 +1,4 @@
-use cozy_chess::{Color, Move, Piece, Square};
+use cozy_chess::{get_knight_moves, Color, Move, Piece, Square};
 
 use crate::position::Position;
 
@@ -33,10 +33,15 @@ impl Searcher<'_> {
                 if Some(mv) == hashmove {
                     continue;
                 }
-                if matches!(
-                    mv.promotion,
-                    Some(Piece::Knight | Piece::Bishop | Piece::Rook)
-                ) {
+                let knight_promo_check = mv.promotion == Some(Piece::Knight)
+                    && get_knight_moves(mv.to)
+                        .has(position.board.king(!position.board.side_to_move()));
+                if !knight_promo_check
+                    && matches!(
+                        mv.promotion,
+                        Some(Piece::Knight | Piece::Bishop | Piece::Rook)
+                    )
+                {
                     underpromotions.push(mv);
                     continue;
                 }
