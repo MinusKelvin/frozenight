@@ -58,11 +58,18 @@ impl Searcher<'_> {
         let mut moves = Vec::with_capacity(16);
         let mut had_moves = false;
         position.board.generate_moves_for(do_for, |mut mvs| {
-            if !(mvs.piece == Piece::Pawn && mvs.from.rank() == Rank::Seventh.relative_to(us)) {
+            let promo =
+                mvs.piece == Piece::Pawn && mvs.from.rank() == Rank::Seventh.relative_to(us);
+            if !promo {
                 mvs.to &= permitted;
             }
             had_moves = true;
-            for mv in mvs {
+            for to in mvs.to {
+                let mv = Move {
+                    from: mvs.from,
+                    to,
+                    promotion: promo.then(|| Piece::Queen),
+                };
                 if position.is_capture(mv) {
                     let victim = position.board.piece_on(mv.to).unwrap();
                     let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
