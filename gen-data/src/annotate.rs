@@ -92,7 +92,7 @@ impl Options {
                         !b.checkers().is_empty()
                     };
 
-                    let extra = capture as u8 | (in_check as u8) << 1 | (gives_check as u8) << 1;
+                    let extra = capture as u8 | (in_check as u8) << 1 | (gives_check as u8) << 2;
 
                     *packed = PackedBoard::pack(&board, white_eval.raw(), wdl, extra);
                 }
