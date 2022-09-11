@@ -10,6 +10,7 @@ use structopt::StructOpt;
 
 mod annotate;
 mod games;
+mod stats;
 
 static ABORT: AtomicBool = AtomicBool::new(false);
 
@@ -36,6 +37,7 @@ enum Subcommand {
     /// Generate positions from self-play games
     Games(games::Options),
     Annotate(annotate::Options),
+    Stats(stats::Options),
 }
 
 fn main() {
@@ -49,6 +51,7 @@ fn main() {
     match options.subcommand {
         Subcommand::Games(opt) => opt.run(options.common),
         Subcommand::Annotate(opt) => opt.run(options.common),
+        Subcommand::Stats(opt) => opt.run(options.common),
     }
 }
 
