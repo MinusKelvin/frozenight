@@ -52,17 +52,23 @@ impl Searcher<'_> {
         }
 
         // null move pruning
-        if depth >= NMP_MIN_DEPTH.get() {
-            let sliders = position.board.pieces(Piece::Rook)
-                | position.board.pieces(Piece::Bishop)
-                | position.board.pieces(Piece::Queen);
-            if !(sliders & position.board.colors(position.board.side_to_move())).is_empty() {
-                if let Some(nm) = position.null_move() {
-                    let reduction = nmp_reduction(depth);
-                    let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
-                    if window.fail_high(v) {
-                        return Some(v);
-                    }
+        let our_sliders = (position.board.pieces(Piece::Rook)
+            | position.board.pieces(Piece::Bishop)
+            | position.board.pieces(Piece::Queen))
+            & position.board.colors(position.board.side_to_move());
+        let do_nmp = depth >= NMP_MIN_DEPTH.get()
+            && !our_sliders.is_empty()
+            && window.fail_high(
+                entry
+                    .map(|e| e.eval)
+                    .unwrap_or_else(|| position.static_eval(&self.shared.nnue)),
+            );
+        if do_nmp {
+            if let Some(nm) = position.null_move() {
+                let reduction = nmp_reduction(depth);
+                let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
+                if window.fail_high(v) {
+                    return Some(v);
                 }
             }
         }
