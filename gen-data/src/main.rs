@@ -9,6 +9,7 @@ use once_cell::sync::Lazy;
 use structopt::StructOpt;
 
 mod annotate;
+mod filter;
 mod games;
 mod stats;
 
@@ -38,6 +39,7 @@ enum Subcommand {
     Games(games::Options),
     Annotate(annotate::Options),
     Stats(stats::Options),
+    Filter(filter::Options),
 }
 
 fn main() {
@@ -52,6 +54,7 @@ fn main() {
         Subcommand::Games(opt) => opt.run(options.common),
         Subcommand::Annotate(opt) => opt.run(options.common),
         Subcommand::Stats(opt) => opt.run(options.common),
+        Subcommand::Filter(opt) => opt.run(options.common),
     }
 }
 
