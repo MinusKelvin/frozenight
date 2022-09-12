@@ -18,7 +18,7 @@ use crate::CommonOptions;
 
 #[derive(StructOpt)]
 pub(crate) struct Options {
-    #[structopt(short = "o", long, default_value = "data.bin")]
+    #[structopt(short = "o", long)]
     output: PathBuf,
 
     #[structopt(short = "n", long)]
@@ -33,17 +33,31 @@ pub(crate) struct Options {
     frc: bool,
     #[structopt(long)]
     dfrc: bool,
+
+    #[structopt(short = "r", long, default_value = "0.0")]
+    random_move: f64,
 }
 
 impl Options {
     pub(crate) fn run(self, opt: CommonOptions) {
+        let mut error = false;
+
         if self.frc && self.dfrc {
             eprintln!("Only one of --frc and --dfrc can be specified");
-            return;
+            error = true;
         }
 
         if self.nodes.is_some() == self.depth.is_some() {
             eprintln!("Exactly one of --nodes and --depth must be specified.");
+            error = true;
+        }
+
+        if !(0.0..=1.0).contains(&self.random_move) {
+            eprintln!("Random move probability must be between 0 and 1 inclusive");
+            error = true;
+        }
+
+        if error {
             return;
         }
 
@@ -187,15 +201,26 @@ impl Options {
                 outcome = tb_outcome;
             }
 
-            let mut moves = game.iter().map(|&(mv, _)| mv);
-            engine.set_position(start_pos.clone(), |_| moves.next());
+            let mv = if thread_rng().gen_bool(self.random_move) {
+                let mut moves = vec![];
+                board.generate_moves(|mvs| {
+                    moves.extend(mvs);
+                    false
+                });
+                *moves.choose(&mut thread_rng()).unwrap()
+            } else {
+                let mut moves = game.iter().map(|&(mv, _)| mv);
+                engine.set_position(start_pos.clone(), |_| moves.next());
 
-            let (_, mv) = engine.search_synchronous(
-                None,
-                self.depth.unwrap_or(16),
-                self.nodes.unwrap_or(u64::MAX),
-                |_, _, _, _, _| {},
-            );
+                engine
+                    .search_synchronous(
+                        None,
+                        self.depth.unwrap_or(16),
+                        self.nodes.unwrap_or(u64::MAX),
+                        |_, _, _, _, _| {},
+                    )
+                    .1
+            };
 
             game.push((mv, tb_outcome));
             board.play(mv);
