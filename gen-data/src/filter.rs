@@ -20,6 +20,8 @@ pub struct Options {
 
     #[structopt(short = "e", long)]
     filter_eval: Option<i16>,
+    #[structopt(short = "d", long)]
+    filter_draws: bool,
     #[structopt(short = "c", long)]
     filter_capture: bool,
     #[structopt(short = "i", long)]
@@ -66,6 +68,8 @@ impl Options {
                     } else if self.filter_in_check && extra & 1 << 1 != 0 {
                         false
                     } else if self.filter_give_check && extra & 1 << 2 != 0 {
+                        false
+                    } else if self.filter_draws && eval == 0 {
                         false
                     } else if matches!(
                         self.filter_eval,
