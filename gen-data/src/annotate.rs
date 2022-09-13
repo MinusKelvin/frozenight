@@ -44,7 +44,7 @@ impl Options {
         let next = |boards: &mut Vec<_>| {
             let mut data = input.lock().unwrap();
             boards.clear();
-            for _ in 0..1024 {
+            for _ in 0..64 {
                 let mut board = PackedBoard::zeroed();
                 if data.read_exact(bytemuck::bytes_of_mut(&mut board)).is_ok() {
                     boards.push(board);
@@ -61,7 +61,7 @@ impl Options {
         ));
 
         opt.parallel(
-            || (Vec::with_capacity(1024), Frozenight::new(64)),
+            || (Vec::with_capacity(64), Frozenight::new(64)),
             |(boards, engine)| {
                 next(boards);
                 if boards.is_empty() {
