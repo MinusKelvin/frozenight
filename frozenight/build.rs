@@ -34,7 +34,7 @@ fn main() {
     let eval_file = std::env::var_os("EVALFILE");
     let eval_file: &Path = eval_file
         .as_ref()
-        .map_or("model.json".as_ref(), |s| s.as_ref());
+        .map_or("frozenight/model.json".as_ref(), |s| s.as_ref());
     let eval_file = match eval_file.is_relative() {
         true => Path::new("..").join(eval_file),
         false => eval_file.into(),
