@@ -22,7 +22,7 @@ pub struct NnueAccumulator {
 
 impl Nnue {
     pub fn new() -> Nnue {
-        include!("../model.rs")
+        include!(concat!(env!("OUT_DIR"), "/model.rs"))
     }
 }
 

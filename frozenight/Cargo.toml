@@ -11,3 +11,8 @@ tweakable = []
 [dependencies]
 bytemuck = { version = "1.7.3", features = ["derive"] }
 cozy-chess = "0.3"
+
+[build-dependencies]
+serde = { version = "1.0.144", features = ["derive"] }
+serde-big-array = "0.4.1"
+serde_json = "1.0.85"

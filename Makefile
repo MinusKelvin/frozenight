@@ -5,6 +5,7 @@ ifndef EXE
 $(error You do not appear to be OpenBench - please use cargo instead)
 endif
 
+EVALFILE = frozenight/model.json
 EXE = Frozenight
 ifeq ($(OS),Windows_NT)
 	NAME := $(EXE).exe
@@ -13,5 +14,5 @@ else
 endif
 
 all:
-	cargo build --release --bin frozenight-uci
+	EVALFILE=$(EVALFILE) cargo build --release --bin frozenight-uci
 	mv target/release/frozenight-uci $(NAME)
