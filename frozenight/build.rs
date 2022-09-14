@@ -35,6 +35,10 @@ fn main() {
     let eval_file: &Path = eval_file
         .as_ref()
         .map_or("model.json".as_ref(), |s| s.as_ref());
+    let eval_file = match eval_file.is_relative() {
+        true => Path::new("..").join(eval_file),
+        false => eval_file.into(),
+    };
 
     let model: Nnue =
         serde_json::from_reader(BufReader::new(File::open(eval_file).unwrap())).unwrap();
