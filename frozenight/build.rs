@@ -3,27 +3,20 @@ use std::io::{BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
-
-const NUM_FEATURES: usize = 768;
-const L1_SIZE: usize = 32;
-const BUCKETS: usize = 16;
 
 #[derive(Serialize, Deserialize)]
-struct A<T: Serialize + for<'d> Deserialize<'d>, const N: usize>(
-    #[serde(with = "BigArray")] [T; N],
-);
+struct A<T>(Vec<T>);
 
 #[derive(Deserialize)]
 pub struct Nnue {
     #[serde(rename = "ft.weight")]
-    input_layer: A<A<i16, L1_SIZE>, NUM_FEATURES>,
+    input_layer: A<A<i16>>,
     #[serde(rename = "ft.bias")]
-    input_layer_bias: A<i16, L1_SIZE>,
+    input_layer_bias: A<i16>,
     #[serde(rename = "out.weight")]
-    hidden_layer: A<A<i8, { L1_SIZE * 2 }>, BUCKETS>,
+    hidden_layer: A<A<i8>>,
     #[serde(rename = "out.bias")]
-    hidden_layer_bias: A<i32, BUCKETS>,
+    hidden_layer_bias: A<i32>,
 }
 
 fn main() {
@@ -49,10 +42,7 @@ fn main() {
     writeln!(output, "{}", model).unwrap();
 }
 
-impl<T, const N: usize> std::fmt::Display for A<T, N>
-where
-    T: std::fmt::Display + Serialize + for<'d> Deserialize<'d>,
-{
+impl<T: std::fmt::Display> std::fmt::Display for A<T> {
     fn fmt(&self, to: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(to, "[")?;
         for v in &self.0 {
