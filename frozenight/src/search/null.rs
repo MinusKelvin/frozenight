@@ -58,7 +58,7 @@ impl Searcher<'_> {
             & position.board.colors(position.board.side_to_move());
         let do_nmp = depth >= NMP_MIN_DEPTH.get()
             && !our_sliders.is_empty()
-            && window.fail_high(position.static_eval(&self.shared.nnue));
+            && window.fail_high(position.static_eval());
         if do_nmp {
             if let Some(nm) = position.null_move() {
                 let reduction = nmp_reduction(depth);

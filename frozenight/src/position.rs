@@ -1,6 +1,6 @@
 use cozy_chess::{Board, Move};
 
-use crate::nnue::{Nnue, NnueAccumulator};
+use crate::nnue::NnueAccumulator;
 use crate::Eval;
 
 #[derive(Clone)]
@@ -11,20 +11,20 @@ pub struct Position {
 }
 
 impl Position {
-    pub fn from_root(board: Board, nn: &Nnue) -> Position {
+    pub fn from_root(board: Board) -> Position {
         Position {
-            nnue: NnueAccumulator::new(&board, nn),
+            nnue: NnueAccumulator::new(&board),
             board,
             ply: 0,
         }
     }
 
-    pub fn play_move(&self, nn: &Nnue, mv: Move) -> Position {
+    pub fn play_move(&self, mv: Move) -> Position {
         let mut board = self.board.clone();
         board.play_unchecked(mv);
         Position {
             board,
-            nnue: self.nnue.play_move(nn, &self.board, mv),
+            nnue: self.nnue.play_move(&self.board, mv),
             ply: self.ply + 1,
         }
     }
@@ -37,8 +37,8 @@ impl Position {
         })
     }
 
-    pub fn static_eval(&self, nn: &Nnue) -> Eval {
-        self.nnue.calculate(nn, self.board.side_to_move())
+    pub fn static_eval(&self) -> Eval {
+        self.nnue.calculate(self.board.side_to_move())
     }
 
     pub fn is_capture(&self, mv: Move) -> bool {

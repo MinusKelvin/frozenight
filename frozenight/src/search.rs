@@ -105,7 +105,7 @@ impl<'a> Searcher<'a> {
             _ => Window::default(),
         };
 
-        let position = &Position::from_root(self.root.clone(), &self.shared.nnue);
+        let position = &Position::from_root(self.root.clone());
 
         let (eval, mv) = self.pv_search(position, window, depth)?;
 
@@ -172,7 +172,7 @@ impl<'a> Searcher<'a> {
         let mut remaining = vec![];
 
         self.visit_moves(position, hashmove, |this, mv| {
-            let new_pos = position.play_move(&this.shared.nnue, mv);
+            let new_pos = position.play_move(mv);
 
             let v;
             if let Some(eval) = oracle::oracle(&new_pos.board) {

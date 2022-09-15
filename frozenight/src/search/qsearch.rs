@@ -29,7 +29,7 @@ impl Searcher<'_> {
             permitted = BitBoard::FULL;
             do_for = BitBoard::FULL;
         } else {
-            best = position.static_eval(&self.shared.nnue);
+            best = position.static_eval();
             permitted = position.board.colors(!us);
             do_for = !king.bitboard();
         }
@@ -131,7 +131,7 @@ impl Searcher<'_> {
             }
             let mv = moves.swap_remove(index).0;
 
-            let v = -self.qsearch(&position.play_move(&self.shared.nnue, mv), -window);
+            let v = -self.qsearch(&position.play_move(mv), -window);
             if window.fail_high(v) {
                 self.shared.tt.store(
                     &position,

@@ -11,7 +11,6 @@ mod search;
 mod tt;
 
 pub use eval::Eval;
-use nnue::Nnue;
 use search::{AbdadaTable, SearchState, Searcher, INVALID_MOVE};
 use tt::TranspositionTable;
 
@@ -26,7 +25,6 @@ pub struct Frozenight {
 }
 
 struct SharedState {
-    nnue: Nnue,
     tt: TranspositionTable,
     abdada: AbdadaTable,
 }
@@ -46,7 +44,6 @@ impl Frozenight {
             board: Default::default(),
             prehistory: vec![],
             shared_state: Arc::new(RwLock::new(SharedState {
-                nnue: Nnue::new(),
                 tt: TranspositionTable::new(hash_mb),
                 abdada: AbdadaTable::new(),
             })),
