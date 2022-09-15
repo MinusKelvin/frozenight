@@ -33,6 +33,7 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
   - Network bucketing based on modified piece material values (Queen = 8)
     - This is based on game phase tuning in Koivisto done by Luecx
   - Training data generated through self-play, originally starting with a random network
+  - Trained using (a modified version of) Pali's [`marlinflow`]
 - Quiescense search
   - SEE ordering & pruning with MVV-LVA for ties
   - Check Evasions
@@ -60,11 +61,12 @@ Frozenight is dual-licensed under the [MIT License](LICENSE-MIT) and [Apache Lic
 ## Thanks
 
 - Analog ([Tantabus]), for `cozy-chess` and helping me understand search techniques
-- Pali ([Black Marlin]), for helping me understand NN training and search techniques
+- Pali ([Black Marlin]), for `marlinflow` and helping me understand NN training and search techniques
 - Authors of the [chess programming wiki], for its wealth of knowledge
 
 [lichess]: https://lichess.org/@/FrozenightEngine
 [`cozy-chess`]: https://github.com/analog-hors/cozy-chess
+[`marlinflow`]: https://github.com/dsekercioglu/marlinflow
 [Tantabus]: https://github.com/analog-hors/tantabus
 [Black Marlin]: https://github.com/dsekercioglu/blackmarlin
 [chess programming wiki]: https://www.chessprogramming.org/Main_Page
