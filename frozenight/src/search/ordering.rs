@@ -1,3 +1,4 @@
+use std::collections::BinaryHeap;
 use std::sync::atomic::Ordering;
 
 use cozy_chess::{Color, Move, Piece, Square};
@@ -52,12 +53,15 @@ impl Searcher<'_> {
                     // Killer is legal; order it after neutral captures
                     captures.push((mv, 0));
                 } else {
-                    quiets.push((mv, self.state.history.rank(
-                        mvs.piece,
+                    quiets.push(ScoredMove(
                         mv,
-                        position.board.side_to_move(),
-                        log_nodes,
-                    )));
+                        self.state.history.rank(
+                            mvs.piece,
+                            mv,
+                            position.board.side_to_move(),
+                            log_nodes,
+                        ),
+                    ));
                 }
             }
             false
@@ -80,18 +84,11 @@ impl Searcher<'_> {
             }
         }
 
-        // Iterate quiets
-        while !quiets.is_empty() {
-            let mut index = 0;
-            let mut rank = quiets[0].1;
-            for i in 1..quiets.len() {
-                if quiets[i].1 > rank {
-                    index = i;
-                    rank = quiets[i].1;
-                }
-            }
+        let mut quiets = BinaryHeap::from(quiets);
 
-            if search(self, quiets.swap_remove(index).0)? {
+        // Iterate quiets
+        while let Some(mv) = quiets.pop() {
+            if search(self, mv.0)? {
                 return Some(());
             }
         }
@@ -202,3 +199,25 @@ impl OrderingState {
             .unwrap_or(INVALID_MOVE)
     }
 }
+
+struct ScoredMove(Move, f32);
+
+impl Ord for ScoredMove {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.1.total_cmp(&other.1)
+    }
+}
+
+impl PartialOrd for ScoredMove {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for ScoredMove {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+
+impl Eq for ScoredMove {}
