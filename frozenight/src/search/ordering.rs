@@ -122,8 +122,8 @@ impl Searcher<'_> {
 }
 
 pub struct OrderingState {
-    piece_to_sq: [[[(u32, u32); Square::NUM]; Piece::NUM]; Color::NUM],
-    from_sq_to_sq: [[[(u32, u32); Square::NUM]; Square::NUM]; Color::NUM],
+    piece_to_sq: [[[(i32, i32); Square::NUM]; Piece::NUM]; Color::NUM],
+    from_sq_to_sq: [[[(i32, i32); Square::NUM]; Square::NUM]; Color::NUM],
     killers: [Move; 256],
 }
 
@@ -145,7 +145,7 @@ impl OrderingState {
         }
     }
 
-    pub fn caused_cutoff(&mut self, pos: &Position, mv: Move) {
+    pub fn caused_cutoff(&mut self, pos: &Position, mv: Move, depth: i16) {
         let stm = pos.board.side_to_move();
         let piece = pos.board.piece_on(mv.from).unwrap();
         let capture = pos.is_capture(mv);
@@ -153,13 +153,13 @@ impl OrderingState {
         if !capture {
             let (piece_to, total) =
                 &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-            let diff = 2_000_000_000 - *piece_to;
+            let diff = depth as i32 * 1_000_000 - *piece_to;
             *total += 1;
             *piece_to += diff / *total;
 
             let (from_to, total) =
                 &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-            let diff = 2_000_000_000 - *from_to;
+            let diff = depth as i32 * 1_000_000 - *from_to;
             *total += 1;
             *from_to += diff / *total;
 
@@ -187,7 +187,7 @@ impl OrderingState {
         }
     }
 
-    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> u32 {
+    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
         let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
         piece_to + from_to
