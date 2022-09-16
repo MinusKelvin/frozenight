@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use cozy_chess::{Color, Move, Piece, Square};
 
 use crate::position::Position;
@@ -28,6 +30,7 @@ impl Searcher<'_> {
         let mut underpromotions = vec![];
         let killer = self.state.history.killer(position.ply);
 
+        let log_nodes = (self.stats.nodes.load(Ordering::Relaxed) as f32).ln_1p();
         position.board.generate_moves(|mvs| {
             for mv in mvs {
                 if Some(mv) == hashmove {
@@ -49,7 +52,12 @@ impl Searcher<'_> {
                     // Killer is legal; order it after neutral captures
                     captures.push((mv, 0));
                 } else {
-                    quiets.push((mv, mvs.piece));
+                    quiets.push((mv, self.state.history.rank(
+                        mvs.piece,
+                        mv,
+                        position.board.side_to_move(),
+                        log_nodes,
+                    )));
                 }
             }
             false
@@ -75,19 +83,11 @@ impl Searcher<'_> {
         // Iterate quiets
         while !quiets.is_empty() {
             let mut index = 0;
-            let mut rank =
-                self.state
-                    .history
-                    .rank(quiets[0].1, quiets[0].0, position.board.side_to_move());
+            let mut rank = quiets[0].1;
             for i in 1..quiets.len() {
-                let r = self.state.history.rank(
-                    quiets[i].1,
-                    quiets[i].0,
-                    position.board.side_to_move(),
-                );
-                if r > rank {
+                if quiets[i].1 > rank {
                     index = i;
-                    rank = r;
+                    rank = quiets[i].1;
                 }
             }
 
@@ -122,16 +122,16 @@ impl Searcher<'_> {
 }
 
 pub struct OrderingState {
-    piece_to_sq: [[[(u32, u32); Square::NUM]; Piece::NUM]; Color::NUM],
-    from_sq_to_sq: [[[(u32, u32); Square::NUM]; Square::NUM]; Color::NUM],
+    piece_to_sq: [[[(f32, u32); Square::NUM]; Piece::NUM]; Color::NUM],
+    from_sq_to_sq: [[[(f32, u32); Square::NUM]; Square::NUM]; Color::NUM],
     killers: [Move; 256],
 }
 
 impl OrderingState {
     pub fn new() -> Self {
         OrderingState {
-            piece_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
-            from_sq_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Square::NUM]; Color::NUM],
+            piece_to_sq: [[[(0.0, 0); Square::NUM]; Piece::NUM]; Color::NUM],
+            from_sq_to_sq: [[[(0.0, 0); Square::NUM]; Square::NUM]; Color::NUM],
             killers: [INVALID_MOVE; 256],
         }
     }
@@ -153,15 +153,15 @@ impl OrderingState {
         if !capture {
             let (piece_to, total) =
                 &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-            let diff = 2_000_000_000 - *piece_to;
+            let diff = 1.0 - *piece_to;
             *total += 1;
-            *piece_to += diff / *total;
+            *piece_to += diff / *total as f32;
 
             let (from_to, total) =
                 &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-            let diff = 2_000_000_000 - *from_to;
+            let diff = 1.0 - *from_to;
             *total += 1;
-            *from_to += diff / *total;
+            *from_to += diff / *total as f32;
 
             if let Some(killer) = self.killers.get_mut(pos.ply as usize) {
                 *killer = mv;
@@ -178,19 +178,21 @@ impl OrderingState {
             let (piece_to, total) =
                 &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
             *total += 1;
-            *piece_to -= *piece_to / *total;
+            *piece_to -= *piece_to / *total as f32;
 
             let (from_to, total) =
                 &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
             *total += 1;
-            *from_to -= *from_to / *total;
+            *from_to -= *from_to / *total as f32;
         }
     }
 
-    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> u32 {
-        let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        piece_to + from_to
+    fn rank(&self, piece: Piece, mv: Move, stm: Color, log_t: f32) -> f32 {
+        let (piece_to, n) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+        let variance = log_t / n as f32;
+        let (from_to, n) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
+        let variance = variance + log_t / n as f32;
+        (piece_to + from_to) + 1.5 * variance.sqrt()
     }
 
     fn killer(&self, ply: u16) -> Move {
