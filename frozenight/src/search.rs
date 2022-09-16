@@ -171,7 +171,7 @@ impl<'a> Searcher<'a> {
 
         let mut remaining = vec![];
 
-        self.visit_moves(position, hashmove, |this, mv| {
+        self.visit_moves(position, hashmove, depth, |this, mv| {
             let new_pos = position.play_move(mv);
 
             let v;

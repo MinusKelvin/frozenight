@@ -15,6 +15,7 @@ impl Searcher<'_> {
         &mut self,
         position: &Position,
         hashmove: Option<Move>,
+        depth: i16,
         mut search: impl FnMut(&mut Searcher, Move) -> Option<bool>,
     ) -> Option<()> {
         // Hashmove
@@ -52,12 +53,16 @@ impl Searcher<'_> {
                     // Killer is legal; order it after neutral captures
                     captures.push((mv, 0));
                 } else {
-                    quiets.push((mv, self.state.history.rank(
-                        mvs.piece,
+                    quiets.push((
                         mv,
-                        position.board.side_to_move(),
-                        log_nodes,
-                    )));
+                        self.state.history.rank(
+                            mvs.piece,
+                            mv,
+                            position.board.side_to_move(),
+                            log_nodes,
+                            depth,
+                        ),
+                    ));
                 }
             }
             false
@@ -187,12 +192,12 @@ impl OrderingState {
         }
     }
 
-    fn rank(&self, piece: Piece, mv: Move, stm: Color, log_t: f32) -> f32 {
+    fn rank(&self, piece: Piece, mv: Move, stm: Color, log_t: f32, depth: i16) -> f32 {
         let (piece_to, n) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
         let variance = log_t / n as f32;
         let (from_to, n) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
         let variance = variance + log_t / n as f32;
-        (piece_to + from_to) + 0.2 * variance.sqrt()
+        (piece_to + from_to) + variance.sqrt() / (1 << depth) as f32
     }
 
     fn killer(&self, ply: u16) -> Move {
