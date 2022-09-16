@@ -52,12 +52,15 @@ impl Searcher<'_> {
                     // Killer is legal; order it after neutral captures
                     captures.push((mv, 0));
                 } else {
-                    quiets.push((mv, self.state.history.rank(
-                        mvs.piece,
+                    quiets.push((
                         mv,
-                        position.board.side_to_move(),
-                        log_nodes,
-                    )));
+                        self.state.history.rank(
+                            mvs.piece,
+                            mv,
+                            position.board.side_to_move(),
+                            log_nodes,
+                        ),
+                    ));
                 }
             }
             false
@@ -122,30 +125,32 @@ impl Searcher<'_> {
 }
 
 pub struct OrderingState {
-    piece_to_sq: [[[(f32, u32); Square::NUM]; Piece::NUM]; Color::NUM],
-    from_sq_to_sq: [[[(f32, u32); Square::NUM]; Square::NUM]; Color::NUM],
+    piece_to_sq: [[[(u32, u32); Square::NUM]; Piece::NUM]; Color::NUM],
+    from_sq_to_sq: [[[(u32, u32); Square::NUM]; Square::NUM]; Color::NUM],
     killers: [Move; 256],
 }
 
 impl OrderingState {
     pub fn new() -> Self {
         OrderingState {
-            piece_to_sq: [[[(0.0, 0); Square::NUM]; Piece::NUM]; Color::NUM],
-            from_sq_to_sq: [[[(0.0, 0); Square::NUM]; Square::NUM]; Color::NUM],
+            piece_to_sq: [[[(0, 0); Square::NUM]; Piece::NUM]; Color::NUM],
+            from_sq_to_sq: [[[(0, 0); Square::NUM]; Square::NUM]; Color::NUM],
             killers: [INVALID_MOVE; 256],
         }
     }
 
     pub fn decay(&mut self) {
-        for (_, total) in self.piece_to_sq.iter_mut().flatten().flatten() {
+        for (value, total) in self.piece_to_sq.iter_mut().flatten().flatten() {
             *total /= 64;
+            *value /= 64;
         }
-        for (_, total) in self.from_sq_to_sq.iter_mut().flatten().flatten() {
+        for (value, total) in self.from_sq_to_sq.iter_mut().flatten().flatten() {
             *total /= 16;
+            *value /= 16;
         }
     }
 
-    pub fn caused_cutoff(&mut self, pos: &Position, mv: Move) {
+    pub fn caused_cutoff(&mut self, pos: &Position, mv: Move, depth: i16) {
         let stm = pos.board.side_to_move();
         let piece = pos.board.piece_on(mv.from).unwrap();
         let capture = pos.is_capture(mv);
@@ -153,15 +158,13 @@ impl OrderingState {
         if !capture {
             let (piece_to, total) =
                 &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-            let diff = 1.0 - *piece_to;
             *total += 1;
-            *piece_to += diff / *total as f32;
+            *piece_to += depth as u32;
 
             let (from_to, total) =
                 &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-            let diff = 1.0 - *from_to;
             *total += 1;
-            *from_to += diff / *total as f32;
+            *from_to += depth as u32;
 
             if let Some(killer) = self.killers.get_mut(pos.ply as usize) {
                 *killer = mv;
@@ -175,24 +178,23 @@ impl OrderingState {
         let capture = pos.is_capture(mv);
 
         if !capture {
-            let (piece_to, total) =
-                &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+            let (_, total) = &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
             *total += 1;
-            *piece_to -= *piece_to / *total as f32;
 
-            let (from_to, total) =
+            let (_, total) =
                 &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
             *total += 1;
-            *from_to -= *from_to / *total as f32;
         }
     }
 
     fn rank(&self, piece: Piece, mv: Move, stm: Color, log_t: f32) -> f32 {
-        let (piece_to, n) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        let variance = log_t / n as f32;
-        let (from_to, n) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-        let variance = variance + log_t / n as f32;
-        (piece_to + from_to) + 0.2 * variance.sqrt()
+        let (cut, count) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
+        let pt_var = log_t / count as f32;
+        let pt_mean = cut as f32 / count as f32;
+        let (cut, count) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
+        let ft_var = log_t / count as f32;
+        let ft_mean = cut as f32 / count as f32;
+        (pt_mean + ft_mean) + 0.2 * (pt_var + ft_var).sqrt()
     }
 
     fn killer(&self, ply: u16) -> Move {
