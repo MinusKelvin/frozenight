@@ -96,6 +96,10 @@ impl Frozenight {
             });
     }
 
+    pub fn reset(&mut self) {
+        self.tl_data.clear();
+    }
+
     pub fn start_search(
         &mut self,
         time_use_suggestion: Option<Instant>,
