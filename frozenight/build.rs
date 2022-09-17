@@ -20,7 +20,6 @@ pub struct Nnue {
 }
 
 fn main() {
-    println!("cargo:rerun-if-changed=model.json");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=EVALFILE");
 
@@ -32,6 +31,7 @@ fn main() {
         true => Path::new("..").join(eval_file),
         false => eval_file.into(),
     };
+    println!("cargo:rerun-if-changed={}", eval_file.display());
 
     let model: Nnue =
         serde_json::from_reader(BufReader::new(File::open(eval_file).unwrap())).unwrap();
