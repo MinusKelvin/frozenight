@@ -79,9 +79,10 @@ pub fn bench() {
 
     let mut total_time = Duration::ZERO;
     let mut total_nodes = 0;
+    let mut engine = Frozenight::new(16);
 
     for &pos in POSITIONS {
-        let mut engine = Frozenight::new(16);
+        engine.reset();
         engine.set_position(pos.parse().unwrap(), |_| None);
 
         let mut nodes = 0;

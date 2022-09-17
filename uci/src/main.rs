@@ -105,6 +105,9 @@ fn main() {
                         }
                     }
                 }
+                "ucinewgame" => {
+                    frozenight.reset();
+                }
                 "position" => {
                     let board = match stream.next()? {
                         "startpos" => Board::default(),
