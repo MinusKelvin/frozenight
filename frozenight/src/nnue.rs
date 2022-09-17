@@ -4,7 +4,7 @@ use crate::Eval;
 
 const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
 const L1_SIZE: usize = 32;
-const BUCKETS: usize = 16;
+const BUCKETS: usize = 1;
 
 static NETWORK: Nnue = include!(concat!(env!("OUT_DIR"), "/model.rs"));
 
