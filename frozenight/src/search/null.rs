@@ -64,7 +64,11 @@ impl Searcher<'_> {
                 let reduction = nmp_reduction(depth);
                 let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
                 if window.fail_high(v) {
-                    return Some(v);
+                    if v > Eval::MAX_INCONCLUSIVE {
+                        return Some(window.ub());
+                    } else {
+                        return Some(v);
+                    }
                 }
             }
         }
