@@ -1,9 +1,8 @@
 use std::io::{stdin, stdout, Write};
-use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Color, File, Move, Piece, Square};
-use frozenight::Frozenight;
+use frozenight::{MtFrozenight, TimeConstraint};
 
 mod bench;
 
@@ -13,13 +12,11 @@ fn main() {
         return;
     }
 
-    let mut frozenight = Frozenight::new(32);
+    let mut frozenight = MtFrozenight::new(32);
 
     let mut move_overhead = Duration::from_millis(0);
-    let mut abort = None;
     let mut ob_no_adj = false;
     let mut chess960 = false;
-    let mut threads = 1;
 
     let mut buf = String::new();
     loop {
@@ -53,7 +50,10 @@ fn main() {
                     for param in frozenight::all_parameters() {
                         println!(
                             "option name {} type spin default {} min {} max {}",
-                            param.name(), param.default, param.min, param.max
+                            param.name(),
+                            param.default,
+                            param.min,
+                            param.max
                         );
                     }
                     println!("uciok");
@@ -90,7 +90,7 @@ fn main() {
                             chess960 = stream.next()? == "true";
                         }
                         "Threads" => {
-                            threads = stream.next()?.parse().ok()?;
+                            frozenight.set_threads(stream.next()?.parse().ok()?);
                         }
                         _ =>
                         {
@@ -106,10 +106,10 @@ fn main() {
                     }
                 }
                 "ucinewgame" => {
-                    frozenight.reset();
+                    frozenight.new_game();
                 }
                 "position" => {
-                    let board = match stream.next()? {
+                    let mut board = match stream.next()? {
                         "startpos" => Board::default(),
                         "fen" => {
                             let fen_start = stream.next().unwrap().to_owned();
@@ -131,18 +131,23 @@ fn main() {
                         stream.next();
                     }
 
-                    frozenight.set_position(board, |board| {
-                        let mv = stream.peek()?.parse().ok()?;
-                        stream.next();
-                        Some(from_uci_castling(board, mv, chess960))
-                    });
+                    frozenight.set_position(
+                        board.clone(),
+                        std::iter::from_fn(|| {
+                            let mv =
+                                from_uci_castling(&board, stream.peek()?.parse().ok()?, chess960);
+                            stream.next();
+                            board.play(mv);
+                            Some(mv)
+                        }),
+                    );
                 }
                 "go" => {
-                    let mut time_available = None;
+                    let mut clock = None;
                     let mut increment = Duration::ZERO;
-                    let mut budget_time = false;
+                    let mut use_all_time = true;
                     let mut nodes = u64::MAX;
-                    let mut to_go = 45;
+                    let mut moves_to_go = None;
 
                     let mut depth = 250;
 
@@ -150,16 +155,16 @@ fn main() {
                     while let Some(param) = stream.next() {
                         match param {
                             "wtime" if stm == Color::White => {
-                                time_available = Some(Duration::from_millis(
+                                clock = Some(Duration::from_millis(
                                     stream.next().unwrap().parse().unwrap(),
                                 ));
-                                budget_time = true;
+                                use_all_time = false;
                             }
                             "btime" if stm == Color::Black => {
-                                time_available = Some(Duration::from_millis(
+                                clock = Some(Duration::from_millis(
                                     stream.next().unwrap().parse().unwrap(),
                                 ));
-                                budget_time = true;
+                                use_all_time = false;
                             }
                             "winc" if stm == Color::White => {
                                 increment =
@@ -170,69 +175,64 @@ fn main() {
                                     Duration::from_millis(stream.next().unwrap().parse().unwrap());
                             }
                             "movetime" => {
-                                time_available = Some(Duration::from_millis(
+                                clock = Some(Duration::from_millis(
                                     stream.next().unwrap().parse().unwrap(),
                                 ));
-                                budget_time = false;
+                                use_all_time = true;
                             }
-                            "movestogo" => to_go = stream.next().unwrap().parse().unwrap(),
+                            "movestogo" => {
+                                moves_to_go = Some(stream.next().unwrap().parse().unwrap())
+                            }
                             "depth" => depth = stream.next().unwrap().parse().unwrap(),
                             "nodes" => nodes = stream.next().unwrap().parse().unwrap(),
                             _ => {}
                         }
                     }
 
-                    let time_use_suggestion = time_available.map(|amt| match budget_time {
-                        true => {
-                            amt.min((amt.saturating_sub(increment) / (to_go + 5)) + increment / 2)
-                        }
-                        false => amt,
-                    });
-
-                    abort = Some(frozenight.start_search(
-                        time_use_suggestion.map(|d| {
-                            now + d
-                                .saturating_sub(move_overhead)
-                                .max(Duration::from_millis(1))
-                        }),
-                        time_available.map(|d| {
-                            now + (d / 2)
-                                .saturating_sub(move_overhead)
-                                .max(Duration::from_millis(1))
-                        }),
-                        depth,
-                        nodes,
-                        threads,
-                        move |depth, stats, eval, board, pv| {
+                    let board1 = frozenight.board().clone();
+                    let board2 = frozenight.board().clone();
+                    frozenight.search(
+                        TimeConstraint {
+                            nodes,
+                            depth,
+                            clock,
+                            increment,
+                            overhead: move_overhead,
+                            moves_to_go,
+                            use_all_time,
+                        },
+                        move |info| {
                             let time = now.elapsed();
-                            let nodes = stats.nodes.load(Ordering::Relaxed);
                             print!(
                                 "info depth {} seldepth {} nodes {} nps {} score {} time {} pv",
-                                depth,
-                                stats.selective_depth.load(Ordering::Relaxed),
-                                nodes,
-                                (nodes as f64 / time.as_secs_f64()).round() as u64,
+                                info.depth,
+                                info.selective_depth,
+                                info.nodes,
+                                (info.nodes as f64 / time.as_secs_f64()).round() as u64,
                                 match ob_no_adj {
                                     true => frozenight::Eval::new(250),
-                                    false => eval,
+                                    false => info.eval,
                                 },
                                 time.as_millis()
                             );
-                            let mut board = board.clone();
-                            for &mv in pv {
+                            let mut board = board1.clone();
+                            for &mv in &info.pv {
                                 print!(" {}", to_uci_castling(&board, mv, chess960));
                                 board.play(mv);
                             }
                             println!();
                         },
-                        move |_, mv, board| {
-                            println!("bestmove {}", to_uci_castling(board, mv, chess960));
+                        move |info| {
+                            println!(
+                                "bestmove {}",
+                                to_uci_castling(&board2, info.best_move, chess960)
+                            );
                             stdout().flush().unwrap();
                         },
-                    ));
+                    );
                 }
                 "stop" => {
-                    abort = None;
+                    frozenight.abort();
                 }
                 _ => {}
             }

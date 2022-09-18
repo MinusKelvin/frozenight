@@ -15,6 +15,7 @@ const ENTRIES_PER_MB: usize = 1024 * 1024 / std::mem::size_of::<TtEntry>();
 
 impl TranspositionTable {
     pub fn new(hash_mb: usize) -> Self {
+        assert!(hash_mb > 0);
         TranspositionTable {
             entries: (0..hash_mb * ENTRIES_PER_MB)
                 .map(|_| TtEntry::default())
@@ -124,7 +125,7 @@ impl TranspositionTable {
     }
 
     pub fn increment_age(&mut self, by: u8) {
-        self.search_number += by;
+        self.search_number = self.search_number.wrapping_add(by);
     }
 }
 

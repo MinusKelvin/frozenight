@@ -16,7 +16,7 @@ impl Searcher<'_> {
     }
 
     fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
-        let entry = self.shared.tt.get(&position);
+        let entry = self.shared.tt.get(position);
         if let Some(entry) = entry {
             match entry.kind {
                 _ if entry.depth < depth => {}

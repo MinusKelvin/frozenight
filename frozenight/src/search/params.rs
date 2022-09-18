@@ -1,5 +1,5 @@
 #[cfg(feature = "tweakable")]
-mod params {
+mod imp {
     use std::sync::atomic::{AtomicI16, Ordering};
 
     pub struct Parameter {
@@ -37,7 +37,7 @@ mod params {
 }
 
 #[cfg(not(feature = "tweakable"))]
-mod params {
+mod imp {
     pub struct Parameter {
         value: i16,
     }
@@ -56,7 +56,7 @@ mod params {
 
 macro_rules! tweakables {
     (@values $name:ident: $min:literal ..= $max:literal = $default:expr; $($rest:tt)*) => {
-        pub static $name: params::Parameter = params::Parameter::new(
+        pub static $name: imp::Parameter = imp::Parameter::new(
             stringify!($name), $min, $max, $default
         );
         tweakables!(@values $($rest)*);
@@ -76,7 +76,7 @@ macro_rules! tweakables {
     };
     ($($rest:tt)*) => {
         tweakables!(@values $($rest)*);
-        pub fn all_parameters() -> impl Iterator<Item=&'static params::Parameter> {
+        pub fn all_parameters() -> impl Iterator<Item=&'static imp::Parameter> {
             let iter = std::iter::empty();
             tweakables!(@list iter $($rest)*)
         }

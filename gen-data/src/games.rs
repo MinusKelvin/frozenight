@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use cozy_chess::{Board, Color, GameStatus, Piece};
 use cozy_syzygy::{Tablebase, Wdl};
-use frozenight::Frozenight;
+use frozenight::{Frozenight, TimeConstraint};
 use marlinformat::PackedBoard;
 use rand::prelude::*;
 use structopt::StructOpt;
@@ -24,7 +24,7 @@ pub(crate) struct Options {
     #[structopt(short = "n", long)]
     nodes: Option<u64>,
     #[structopt(short = "d", long)]
-    depth: Option<u16>,
+    depth: Option<i16>,
 
     #[structopt(parse(try_from_str = crate::parse_filter_underscore))]
     positions: usize,
@@ -74,9 +74,9 @@ impl Options {
         let start = Instant::now();
 
         opt.parallel(
-            || (),
-            |_| {
-                let boards = self.play_game(&tb);
+            || Frozenight::new(64),
+            |engine| {
+                let boards = self.play_game(engine, &tb);
 
                 let games = game_counter.fetch_add(boards.len(), Ordering::SeqCst);
                 if games >= self.positions {
@@ -134,12 +134,12 @@ impl Options {
         board
     }
 
-    fn play_game(&self, tb: &Tablebase) -> Vec<PackedBoard> {
+    fn play_game(&self, engine: &mut Frozenight, tb: &Tablebase) -> Vec<PackedBoard> {
         let start_pos = self.generate_starting_position();
         let mut repetitions = HashSet::new();
         let mut game = vec![];
 
-        let mut engine = Frozenight::new(64);
+        engine.new_game();
         let mut board = start_pos.clone();
 
         let mut outcome = None;
@@ -209,17 +209,18 @@ impl Options {
                 });
                 *moves.choose(&mut thread_rng()).unwrap()
             } else {
-                let mut moves = game.iter().map(|&(mv, _)| mv);
-                engine.set_position(start_pos.clone(), |_| moves.next());
+                engine.set_position(start_pos.clone(), game.iter().map(|&(mv, _)| mv));
 
                 engine
-                    .search_synchronous(
-                        None,
-                        self.depth.unwrap_or(16),
-                        self.nodes.unwrap_or(u64::MAX),
-                        |_, _, _, _, _| {},
+                    .search(
+                        TimeConstraint {
+                            nodes: self.nodes.unwrap_or(u64::MAX),
+                            depth: self.depth.unwrap_or(250),
+                            ..TimeConstraint::INFINITE
+                        },
+                        |_| {},
                     )
-                    .1
+                    .best_move
             };
 
             game.push((mv, tb_outcome));

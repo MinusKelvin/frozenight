@@ -8,7 +8,7 @@ use std::time::Instant;
 
 use bytemuck::Zeroable;
 use cozy_chess::Color;
-use frozenight::Frozenight;
+use frozenight::{Frozenight, TimeConstraint};
 use marlinformat::PackedBoard;
 use structopt::StructOpt;
 
@@ -23,7 +23,7 @@ pub(crate) struct Options {
     #[structopt(short = "n", long)]
     nodes: Option<u64>,
     #[structopt(short = "d", long)]
-    depth: Option<u16>,
+    depth: Option<i16>,
 }
 
 impl Options {
@@ -71,24 +71,27 @@ impl Options {
                 for packed in &mut *boards {
                     let (board, _, wdl, _) = packed.unpack().unwrap();
 
-                    engine.set_position(board.clone(), |_| None);
-                    let (eval, mv) = engine.search_synchronous(
-                        None,
-                        self.depth.unwrap_or(250),
-                        self.nodes.unwrap_or(u64::MAX),
-                        |_, _, _, _, _| {},
+                    engine.new_game();
+                    engine.set_position(board.clone(), std::iter::empty());
+                    let info = engine.search(
+                        TimeConstraint {
+                            nodes: self.nodes.unwrap_or(u64::MAX),
+                            depth: self.depth.unwrap_or(250),
+                            ..TimeConstraint::INFINITE
+                        },
+                        |_| {},
                     );
 
                     let white_eval = match board.side_to_move() {
-                        Color::White => eval,
-                        Color::Black => -eval,
+                        Color::White => info.eval,
+                        Color::Black => -info.eval,
                     };
 
-                    let capture = board.colors(!board.side_to_move()).has(mv.to);
+                    let capture = board.colors(!board.side_to_move()).has(info.best_move.to);
                     let in_check = !board.checkers().is_empty();
                     let gives_check = {
                         let mut b = board.clone();
-                        b.play_unchecked(mv);
+                        b.play_unchecked(info.best_move);
                         !b.checkers().is_empty()
                     };
 

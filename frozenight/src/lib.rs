@@ -1,6 +1,7 @@
-use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
-use std::time::{Duration, Instant};
+use std::ops::ControlFlow;
+use std::sync::atomic::{AtomicBool, AtomicI16, AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 use cozy_chess::{Board, Move};
 
@@ -8,10 +9,16 @@ mod eval;
 mod nnue;
 mod position;
 mod search;
+mod threading;
+mod time;
 mod tt;
 
 pub use eval::Eval;
-use search::{AbdadaTable, SearchState, Searcher, INVALID_MOVE};
+pub use threading::MtFrozenight;
+pub use time::TimeConstraint;
+
+use search::{AbdadaTable, PrivateState, Searcher, INVALID_MOVE};
+use time::TimeManager;
 use tt::TranspositionTable;
 
 pub use search::all_parameters;
@@ -20,8 +27,24 @@ pub struct Frozenight {
     board: Board,
     prehistory: Vec<u64>,
     shared_state: Arc<RwLock<SharedState>>,
-    tl_data: Vec<Arc<(Statistics, Mutex<SearchState>)>>,
-    abort: Arc<AtomicBool>,
+    stats: Arc<Statistics>,
+    state: PrivateState,
+}
+
+#[derive(Clone, Debug)]
+pub struct SearchInfo {
+    pub eval: Eval,
+    pub nodes: u64,
+    pub depth: i16,
+    pub selective_depth: i16,
+    pub best_move: Move,
+    pub pv: Vec<Move>,
+}
+
+#[derive(Debug, Default)]
+struct Statistics {
+    selective_depth: AtomicI16,
+    nodes: AtomicU64,
 }
 
 struct SharedState {
@@ -29,300 +52,162 @@ struct SharedState {
     abdada: AbdadaTable,
 }
 
-struct CurrentSearch<I, B> {
-    depth: u16,
-    eval: Eval,
-    mv: Move,
-    info: I,
-    best_move: Option<B>,
-    tl_datas: Vec<Arc<(Statistics, Mutex<SearchState>)>>,
-}
-
 impl Frozenight {
     pub fn new(hash_mb: usize) -> Self {
+        Self::create(Arc::new(RwLock::new(SharedState {
+            tt: TranspositionTable::new(hash_mb),
+            abdada: AbdadaTable::new(),
+        })))
+    }
+
+    fn create(shared_state: Arc<RwLock<SharedState>>) -> Self {
         Frozenight {
             board: Default::default(),
             prehistory: vec![],
-            shared_state: Arc::new(RwLock::new(SharedState {
-                tt: TranspositionTable::new(hash_mb),
-                abdada: AbdadaTable::new(),
-            })),
-            tl_data: vec![],
-            abort: Default::default(),
+            shared_state,
+            stats: Default::default(),
+            state: Default::default(),
         }
-    }
-
-    pub fn set_hash(&mut self, hash_mb: usize) {
-        self.abort.store(true, Ordering::Relaxed);
-        let mut state = self.shared_state.write().unwrap();
-        // put dummy value in to drop potentially large previous TT allocation
-        state.tt = TranspositionTable::new(1);
-        // then create potentially large new TT allocation
-        state.tt = TranspositionTable::new(hash_mb);
     }
 
     pub fn board(&self) -> &Board {
         &self.board
     }
 
-    pub fn set_position(&mut self, start: Board, mut moves: impl FnMut(&Board) -> Option<Move>) {
-        let old = self.board.clone();
-        let mut moves_since_occurance = -1;
-        self.board = start;
-        self.prehistory.clear();
-        while let Some(mv) = moves(&self.board) {
-            self.prehistory.push(self.board.hash());
-
-            if self.board.same_position(&old) {
-                moves_since_occurance = 0;
-            } else if moves_since_occurance >= 0 {
-                moves_since_occurance += 1;
-            }
-
-            self.board.play(mv);
-            if self.board.halfmove_clock() == 0 {
-                self.prehistory.clear();
-            }
-        }
-        self.prehistory.push(self.board.hash());
-        self.abort.store(true, Ordering::Relaxed);
-        self.shared_state
-            .write()
+    pub fn new_game(&mut self) {
+        self.state = Default::default();
+        Arc::get_mut(&mut self.shared_state)
+            .unwrap()
+            .get_mut()
             .unwrap()
             .tt
-            .increment_age(match moves_since_occurance {
-                0..=4 => 1,
-                _ => 2,
-            });
+            .increment_age(2);
     }
 
-    pub fn reset(&mut self) {
-        self.tl_data.clear();
+    pub fn set_position(&mut self, position: Board, moves: impl Iterator<Item = Move>) {
+        let mut new = position;
+        let age_inc = update_position(&mut new, &mut self.prehistory, &self.board, moves);
+        self.board = new;
+        Arc::get_mut(&mut self.shared_state)
+            .unwrap()
+            .get_mut()
+            .unwrap()
+            .tt
+            .increment_age(age_inc);
     }
 
-    pub fn start_search(
+    pub fn set_hash(&mut self, hash_mb: usize) {
+        let mut shared = Arc::get_mut(&mut self.shared_state)
+            .unwrap()
+            .get_mut()
+            .unwrap();
+        // drop the existing TT before allocating the new one
+        shared.tt = TranspositionTable::new(1);
+        shared.tt = TranspositionTable::new(hash_mb);
+    }
+
+    pub fn search(
         &mut self,
-        time_use_suggestion: Option<Instant>,
-        deadline: Option<Instant>,
-        depth_limit: u16,
-        nodes_limit: u64,
-        threads: usize,
-        info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]) + Send + 'static,
-        best_move: impl FnOnce(Eval, Move, &Board) + Send + 'static,
-    ) -> Abort {
-        // Create a new abort search variable
-        self.abort.store(true, Ordering::Relaxed);
-        self.abort = Arc::new(AtomicBool::new(false));
-
-        let mut searchers = Vec::with_capacity(threads);
-        let mut tl_datas = Vec::with_capacity(threads);
-        for i in 0..threads {
-            searchers.push(self.searcher(i, threads > 1));
-            tl_datas.push(self.tl_data[i].clone());
-        }
-
-        let search_data = Arc::new(Mutex::new(CurrentSearch {
-            depth: 0,
+        time: TimeConstraint,
+        mut info: impl FnMut(&SearchInfo),
+    ) -> SearchInfo {
+        let mut recent_info = SearchInfo {
             eval: Eval::DRAW,
-            mv: INVALID_MOVE,
-            tl_datas,
-            info,
-            best_move: Some(best_move),
-        }));
+            nodes: 0,
+            depth: 0,
+            selective_depth: 0,
+            best_move: INVALID_MOVE,
+            pv: vec![],
+        };
+        let mut tm = TimeManager::new(&self.board, time);
+        self.search_internal(
+            time.depth,
+            time.nodes,
+            &Default::default(),
+            false,
+            tm.deadline(),
+            |depth, searcher, best_move, eval| {
+                recent_info = SearchInfo {
+                    eval,
+                    depth,
+                    selective_depth: searcher.stats.selective_depth.load(Ordering::Relaxed),
+                    nodes: searcher.stats.nodes.load(Ordering::Relaxed),
+                    best_move,
+                    pv: searcher.extract_pv(depth),
+                };
+                info(&recent_info);
 
-        // Start search threads
-        for searcher in searchers {
-            let search_data = search_data.clone();
-            std::thread::spawn(move || {
-                searcher(move |mut s| {
-                    s.node_limit = nodes_limit;
-                    let root = s.root.clone();
-                    let abort = s.abort;
-                    iterative_deepening(
-                        s,
-                        depth_limit.min(5000),
-                        |depth, _stats, eval, board, pv| {
-                            let mut data = search_data.lock().unwrap();
-                            if data.depth >= depth {
-                                return false;
-                            }
-                            data.depth = depth;
-                            data.eval = eval;
-                            data.mv = pv[0];
-
-                            let mut stats = Statistics::default();
-                            let nodes = stats.nodes.get_mut();
-                            let sd = stats.selective_depth.get_mut();
-                            for (stat, _) in data.tl_datas.iter().map(|a| &**a) {
-                                *nodes += stat.nodes.load(Ordering::Relaxed);
-                                *sd = (*sd).max(stat.selective_depth.load(Ordering::Relaxed))
-                            }
-
-                            (data.info)(depth, &stats, eval, board, pv);
-
-                            true
-                        },
-                        time_use_suggestion,
-                    );
-
-                    let mut data = search_data.lock().unwrap();
-                    if let Some(best_move) = data.best_move.take() {
-                        best_move(data.eval, data.mv, &root);
-                        abort.store(true, Ordering::Relaxed);
-                    };
-                })
-            });
-        }
-
-        // Spawn timeout thread
-        if let Some(deadline) = deadline {
-            let abort = self.abort.clone();
-            std::thread::spawn(move || {
-                while let Some(to_go) = deadline.checked_duration_since(Instant::now()) {
-                    std::thread::sleep(to_go.min(Duration::from_secs(1)));
-                    if abort.load(Ordering::Relaxed) {
-                        return;
-                    }
-                }
-                abort.store(true, Ordering::Relaxed);
-            });
-        }
-
-        Abort(Some(self.abort.clone()))
+                tm.update(&recent_info)
+            },
+        );
+        recent_info
     }
 
-    pub fn search_synchronous(
+    fn search_internal(
         &mut self,
-        time_use_suggestion: Option<Instant>,
-        depth_limit: u16,
-        nodes_limit: u64,
-        mut info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]),
-    ) -> (Eval, Move) {
-        // Create a new abort search variable
-        self.abort.store(true, Ordering::Relaxed);
-        self.abort = Arc::new(AtomicBool::new(false));
+        max_depth: i16,
+        max_nodes: u64,
+        abort: &AtomicBool,
+        multithreaded: bool,
+        deadline: Option<Instant>,
+        mut depth_complete: impl FnMut(i16, &mut Searcher, Move, Eval) -> ControlFlow<()>,
+    ) {
+        self.stats.clear();
 
-        self.searcher(0, false)(|mut s| {
-            s.node_limit = nodes_limit;
-            iterative_deepening(
-                s,
-                depth_limit.min(5000),
-                |a, b, c, d, e| {
-                    info(a, b, c, d, e);
-                    true
-                },
-                time_use_suggestion,
-            )
+        self.with_searcher(max_nodes, multithreaded, abort, deadline, |mut searcher| {
+            let mut prev_eval = Eval::DRAW;
+
+            for depth in 1..=max_depth {
+                let (eval, mv) = match searcher.search(depth, prev_eval) {
+                    Some(v) => v,
+                    None => break,
+                };
+
+                if depth_complete(depth, &mut searcher, mv, eval).is_break() {
+                    break;
+                }
+
+                prev_eval = eval;
+            }
         })
     }
+}
 
-    fn searcher<F: FnOnce(Searcher) -> R, R>(
-        &mut self,
-        thread: usize,
-        multithreaded: bool,
-    ) -> impl FnOnce(F) -> R + Send {
-        let abort = self.abort.clone();
-        let shared = self.shared_state.clone();
-        while thread >= self.tl_data.len() {
-            self.tl_data.push(Arc::new((
-                Statistics::default(),
-                Mutex::new(SearchState::default()),
-            )));
-        }
-        let tl_data = self.tl_data[thread].clone();
-        tl_data.0.nodes.store(0, Ordering::Relaxed);
-        tl_data.0.selective_depth.store(0, Ordering::Relaxed);
-        let prehistory = self.prehistory.clone();
-        let board = self.board.clone();
-        move |f| {
-            let shared = shared.read().unwrap();
-            f(Searcher::new(
-                &abort,
-                &shared,
-                &mut tl_data.1.lock().unwrap(),
-                &tl_data.0,
-                board,
-                multithreaded,
-                prehistory,
-            ))
-        }
+impl Statistics {
+    fn clear(&self) {
+        self.selective_depth.store(0, Ordering::Relaxed);
+        self.nodes.store(0, Ordering::Relaxed);
     }
 }
 
-pub struct Abort(Option<Arc<AtomicBool>>);
-
-impl Abort {
-    pub fn abort(self) {}
-    pub fn forget(mut self) {
-        self.0.take();
+fn update_position(
+    board: &mut Board,
+    prehistory: &mut Vec<u64>,
+    old: &Board,
+    moves: impl Iterator<Item = Move>,
+) -> u8 {
+    let mut moves_since_last = 3;
+    if board.same_position(old) {
+        moves_since_last = 0;
     }
-}
+    prehistory.clear();
+    prehistory.push(board.hash());
 
-impl Drop for Abort {
-    fn drop(&mut self) {
-        if let Some(abort) = self.0.as_ref() {
-            abort.store(true, Ordering::Relaxed);
+    for mv in moves {
+        moves_since_last += 1;
+        board.play(mv);
+        if board.halfmove_clock() == 0 {
+            prehistory.clear();
         }
+        if board.same_position(old) {
+            moves_since_last = 0;
+        }
+        prehistory.push(board.hash());
     }
-}
 
-fn iterative_deepening(
-    mut searcher: Searcher,
-    depth_limit: u16,
-    mut info: impl FnMut(u16, &Statistics, Eval, &Board, &[Move]) -> bool,
-    time_use_suggestion: Option<Instant>,
-) -> (Eval, Move) {
-    let mut movecount = 0;
-    searcher.root.generate_moves(|mvs| {
-        movecount += mvs.len();
-        movecount > 1
-    });
-
-    let mut best_move = None;
-    let mut pv = Vec::with_capacity(32);
-    for depth in 1..depth_limit + 1 {
-        let check_tm;
-        if let Some(result) = searcher.search(depth as i16, best_move.map(|(v, _)| v)) {
-            pv.clear();
-            pv.push(result.1);
-            let mut b = searcher.root.clone();
-            b.play(result.1);
-            let mut mvs = 0;
-            while let Some(mv) = searcher.shared.tt.get_move(&b) {
-                mvs += 1;
-                if mvs < depth && b.try_play(mv).is_ok() {
-                    pv.push(mv);
-                } else {
-                    break;
-                }
-            }
-            check_tm = info(depth, searcher.stats, result.0, &searcher.root, &pv);
-            best_move = Some(result);
-
-            if let Some(done_in) = result.0.plys_to_conclusion() {
-                if done_in.abs() < depth as i16 && time_use_suggestion.is_some() {
-                    break;
-                }
-            }
-        } else {
-            break;
-        }
-
-        if let Some(time_use_suggestion) = time_use_suggestion {
-            if check_tm && Instant::now() > time_use_suggestion {
-                break;
-            }
-        }
-
-        if movecount == 1 && time_use_suggestion.is_some() {
-            break;
-        }
+    match moves_since_last {
+        0 => 0,
+        1 | 2 => 1,
+        _ => 2,
     }
-    best_move.unwrap()
-}
-
-#[derive(Debug, Default)]
-pub struct Statistics {
-    pub selective_depth: AtomicU16,
-    pub nodes: AtomicU64,
 }

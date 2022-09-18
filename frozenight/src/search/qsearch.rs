@@ -134,7 +134,7 @@ impl Searcher<'_> {
             let v = -self.qsearch(&position.play_move(mv), -window);
             if window.fail_high(v) {
                 self.shared.tt.store(
-                    &position,
+                    position,
                     TableEntry {
                         mv,
                         eval: v,
@@ -153,7 +153,7 @@ impl Searcher<'_> {
 
         if best_mv != INVALID_MOVE {
             self.shared.tt.store(
-                &position,
+                position,
                 TableEntry {
                     mv: best_mv,
                     eval: best,

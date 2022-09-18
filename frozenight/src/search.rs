@@ -1,10 +1,11 @@
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move, Square};
 
 use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
-use crate::{Eval, SharedState, Statistics};
+use crate::{Eval, Frozenight, SharedState, Statistics};
 
 pub use self::abdada::AbdadaTable;
 use self::ordering::{OrderingState, BREAK, CONTINUE};
@@ -27,67 +28,78 @@ pub const INVALID_MOVE: Move = Move {
     promotion: None,
 };
 
-pub(crate) struct SearchState {
+pub(crate) struct PrivateState {
     history: OrderingState,
 }
 
-impl Default for SearchState {
+impl Default for PrivateState {
     fn default() -> Self {
-        SearchState {
+        PrivateState {
             history: OrderingState::new(),
         }
     }
 }
 
 pub(crate) struct Searcher<'a> {
-    pub root: Board,
+    pub root: &'a Board,
     pub stats: &'a Statistics,
     pub shared: &'a SharedState,
     pub node_limit: u64,
     pub abort: &'a AtomicBool,
+    state: &'a mut PrivateState,
     valid: bool,
     allow_abort: bool,
+    deadline: Option<Instant>,
+    next_deadline_check: u64,
     multithreaded: bool,
-    state: &'a mut SearchState,
     rep_list: Vec<u64>,
     rep_table: [u8; 1024],
 }
 
-impl<'a> Searcher<'a> {
-    pub fn new(
-        abort: &'a AtomicBool,
-        shared: &'a SharedState,
-        state: &'a mut SearchState,
-        stats: &'a Statistics,
-        root: Board,
+impl Frozenight {
+    pub(super) fn with_searcher<T>(
+        &mut self,
+        node_limit: u64,
         multithreaded: bool,
-        rep_list: Vec<u64>,
-    ) -> Self {
-        state.history.decay();
+        abort: &AtomicBool,
+        deadline: Option<Instant>,
+        f: impl FnOnce(Searcher) -> T,
+    ) -> T {
+        self.state.history.decay();
         let mut rep_table = [0; 1024];
-        for &b in &rep_list {
+        for &b in &self.prehistory {
             rep_table[b as usize % 1024] += 1;
         }
-        Searcher {
-            root,
-            shared,
+        let shared = self.shared_state.read().unwrap();
+        f(Searcher {
+            root: &self.board,
+            shared: &shared,
             abort,
-            state,
-            stats,
+            state: &mut self.state,
+            stats: &self.stats,
             multithreaded,
             rep_table,
-            node_limit: u64::MAX,
+            node_limit,
+            deadline,
+            next_deadline_check: match deadline {
+                Some(deadline) => deadline
+                    .checked_duration_since(Instant::now())
+                    .map_or(0, estimate_nodes_to_deadline),
+                None => u64::MAX,
+            },
             valid: true,
             allow_abort: false,
-            rep_list,
-        }
+            rep_list: self.prehistory.clone(),
+        })
     }
+}
 
+impl<'a> Searcher<'a> {
     /// Launch the search.
     ///
     /// Invariant: `self` is unchanged if this function returns `Some`. If it returns none, then
     /// calling this function again will result in a panic.
-    pub fn search(&mut self, depth: i16, around: Option<Eval>) -> Option<(Eval, Move)> {
+    pub fn search(&mut self, depth: i16, around: Eval) -> Option<(Eval, Move)> {
         assert!(depth > 0);
         self.allow_abort = depth > 1;
         if !self.valid {
@@ -98,11 +110,10 @@ impl<'a> Searcher<'a> {
             panic!("root position (FEN: {}) has no moves", self.root);
         }
 
-        let window = match around {
-            Some(around) if depth >= 3 && !around.is_conclusive() => {
-                Window::new(around - 500, around + 500)
-            }
-            _ => Window::default(),
+        let window = match () {
+            _ if depth < 3 => Window::default(),
+            _ if around.is_conclusive() => Window::default(),
+            _ => Window::new(around - 500, around + 500),
         };
 
         let position = &Position::from_root(self.root.clone());
@@ -136,13 +147,24 @@ impl<'a> Searcher<'a> {
         let result = if depth <= 0 {
             self.stats
                 .selective_depth
-                .fetch_max(position.ply, Ordering::Relaxed);
+                .fetch_max(position.ply as i16, Ordering::Relaxed);
             self.qsearch(position, window)
         } else {
-            if self.stats.nodes.fetch_add(1, Ordering::Relaxed) >= self.node_limit
-                && self.allow_abort
-            {
-                return None;
+            let nodes = self.stats.nodes.fetch_add(1, Ordering::Relaxed);
+            if self.allow_abort {
+                if nodes >= self.node_limit {
+                    return None;
+                }
+                if let Some(deadline) = self.deadline {
+                    if nodes > self.next_deadline_check {
+                        let now = Instant::now();
+                        if now >= deadline {
+                            return None;
+                        }
+                        self.next_deadline_check =
+                            nodes + estimate_nodes_to_deadline(deadline - now);
+                    }
+                }
             }
             f(self)?
         };
@@ -258,7 +280,7 @@ impl<'a> Searcher<'a> {
 
     fn failed_low(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
         self.shared.tt.store(
-            &position,
+            position,
             TableEntry {
                 mv,
                 eval,
@@ -270,7 +292,7 @@ impl<'a> Searcher<'a> {
 
     fn failed_high(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
         self.shared.tt.store(
-            &position,
+            position,
             TableEntry {
                 mv,
                 eval,
@@ -303,4 +325,22 @@ impl<'a> Searcher<'a> {
             .skip(1)
             .any(|&b| b == board.hash())
     }
+
+    pub fn extract_pv(&mut self, depth: i16) -> Vec<Move> {
+        let mut board = self.root.clone();
+        let mut pv = Vec::with_capacity(16);
+        while let Some(mv) = self.shared.tt.get_move(&board) {
+            pv.push(mv);
+            board.play_unchecked(mv);
+            if pv.len() > depth as usize {
+                break;
+            }
+        }
+        pv
+    }
+}
+
+fn estimate_nodes_to_deadline(d: Duration) -> u64 {
+    // assume we get at least 1 mnps (very conservative)
+    1000 * d.as_millis().min(1) as u64
 }

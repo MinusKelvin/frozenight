@@ -1,7 +1,6 @@
-use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use frozenight::Frozenight;
+use frozenight::{Frozenight, TimeConstraint};
 
 // generated from self-play
 const POSITIONS: &[&str] = &[
@@ -82,16 +81,19 @@ pub fn bench() {
     let mut engine = Frozenight::new(16);
 
     for &pos in POSITIONS {
-        engine.reset();
-        engine.set_position(pos.parse().unwrap(), |_| None);
+        engine.new_game();
+        engine.set_position(pos.parse().unwrap(), std::iter::empty());
 
-        let mut nodes = 0;
         let start = Instant::now();
-        engine.search_synchronous(None, depth, u64::MAX, |_, stats, _, _, _| {
-            nodes = stats.nodes.load(Ordering::Relaxed)
-        });
+        let info = engine.search(
+            TimeConstraint {
+                depth,
+                ..TimeConstraint::INFINITE
+            },
+            |_| {},
+        );
         total_time += start.elapsed();
-        total_nodes += nodes;
+        total_nodes += info.nodes;
     }
 
     let nps = (total_nodes as f64 / total_time.as_secs_f64()) as u64;

@@ -15,7 +15,7 @@ impl Searcher<'_> {
         window: Window,
         depth: i16,
     ) -> Option<(Eval, Move)> {
-        let hashmove = match self.shared.tt.get(&position) {
+        let hashmove = match self.shared.tt.get(position) {
             None => None,
             Some(entry) => {
                 if entry.depth >= depth {
@@ -60,7 +60,7 @@ impl Searcher<'_> {
 
                 if i == 0 {
                     // First move; search as PV node
-                    return Some(-this.visit_pv(&new_pos, -window, depth + extension - 1)?);
+                    return Some(-this.visit_pv(new_pos, -window, depth + extension - 1)?);
                 }
 
                 let reduction = match () {
