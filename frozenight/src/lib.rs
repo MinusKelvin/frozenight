@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::ControlFlow;
 use std::sync::atomic::{AtomicBool, AtomicI16, AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
@@ -190,20 +191,28 @@ fn update_position(
     if board.same_position(old) {
         moves_since_last = 0;
     }
-    prehistory.clear();
-    prehistory.push(board.hash());
+    let mut occurances = HashMap::<_, i32>::new();
 
     for mv in moves {
         moves_since_last += 1;
+        *occurances.entry(board.hash()).or_default() += 1;
         board.play(mv);
         if board.halfmove_clock() == 0 {
-            prehistory.clear();
+            occurances.clear();
         }
         if board.same_position(old) {
             moves_since_last = 0;
         }
-        prehistory.push(board.hash());
     }
+
+    prehistory.clear();
+    prehistory.extend(
+        occurances
+            .into_iter()
+            .filter(|&(_, c)| c > 1)
+            .map(|(h, _)| h),
+    );
+    prehistory.push(board.hash());
 
     match moves_since_last {
         0 => 0,
