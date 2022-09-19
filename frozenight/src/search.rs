@@ -54,6 +54,7 @@ pub(crate) struct Searcher<'a> {
     multithreaded: bool,
     rep_list: Vec<u64>,
     rep_table: [u8; 1024],
+    doing_nmp: bool,
 }
 
 impl Frozenight {
@@ -90,6 +91,7 @@ impl Frozenight {
             valid: true,
             allow_abort: false,
             rep_list: self.prehistory.clone(),
+            doing_nmp: false,
         })
     }
 }

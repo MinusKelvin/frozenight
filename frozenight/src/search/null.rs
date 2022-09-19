@@ -56,13 +56,16 @@ impl Searcher<'_> {
             | position.board.pieces(Piece::Bishop)
             | position.board.pieces(Piece::Queen))
             & position.board.colors(position.board.side_to_move());
-        let do_nmp = depth >= NMP_MIN_DEPTH.get()
+        let do_nmp = !self.doing_nmp
+            && depth >= NMP_MIN_DEPTH.get()
             && !our_sliders.is_empty()
             && window.fail_high(position.static_eval());
         if do_nmp {
             if let Some(nm) = position.null_move() {
                 let reduction = nmp_reduction(depth);
+                self.doing_nmp = true;
                 let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
+                self.doing_nmp = false;
                 if window.fail_high(v) {
                     return Some(v);
                 }
