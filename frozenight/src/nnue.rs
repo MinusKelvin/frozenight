@@ -4,7 +4,7 @@ use crate::Eval;
 
 const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
 const L1_SIZE: usize = 32;
-const BUCKETS: usize = 16;
+const BUCKETS: usize = 8;
 
 static NETWORK: Nnue = include!(concat!(env!("OUT_DIR"), "/model.rs"));
 
@@ -19,7 +19,7 @@ struct Nnue {
 pub struct NnueAccumulator {
     white: [i16; L1_SIZE],
     black: [i16; L1_SIZE],
-    material: usize,
+    pieces: usize,
 }
 
 impl NnueAccumulator {
@@ -42,16 +42,12 @@ impl NnueAccumulator {
         NnueAccumulator {
             white,
             black,
-            material: board.pieces(Piece::Pawn).len() as usize
-                + 3 * board.pieces(Piece::Bishop).len() as usize
-                + 3 * board.pieces(Piece::Knight).len() as usize
-                + 5 * board.pieces(Piece::Rook).len() as usize
-                + 8 * board.pieces(Piece::Queen).len() as usize,
+            pieces: board.occupied().len() as usize,
         }
     }
 
     pub fn calculate(&self, stm: Color) -> Eval {
-        let bucket = (self.material * BUCKETS / 76).min(BUCKETS - 1);
+        let bucket = ((self.pieces - 1) * BUCKETS / 32).min(BUCKETS - 1);
         let mut output = NETWORK.hidden_layer_bias[bucket];
         let (first, second) = match stm {
             Color::White => (&self.white, &self.black),
@@ -75,22 +71,7 @@ impl NnueAccumulator {
         let moved = board.piece_on(mv.from).unwrap();
 
         if board.colors(!us).has(mv.to) {
-            result.material -= match board.piece_on(mv.to) {
-                Some(Piece::Pawn) => 1,
-                Some(Piece::Bishop) => 3,
-                Some(Piece::Knight) => 3,
-                Some(Piece::Rook) => 5,
-                Some(Piece::Queen) => 8,
-                _ => unreachable!(),
-            };
-        }
-
-        match mv.promotion {
-            Some(Piece::Bishop) => result.material += 2,
-            Some(Piece::Knight) => result.material += 2,
-            Some(Piece::Rook) => result.material += 4,
-            Some(Piece::Queen) => result.material += 7,
-            _ => {}
+            result.pieces -= 1;
         }
 
         // remove piece on from square
@@ -134,7 +115,7 @@ impl NnueAccumulator {
                         Square::new(ep_file, Rank::Fifth.relative_to(!us)),
                     )],
                 );
-                result.material -= 1;
+                result.pieces -= 1;
             }
         }
 
