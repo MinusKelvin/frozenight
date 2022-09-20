@@ -116,7 +116,7 @@ fn main() {
                             let fen = (&mut stream)
                                 .take_while(|&tok| tok != "moves")
                                 .fold(fen_start, |a, b| a + " " + b);
-                            match Board::from_fen(&fen, chess960) {
+                            match fen.parse() {
                                 Ok(b) => b,
                                 Err(e) => {
                                     eprintln!("Invalid FEN: {:?}", e);
