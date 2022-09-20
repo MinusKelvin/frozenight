@@ -153,13 +153,13 @@ impl OrderingState {
         if !capture {
             let (piece_to, total) =
                 &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-            let diff = depth as i32 * 1_000_000 - *piece_to;
+            let diff = (depth as i32 * 1_000_000 - *piece_to).max(0);
             *total += 1;
             *piece_to += diff / *total;
 
             let (from_to, total) =
                 &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-            let diff = depth as i32 * 1_000_000 - *from_to;
+            let diff = (depth as i32 * 1_000_000 - *from_to).max(0);
             *total += 1;
             *from_to += diff / *total;
 
