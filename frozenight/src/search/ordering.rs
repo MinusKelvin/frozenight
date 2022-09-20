@@ -130,18 +130,18 @@ pub struct OrderingState {
 impl OrderingState {
     pub fn new() -> Self {
         OrderingState {
-            piece_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
-            from_sq_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Square::NUM]; Color::NUM],
+            piece_to_sq: [[[(1_000_000_000, 8); Square::NUM]; Piece::NUM]; Color::NUM],
+            from_sq_to_sq: [[[(1_000_000_000, 2); Square::NUM]; Square::NUM]; Color::NUM],
             killers: [INVALID_MOVE; 256],
         }
     }
 
     pub fn decay(&mut self) {
         for (_, total) in self.piece_to_sq.iter_mut().flatten().flatten() {
-            *total /= 64;
+            *total = (*total / 64).max(8);
         }
         for (_, total) in self.from_sq_to_sq.iter_mut().flatten().flatten() {
-            *total /= 16;
+            *total = (*total / 16).max(2);
         }
     }
 
