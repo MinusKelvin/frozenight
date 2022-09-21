@@ -209,7 +209,7 @@ impl Options {
                 });
                 *moves.choose(&mut thread_rng()).unwrap()
             } else {
-                engine.set_position(start_pos.clone(), game.iter().map(|&(mv, _)| mv));
+                engine.set_position(board.clone());
 
                 engine
                     .search(

@@ -72,7 +72,7 @@ impl Options {
                     let (board, _, wdl, _) = packed.unpack().unwrap();
 
                     engine.new_game();
-                    engine.set_position(board.clone(), std::iter::empty());
+                    engine.set_position(board.clone());
                     let info = engine.search(
                         TimeConstraint {
                             nodes: self.nodes.unwrap_or(u64::MAX),

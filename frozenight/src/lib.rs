@@ -25,7 +25,6 @@ pub use search::all_parameters;
 
 pub struct Frozenight {
     board: Board,
-    prehistory: Vec<u64>,
     shared_state: Arc<RwLock<SharedState>>,
     stats: Arc<Statistics>,
     state: PrivateState,
@@ -63,7 +62,6 @@ impl Frozenight {
     fn create(shared_state: Arc<RwLock<SharedState>>) -> Self {
         Frozenight {
             board: Default::default(),
-            prehistory: vec![],
             shared_state,
             stats: Default::default(),
             state: Default::default(),
@@ -84,16 +82,17 @@ impl Frozenight {
             .increment_age(2);
     }
 
-    pub fn set_position(&mut self, position: Board, moves: impl Iterator<Item = Move>) {
-        let mut new = position;
-        let age_inc = update_position(&mut new, &mut self.prehistory, &self.board, moves);
-        self.board = new;
+    pub fn set_position(&mut self, position: Board) {
+        if self.board.same_position(&position) {
+            return;
+        }
+        self.board = position;
         Arc::get_mut(&mut self.shared_state)
             .unwrap()
             .get_mut()
             .unwrap()
             .tt
-            .increment_age(age_inc);
+            .increment_age(1);
     }
 
     pub fn set_hash(&mut self, hash_mb: usize) {
@@ -177,37 +176,5 @@ impl Statistics {
     fn clear(&self) {
         self.selective_depth.store(0, Ordering::Relaxed);
         self.nodes.store(0, Ordering::Relaxed);
-    }
-}
-
-fn update_position(
-    board: &mut Board,
-    prehistory: &mut Vec<u64>,
-    old: &Board,
-    moves: impl Iterator<Item = Move>,
-) -> u8 {
-    let mut moves_since_last = 3;
-    if board.same_position(old) {
-        moves_since_last = 0;
-    }
-    prehistory.clear();
-    prehistory.push(board.hash());
-
-    for mv in moves {
-        moves_since_last += 1;
-        board.play(mv);
-        if board.halfmove_clock() == 0 {
-            prehistory.clear();
-        }
-        if board.same_position(old) {
-            moves_since_last = 0;
-        }
-        prehistory.push(board.hash());
-    }
-
-    match moves_since_last {
-        0 => 0,
-        1 | 2 => 1,
-        _ => 2,
     }
 }

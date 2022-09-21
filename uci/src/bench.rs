@@ -82,7 +82,7 @@ pub fn bench() {
 
     for &pos in POSITIONS {
         engine.new_game();
-        engine.set_position(pos.parse().unwrap(), std::iter::empty());
+        engine.set_position(pos.parse().unwrap());
 
         let start = Instant::now();
         let info = engine.search(

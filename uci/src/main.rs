@@ -131,16 +131,12 @@ fn main() {
                         stream.next();
                     }
 
-                    frozenight.set_position(
-                        board.clone(),
-                        std::iter::from_fn(|| {
-                            let mv =
-                                from_uci_castling(&board, stream.peek()?.parse().ok()?, chess960);
-                            stream.next();
-                            board.play(mv);
-                            Some(mv)
-                        }),
-                    );
+                    while let Some(mv) = stream.peek().and_then(|mv| mv.parse().ok()) {
+                        stream.next();
+                        board.play(from_uci_castling(&board, mv, chess960));
+                    }
+
+                    frozenight.set_position(board);
                 }
                 "go" => {
                     let mut clock = None;

@@ -4,23 +4,22 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 
-use cozy_chess::{Board, Move};
+use cozy_chess::Board;
 
 use crate::search::{AbdadaTable, INVALID_MOVE};
 use crate::time::{TimeConstraint, TimeManager};
 use crate::tt::TranspositionTable;
-use crate::{update_position, Eval, Frozenight, SearchInfo, SharedState, Statistics};
+use crate::{Eval, Frozenight, SearchInfo, SharedState, Statistics};
 
 pub struct MtFrozenight {
     board: Board,
-    prehistory: Vec<u64>,
     shared_state: Arc<RwLock<SharedState>>,
     threads: Vec<(Arc<Statistics>, Sender<ThreadCommand>)>,
     abort: Arc<AtomicBool>,
 }
 
 enum ThreadCommand {
-    SetPosition(Board, Vec<u64>),
+    SetPosition(Board),
     Go {
         multithreaded: bool,
         max_nodes: u64,
@@ -44,7 +43,6 @@ impl MtFrozenight {
     pub fn new(hash_mb: usize) -> Self {
         let mut this = MtFrozenight {
             board: Default::default(),
-            prehistory: vec![],
             shared_state: Arc::new(RwLock::new(SharedState {
                 tt: TranspositionTable::new(hash_mb),
                 abdada: AbdadaTable::new(),
@@ -66,10 +64,7 @@ impl MtFrozenight {
             let engine = Frozenight::create(self.shared_state.clone());
             let stats = engine.stats.clone();
             std::thread::spawn(|| run_thread(engine, recv));
-            let _ = sender.send(ThreadCommand::SetPosition(
-                self.board.clone(),
-                self.prehistory.clone(),
-            ));
+            let _ = sender.send(ThreadCommand::SetPosition(self.board.clone()));
             (stats, sender)
         });
     }
@@ -83,18 +78,16 @@ impl MtFrozenight {
         state.tt = TranspositionTable::new(hash_mb);
     }
 
-    pub fn set_position(&mut self, position: Board, moves: impl Iterator<Item = Move>) {
+    pub fn set_position(&mut self, position: Board) {
+        if self.board.same_position(&position) {
+            return;
+        }
         self.abort();
-        let mut new = position;
-        let age_inc = update_position(&mut new, &mut self.prehistory, &self.board, moves);
-        self.board = new;
-        self.shared_state.write().unwrap().tt.increment_age(age_inc);
+        self.board = position;
+        self.shared_state.write().unwrap().tt.increment_age(1);
 
         for (_, thread) in &self.threads {
-            let _ = thread.send(ThreadCommand::SetPosition(
-                self.board.clone(),
-                self.prehistory.clone(),
-            ));
+            let _ = thread.send(ThreadCommand::SetPosition(self.board.clone()));
         }
     }
 
@@ -157,9 +150,8 @@ impl MtFrozenight {
 fn run_thread(mut engine: Frozenight, recv: Receiver<ThreadCommand>) {
     while let Ok(cmd) = recv.recv() {
         match cmd {
-            ThreadCommand::SetPosition(root, prehistory) => {
+            ThreadCommand::SetPosition(root) => {
                 engine.board = root;
-                engine.prehistory = prehistory;
             }
             ThreadCommand::NewGame => {
                 engine.stats.clear();

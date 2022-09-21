@@ -66,10 +66,6 @@ impl Frozenight {
         f: impl FnOnce(Searcher) -> T,
     ) -> T {
         self.state.history.decay();
-        let mut rep_table = [0; 1024];
-        for &b in &self.prehistory {
-            rep_table[b as usize % 1024] += 1;
-        }
         let shared = self.shared_state.read().unwrap();
         f(Searcher {
             root: &self.board,
@@ -78,7 +74,7 @@ impl Frozenight {
             state: &mut self.state,
             stats: &self.stats,
             multithreaded,
-            rep_table,
+            rep_table: [0; 1024],
             node_limit,
             deadline,
             next_deadline_check: match deadline {
@@ -89,7 +85,7 @@ impl Frozenight {
             },
             valid: true,
             allow_abort: false,
-            rep_list: self.prehistory.clone(),
+            rep_list: Vec::with_capacity(64),
         })
     }
 }
