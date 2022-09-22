@@ -10,12 +10,28 @@ use cozy_chess::Piece;
 
 impl Searcher<'_> {
     pub fn visit_null(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+        self.visit_null_extra(position, window, depth, true)
+    }
+
+    fn visit_null_extra(
+        &mut self,
+        position: &Position,
+        window: Window,
+        depth: i16,
+        do_nmp: bool,
+    ) -> Option<Eval> {
         self.visit_node(position, window, depth, |this| {
-            this.null_search(position, window, depth)
+            this.null_search(position, window, depth, do_nmp)
         })
     }
 
-    fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+    fn null_search(
+        &mut self,
+        position: &Position,
+        window: Window,
+        depth: i16,
+        do_nmp: bool,
+    ) -> Option<Eval> {
         let entry = self.shared.tt.get(position);
         if let Some(entry) = entry {
             match entry.kind {
@@ -56,15 +72,24 @@ impl Searcher<'_> {
             | position.board.pieces(Piece::Bishop)
             | position.board.pieces(Piece::Queen))
             & position.board.colors(position.board.side_to_move());
-        let do_nmp = depth >= NMP_MIN_DEPTH.get()
+        let do_nmp = do_nmp
+            && depth >= NMP_MIN_DEPTH.get()
             && !our_sliders.is_empty()
             && window.fail_high(position.static_eval());
         if do_nmp {
             if let Some(nm) = position.null_move() {
                 let reduction = nmp_reduction(depth);
-                let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
+                let v = -self.visit_null_extra(&nm, -window, depth - reduction - 1, false)?;
                 if window.fail_high(v) {
-                    return Some(v);
+                    if depth > 10 {
+                        let checked =
+                            -self.null_search(position, window, depth - reduction - 1, false)?;
+                        if window.fail_high(checked) {
+                            return Some(v);
+                        }
+                    } else {
+                        return Some(v);
+                    }
                 }
             }
         }
