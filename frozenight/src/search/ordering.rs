@@ -122,26 +122,26 @@ impl Searcher<'_> {
 }
 
 pub struct OrderingState {
-    piece_to_sq: [[[(i32, i32); Square::NUM]; Piece::NUM]; Color::NUM],
-    from_sq_to_sq: [[[(i32, i32); Square::NUM]; Square::NUM]; Color::NUM],
+    piece_to_sq: ColorTable<PieceTable<SquareTable<HistoryCounter>>>,
+    from_sq_to_sq: ColorTable<SquareTable<SquareTable<HistoryCounter>>>,
     killers: [Move; 256],
 }
 
 impl OrderingState {
     pub fn new() -> Self {
         OrderingState {
-            piece_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Piece::NUM]; Color::NUM],
-            from_sq_to_sq: [[[(1_000_000_000, 0); Square::NUM]; Square::NUM]; Color::NUM],
+            piece_to_sq: Default::default(),
+            from_sq_to_sq: Default::default(),
             killers: [INVALID_MOVE; 256],
         }
     }
 
     pub fn decay(&mut self) {
-        for (_, total) in self.piece_to_sq.iter_mut().flatten().flatten() {
-            *total /= 64;
+        for counter in (&mut self.piece_to_sq).into_iter().flatten().flatten() {
+            counter.decay(64);
         }
-        for (_, total) in self.from_sq_to_sq.iter_mut().flatten().flatten() {
-            *total /= 16;
+        for counter in (&mut self.from_sq_to_sq).into_iter().flatten().flatten() {
+            counter.decay(16);
         }
     }
 
@@ -151,17 +151,8 @@ impl OrderingState {
         let capture = pos.is_capture(mv);
 
         if !capture {
-            let (piece_to, total) =
-                &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-            let diff = (depth as i32 * 1_000_000 - *piece_to).max(0);
-            *total += 1;
-            *piece_to += diff / *total;
-
-            let (from_to, total) =
-                &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-            let diff = (depth as i32 * 1_000_000 - *from_to).max(0);
-            *total += 1;
-            *from_to += diff / *total;
+            self.piece_to_sq[stm][piece][mv.to].increment(depth);
+            self.from_sq_to_sq[stm][mv.from][mv.to].increment(depth);
 
             if let Some(killer) = self.killers.get_mut(pos.ply as usize) {
                 *killer = mv;
@@ -175,21 +166,14 @@ impl OrderingState {
         let capture = pos.is_capture(mv);
 
         if !capture {
-            let (piece_to, total) =
-                &mut self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-            *total += 1;
-            *piece_to -= *piece_to / *total;
-
-            let (from_to, total) =
-                &mut self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
-            *total += 1;
-            *from_to -= *from_to / *total;
+            self.piece_to_sq[stm][piece][mv.to].decrement();
+            self.from_sq_to_sq[stm][mv.from][mv.to].decrement();
         }
     }
 
     fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
-        let (piece_to, _) = self.piece_to_sq[stm as usize][piece as usize][mv.to as usize];
-        let (from_to, _) = self.from_sq_to_sq[stm as usize][mv.from as usize][mv.to as usize];
+        let piece_to = self.piece_to_sq[stm][piece][mv.to].value;
+        let from_to = self.from_sq_to_sq[stm][mv.from][mv.to].value;
         piece_to + from_to
     }
 
@@ -199,4 +183,86 @@ impl OrderingState {
             .copied()
             .unwrap_or(INVALID_MOVE)
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+struct HistoryCounter {
+    value: i32,
+    count: i32,
+}
+
+impl HistoryCounter {
+    #[inline(always)]
+    fn increment(&mut self, depth: i16) {
+        self.count += 1;
+        let diff = (depth as i32 * 1_000_000 - self.value).max(0);
+        self.value += diff / self.count;
+    }
+
+    #[inline(always)]
+    fn decrement(&mut self) {
+        self.count += 1;
+        self.value -= self.value / self.count;
+    }
+
+    #[inline(always)]
+    fn decay(&mut self, factor: i32) {
+        self.count /= factor;
+    }
+}
+
+impl Default for HistoryCounter {
+    fn default() -> Self {
+        Self {
+            value: 1_000_000_000,
+            count: 0,
+        }
+    }
+}
+
+macro_rules! tables {
+    ($($table:ident: $enum:ty;)*) => {
+        $(
+            #[derive(Copy, Clone, Debug)]
+            struct $table<T>([T; <$enum>::NUM]);
+
+            impl<T, I: Into<$enum>> std::ops::Index<I> for $table<T> {
+                type Output = T;
+
+                #[inline(always)]
+                fn index(&self, index: I) -> &T {
+                    &self.0[index.into() as usize]
+                }
+            }
+
+            impl<T, I: Into<$enum>> std::ops::IndexMut<I> for $table<T> {
+                #[inline(always)]
+                fn index_mut(&mut self, index: I) -> &mut T {
+                    &mut self.0[index.into() as usize]
+                }
+            }
+
+            impl<T: Default> Default for $table<T> {
+                fn default() -> Self {
+                    Self([(); <$enum>::NUM].map(|_| Default::default()))
+                }
+            }
+
+            impl<'a, T> IntoIterator for &'a mut $table<T> {
+                type Item = &'a mut T;
+                type IntoIter = std::slice::IterMut<'a, T>;
+
+                #[inline(always)]
+                fn into_iter(self) -> Self::IntoIter {
+                    self.0.iter_mut()
+                }
+            }
+        )*
+    };
+}
+
+tables! {
+    ColorTable: Color;
+    PieceTable: Piece;
+    SquareTable: Square;
 }
