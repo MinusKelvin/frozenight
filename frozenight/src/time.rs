@@ -50,8 +50,12 @@ impl TimeManager {
                     }
 
                     let mtg = time.moves_to_go.unwrap_or(45) + 5;
-
-                    clock.saturating_sub(time.increment) / mtg + time.increment / 2
+                    let time = clock.saturating_sub(time.increment) / mtg + time.increment / 2;
+                    if board.checkers().is_empty() {
+                        time
+                    } else {
+                        time / 2
+                    }
                 })
                 .map(|amt| now + (amt.saturating_sub(time.overhead))),
         }
