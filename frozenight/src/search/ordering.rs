@@ -78,9 +78,9 @@ impl Searcher<'_> {
             let mut rank =
                 self.state
                     .history
-                    .rank(quiets[0].1, quiets[0].0, position.board.side_to_move());
+                    .score(quiets[0].1, quiets[0].0, position.board.side_to_move());
             for i in 1..quiets.len() {
-                let r = self.state.history.rank(
+                let r = self.state.history.score(
                     quiets[i].1,
                     quiets[i].0,
                     position.board.side_to_move(),
@@ -171,7 +171,7 @@ impl OrderingState {
         }
     }
 
-    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
+    pub fn score(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
         let piece_to = self.piece_to_sq[stm][piece][mv.to].value;
         let from_to = self.from_sq_to_sq[stm][mv.from][mv.to].value;
         piece_to + from_to
