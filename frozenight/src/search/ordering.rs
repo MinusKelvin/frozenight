@@ -207,15 +207,15 @@ impl HistoryCounter {
 
     #[inline(always)]
     fn decay(&mut self, factor: i32) {
-        self.count /= factor;
+        self.count = 1.max(self.count / factor);
     }
 }
 
 impl Default for HistoryCounter {
     fn default() -> Self {
         Self {
-            value: 1_000_000_000,
-            count: 0,
+            value: 1_000_000,
+            count: 1,
         }
     }
 }
