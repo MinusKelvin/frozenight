@@ -92,13 +92,12 @@ tweakables! {
     NMP_REDUCTION_M: 0..=128 = 77;
     NMP_REDUCTION_C: 0..=1024 = 38;
 
-    LMR_I1_M: 0..=256 = 92;
-    LMR_I1_C: 0..=1024 = 15;
-    LMR_I2_M: 0..=256 = 17;
-    LMR_I2_C: 0..=1024 = 8;
-    LMR_D_M: 0..=256 = 28;
-    LMR_D_C: 0..=1024 = 8;
-    PV_LMR_FACTOR: 0..=128 = 74;
+    LMR_I1_M: 0..=256 = 73;
+    LMR_I1_C: 0..=1024 = 1;
+    LMR_I2_M: 0..=256 = 20;
+    LMR_I2_C: 0..=1024 = 21;
+    LMR_D_M: 0..=256 = 81;
+    PV_LMR_FACTOR: 0..=128 = 88;
 }
 
 #[inline(always)]
@@ -124,7 +123,7 @@ pub fn pv_lmr(depth: i16, movenum: usize) -> i16 {
 #[inline(always)]
 fn raw_lmr(depth: i16, movenum: i16) -> i32 {
     let movenum_effect = linear(movenum, LMR_I2_M.get(), LMR_I2_C.get());
-    let depth_effect = linear(depth, LMR_D_M.get(), LMR_D_C.get());
+    let depth_effect = LMR_D_M.get() as i32 * LN_DEPTH[63.min(depth as usize)] / 128;
     let movenum_limit = linear(movenum, LMR_I1_M.get(), LMR_I1_C.get());
     movenum_limit.min(movenum_effect + depth_effect)
 }
@@ -137,3 +136,11 @@ fn linear(x: i16, m: i16, c: i16) -> i32 {
 fn trunc(v: i32) -> i16 {
     (v / 128) as i16
 }
+
+/// `((depth as f64).ln() * 128.0) as i32`
+const LN_DEPTH: [i32; 64] = [
+    0, 0, 88, 140, 177, 206, 229, 249, 266, 281, 294, 306, 318, 328, 337, 346, 354, 362, 369, 376,
+    383, 389, 395, 401, 406, 412, 417, 421, 426, 431, 435, 439, 443, 447, 451, 455, 458, 462, 465,
+    468, 472, 475, 478, 481, 484, 487, 490, 492, 495, 498, 500, 503, 505, 508, 510, 512, 515, 517,
+    519, 521, 524, 526, 528, 530,
+];
