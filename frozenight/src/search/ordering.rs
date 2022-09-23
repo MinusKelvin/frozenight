@@ -3,7 +3,7 @@ use cozy_chess::{Color, Move, Piece, Square};
 use crate::position::Position;
 
 use super::see::static_exchange_eval;
-use super::{Searcher, INVALID_MOVE};
+use super::Searcher;
 
 pub const CONTINUE: bool = false;
 pub const BREAK: bool = true;
@@ -26,7 +26,6 @@ impl Searcher<'_> {
         let mut captures = Vec::with_capacity(16);
         let mut quiets = Vec::with_capacity(64);
         let mut underpromotions = vec![];
-        let killer = self.state.history.killer(position.ply);
 
         position.board.generate_moves(|mvs| {
             for mv in mvs {
@@ -45,9 +44,6 @@ impl Searcher<'_> {
                     let victim = position.board.piece_on(mv.to).unwrap();
                     let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
                     captures.push((mv, static_exchange_eval(&position.board, mv) + mvv_lva));
-                } else if mv == killer {
-                    // Killer is legal; order it after neutral captures
-                    captures.push((mv, 0));
                 } else {
                     quiets.push((mv, mvs.piece));
                 }
@@ -124,7 +120,6 @@ impl Searcher<'_> {
 pub struct OrderingState {
     piece_to_sq: ColorTable<PieceTable<SquareTable<HistoryCounter>>>,
     from_sq_to_sq: ColorTable<SquareTable<SquareTable<HistoryCounter>>>,
-    killers: [Move; 256],
 }
 
 impl OrderingState {
@@ -132,7 +127,6 @@ impl OrderingState {
         OrderingState {
             piece_to_sq: Default::default(),
             from_sq_to_sq: Default::default(),
-            killers: [INVALID_MOVE; 256],
         }
     }
 
@@ -153,10 +147,6 @@ impl OrderingState {
         if !capture {
             self.piece_to_sq[stm][piece][mv.to].increment(depth);
             self.from_sq_to_sq[stm][mv.from][mv.to].increment(depth);
-
-            if let Some(killer) = self.killers.get_mut(pos.ply as usize) {
-                *killer = mv;
-            }
         }
     }
 
@@ -175,13 +165,6 @@ impl OrderingState {
         let piece_to = self.piece_to_sq[stm][piece][mv.to].value;
         let from_to = self.from_sq_to_sq[stm][mv.from][mv.to].value;
         piece_to + from_to
-    }
-
-    fn killer(&self, ply: u16) -> Move {
-        self.killers
-            .get(ply as usize)
-            .copied()
-            .unwrap_or(INVALID_MOVE)
     }
 }
 
