@@ -101,7 +101,7 @@ impl Searcher<'_> {
 
                 if window.fail_high(v) {
                     for &mv in &yielded {
-                        this.state.history.did_not_cause_cutoff(position, mv);
+                        this.state.history.did_not_cause_cutoff(position, mv, depth);
                     }
                     return Some(v);
                 }

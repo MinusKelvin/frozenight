@@ -160,18 +160,18 @@ impl OrderingState {
         }
     }
 
-    pub fn did_not_cause_cutoff(&mut self, pos: &Position, mv: Move) {
+    pub fn did_not_cause_cutoff(&mut self, pos: &Position, mv: Move, depth: i16) {
         let stm = pos.board.side_to_move();
         let piece = pos.board.piece_on(mv.from).unwrap();
         let capture = pos.is_capture(mv);
 
         if !capture {
-            self.piece_to_sq[stm][piece][mv.to].decrement();
-            self.from_sq_to_sq[stm][mv.from][mv.to].decrement();
+            self.piece_to_sq[stm][piece][mv.to].decrement(depth);
+            self.from_sq_to_sq[stm][mv.from][mv.to].decrement(depth);
         }
     }
 
-    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
+    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i16 {
         let piece_to = self.piece_to_sq[stm][piece][mv.to].value;
         let from_to = self.from_sq_to_sq[stm][mv.from][mv.to].value;
         piece_to + from_to
@@ -187,35 +187,36 @@ impl OrderingState {
 
 #[derive(Copy, Clone, Debug)]
 struct HistoryCounter {
-    value: i32,
-    count: i32,
+    value: i16,
 }
 
 impl HistoryCounter {
     #[inline(always)]
     fn increment(&mut self, depth: i16) {
-        self.count += 1;
-        let diff = (depth as i32 * 1_000_000 - self.value).max(0);
-        self.value += diff / self.count;
+        let change = depth * depth;
+        let decay = change as i32 * self.value as i32 / 512;
+        self.value += change - decay as i16;
+        self.value = self.value.clamp(-512, 512);
     }
 
     #[inline(always)]
-    fn decrement(&mut self) {
-        self.count += 1;
-        self.value -= self.value / self.count;
+    fn decrement(&mut self, depth: i16) {
+        let change = depth * depth;
+        let decay = change as i32 * self.value as i32 / 512;
+        self.value -= change + decay as i16;
+        self.value = self.value.clamp(-512, 512);
     }
 
     #[inline(always)]
-    fn decay(&mut self, factor: i32) {
-        self.count /= factor;
+    fn decay(&mut self, _factor: i32) {
+        
     }
 }
 
 impl Default for HistoryCounter {
     fn default() -> Self {
         Self {
-            value: 1_000_000_000,
-            count: 0,
+            value: 0,
         }
     }
 }
