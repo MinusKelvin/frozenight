@@ -22,7 +22,7 @@ use search::{AbdadaTable, PrivateState, Searcher, INVALID_MOVE};
 use time::TimeManager;
 use tt::TranspositionTable;
 
-pub use search::all_parameters;
+pub use search::params::all_parameters;
 
 pub struct Frozenight {
     board: Board,
@@ -51,6 +51,8 @@ struct Statistics {
 struct SharedState {
     tt: TranspositionTable,
     abdada: AbdadaTable,
+    null_lmr: [[i16; 32]; 64],
+    pv_lmr: [[i16; 32]; 64],
 }
 
 impl Frozenight {
@@ -58,6 +60,8 @@ impl Frozenight {
         Self::create(Arc::new(RwLock::new(SharedState {
             tt: TranspositionTable::new(hash_mb),
             abdada: AbdadaTable::new(),
+            null_lmr: search::params::build_lmr_table(false),
+            pv_lmr: search::params::build_lmr_table(true),
         })))
     }
 
@@ -83,6 +87,16 @@ impl Frozenight {
             .unwrap()
             .tt
             .increment_age(2);
+
+        #[cfg(feature = "tweakable")]
+        {
+            let mut state = Arc::get_mut(&mut self.shared_state)
+                .unwrap()
+                .get_mut()
+                .unwrap();
+            state.null_lmr = crate::search::params::build_lmr_table(false);
+            state.pv_lmr = crate::search::params::build_lmr_table(true);
+        }
     }
 
     pub fn set_position(&mut self, position: Board, moves: impl Iterator<Item = Move>) {

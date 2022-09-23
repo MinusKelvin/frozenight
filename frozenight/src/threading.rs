@@ -48,6 +48,8 @@ impl MtFrozenight {
             shared_state: Arc::new(RwLock::new(SharedState {
                 tt: TranspositionTable::new(hash_mb),
                 abdada: AbdadaTable::new(),
+                null_lmr: crate::search::params::build_lmr_table(false),
+                pv_lmr: crate::search::params::build_lmr_table(true),
             })),
             threads: vec![],
             abort: Default::default(),
@@ -101,6 +103,12 @@ impl MtFrozenight {
     pub fn new_game(&mut self) {
         for (_, thread) in &self.threads {
             let _ = thread.send(ThreadCommand::NewGame);
+        }
+
+        #[cfg(feature = "tweakable")] {
+            let mut state = self.shared_state.write().unwrap();
+            state.null_lmr = crate::search::params::build_lmr_table(false);
+            state.pv_lmr = crate::search::params::build_lmr_table(true);
         }
     }
 

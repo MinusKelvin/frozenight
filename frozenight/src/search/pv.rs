@@ -4,7 +4,6 @@ use crate::position::Position;
 use crate::tt::NodeKind;
 use crate::Eval;
 
-use super::params::*;
 use super::window::Window;
 use super::Searcher;
 
@@ -67,7 +66,7 @@ impl Searcher<'_> {
                     _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
-                    _ => pv_lmr(depth, i),
+                    _ => self.shared.pv_lmr[63.min(depth as usize)][31.min(i)],
                 };
 
                 let mut v =

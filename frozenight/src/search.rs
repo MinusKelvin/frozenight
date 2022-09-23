@@ -9,14 +9,13 @@ use crate::{Eval, Frozenight, SharedState, Statistics};
 
 pub use self::abdada::AbdadaTable;
 use self::ordering::{OrderingState, BREAK, CONTINUE};
-pub use self::params::all_parameters;
 use self::window::Window;
 
 mod abdada;
 mod null;
 mod oracle;
 mod ordering;
-mod params;
+pub mod params;
 mod pv;
 mod qsearch;
 mod see;

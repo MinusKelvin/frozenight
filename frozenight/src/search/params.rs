@@ -92,13 +92,8 @@ tweakables! {
     NMP_REDUCTION_M: 0..=128 = 77;
     NMP_REDUCTION_C: 0..=1024 = 38;
 
-    LMR_I1_M: 0..=256 = 92;
-    LMR_I1_C: 0..=1024 = 15;
-    LMR_I2_M: 0..=256 = 17;
-    LMR_I2_C: 0..=1024 = 8;
-    LMR_D_M: 0..=256 = 28;
-    LMR_D_C: 0..=1024 = 8;
-    PV_LMR_FACTOR: 0..=128 = 74;
+    LMR_DIV: 256..=8192 = 1250;
+    PV_LMR_DIV: 256..=8192 = 2000;
 }
 
 #[inline(always)]
@@ -112,28 +107,26 @@ pub fn nmp_reduction(depth: i16) -> i16 {
 }
 
 #[inline(always)]
-pub fn null_lmr(depth: i16, movenum: usize) -> i16 {
-    trunc(raw_lmr(depth, movenum as i16))
-}
-
-#[inline(always)]
-pub fn pv_lmr(depth: i16, movenum: usize) -> i16 {
-    trunc(raw_lmr(depth, movenum as i16) * PV_LMR_FACTOR.get() as i32 / 128)
-}
-
-#[inline(always)]
-fn raw_lmr(depth: i16, movenum: i16) -> i32 {
-    let movenum_effect = linear(movenum, LMR_I2_M.get(), LMR_I2_C.get());
-    let depth_effect = linear(depth, LMR_D_M.get(), LMR_D_C.get());
-    let movenum_limit = linear(movenum, LMR_I1_M.get(), LMR_I1_C.get());
-    movenum_limit.min(movenum_effect + depth_effect)
-}
-
-#[inline(always)]
 fn linear(x: i16, m: i16, c: i16) -> i32 {
     x as i32 * m as i32 + c as i32
 }
 
 fn trunc(v: i32) -> i16 {
     (v / 128) as i16
+}
+
+pub fn build_lmr_table(pv: bool) -> [[i16; 32]; 64] {
+    let mut result = [[0; 32]; 64];
+    let div = match pv {
+        true => PV_LMR_DIV.get(),
+        false => LMR_DIV.get(),
+    } as f64
+        / 1024.0;
+    for depth in 0..64 {
+        for movenum in 0..32 {
+            result[depth][movenum] =
+                ((depth as f64).ln() * (movenum as f64).ln() / div).max(0.0) as i16;
+        }
+    }
+    result
 }
