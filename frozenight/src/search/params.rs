@@ -112,21 +112,22 @@ pub fn nmp_reduction(depth: i16) -> i16 {
 }
 
 #[inline(always)]
-pub fn null_lmr(depth: i16, movenum: usize) -> i16 {
-    trunc(raw_lmr(depth, movenum as i16))
+pub fn null_lmr(depth: i16, movenum: usize, improving: bool) -> i16 {
+    trunc(raw_lmr(depth, movenum as i16, improving))
 }
 
 #[inline(always)]
-pub fn pv_lmr(depth: i16, movenum: usize) -> i16 {
-    trunc(raw_lmr(depth, movenum as i16) * PV_LMR_FACTOR.get() as i32 / 128)
+pub fn pv_lmr(depth: i16, movenum: usize, improving: bool) -> i16 {
+    trunc(raw_lmr(depth, movenum as i16, improving) * PV_LMR_FACTOR.get() as i32 / 128)
 }
 
 #[inline(always)]
-fn raw_lmr(depth: i16, movenum: i16) -> i32 {
+fn raw_lmr(depth: i16, movenum: i16, improving: bool) -> i32 {
     let movenum_effect = linear(movenum, LMR_I2_M.get(), LMR_I2_C.get());
     let depth_effect = linear(depth, LMR_D_M.get(), LMR_D_C.get());
     let movenum_limit = linear(movenum, LMR_I1_M.get(), LMR_I1_C.get());
-    movenum_limit.min(movenum_effect + depth_effect)
+    let base_lmr = (movenum_effect + depth_effect - improving as i32 * 64).max(0);
+    movenum_limit.min(base_lmr)
 }
 
 #[inline(always)]
