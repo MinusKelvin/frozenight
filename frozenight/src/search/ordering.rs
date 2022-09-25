@@ -160,14 +160,14 @@ impl OrderingState {
         }
     }
 
-    pub fn did_not_cause_cutoff(&mut self, pos: &Position, mv: Move) {
+    pub fn did_not_cause_cutoff(&mut self, pos: &Position, mv: Move, depth: i16) {
         let stm = pos.board.side_to_move();
         let piece = pos.board.piece_on(mv.from).unwrap();
         let capture = pos.is_capture(mv);
 
         if !capture {
-            self.piece_to_sq[stm][piece][mv.to].decrement();
-            self.from_sq_to_sq[stm][mv.from][mv.to].decrement();
+            self.piece_to_sq[stm][piece][mv.to].decrement(depth);
+            self.from_sq_to_sq[stm][mv.from][mv.to].decrement(depth);
         }
     }
 
@@ -200,9 +200,10 @@ impl HistoryCounter {
     }
 
     #[inline(always)]
-    fn decrement(&mut self) {
+    fn decrement(&mut self, depth: i16) {
         self.count += 1;
-        self.value -= self.value / self.count;
+        let diff = (-depth as i32 * 1_000_000 - self.value).min(0);
+        self.value += diff / self.count;
     }
 
     #[inline(always)]
@@ -214,7 +215,7 @@ impl HistoryCounter {
 impl Default for HistoryCounter {
     fn default() -> Self {
         Self {
-            value: 1_000_000,
+            value: 0,
             count: 1,
         }
     }
