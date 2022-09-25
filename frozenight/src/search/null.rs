@@ -40,6 +40,8 @@ impl Searcher<'_> {
             return Some(mate_score);
         }
 
+        let improving = position.ply >= 2 && position.improvement() > 0;
+
         // reverse futility pruning... but with qsearch
         if depth <= RFP_MAX_DEPTH.get() {
             let rfp_window = Window::null(window.lb() + rfp_margin(depth));

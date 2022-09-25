@@ -47,6 +47,8 @@ impl Searcher<'_> {
             }
         };
 
+        let improving = position.ply >= 2 && position.improvement() > 0;
+
         self.search_moves(
             position,
             hashmove,
