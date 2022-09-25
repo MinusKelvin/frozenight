@@ -69,7 +69,15 @@ impl Searcher<'_> {
                     _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
-                    _ => pv_lmr(depth, i),
+                    _ => {
+                        let mut reduction = pv_lmr(depth, i);
+
+                        if !improving {
+                            reduction += 1;
+                        }
+
+                        reduction.max(0)
+                    }
                 };
 
                 let mut v =
