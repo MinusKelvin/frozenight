@@ -99,6 +99,10 @@ tweakables! {
     LMR_D_M: 0..=256 = 28;
     LMR_D_C: 0..=1024 = 8;
     PV_LMR_FACTOR: 0..=128 = 74;
+
+    HH_KILLER_SCORE: -10_000..=10_000 = 1_000;
+    HH_CAPTURE_SCORE: -10_000..=10_000 = 500;
+    HH_SEE_SCORE: -10_000..=10_000 = 10;
 }
 
 #[inline(always)]

@@ -2,6 +2,7 @@ use cozy_chess::{Color, Move, Piece, Square};
 
 use crate::position::Position;
 
+use super::params::{HH_CAPTURE_SCORE, HH_KILLER_SCORE, HH_SEE_SCORE};
 use super::see::static_exchange_eval;
 use super::{Searcher, INVALID_MOVE};
 
@@ -46,8 +47,9 @@ impl Searcher<'_> {
                 if position.is_capture(mv) {
                     let victim = position.board.piece_on(mv.to).unwrap();
                     let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
-                    move_score += (static_exchange_eval(&position.board, mv) + mvv_lva) * 10_000;
-                    move_score += 500_000;
+                    move_score += (static_exchange_eval(&position.board, mv) + mvv_lva)
+                        * HH_SEE_SCORE.get() as i32 * 1000;
+                    move_score += HH_CAPTURE_SCORE.get() as i32 * 1000;
                     let piece_to =
                         self.state.history.capture_piece_to_sq[stm][mvs.piece][mv.to].value;
                     move_score += piece_to;
@@ -57,7 +59,7 @@ impl Searcher<'_> {
                     move_score += (piece_to + from_to) / 2;
                 }
                 if mv == killer {
-                    move_score += 1_000_000;
+                    move_score += HH_KILLER_SCORE.get() as i32 * 1000;
                 }
 
                 moves.push((mv, move_score));
