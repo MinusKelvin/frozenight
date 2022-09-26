@@ -41,7 +41,7 @@ impl Searcher<'_> {
         }
 
         // reverse futility pruning... but with qsearch
-        if depth <= RFP_MAX_DEPTH.get() {
+        if depth <= RFP_MAX_DEPTH.get() && !window.lb().is_conclusive() {
             let rfp_window = Window::null(window.lb() + rfp_margin(depth));
             let eval = entry
                 .map(|e| e.eval)
