@@ -1,4 +1,4 @@
-use cozy_chess::{Color, Move, Piece, Square};
+use cozy_chess::{Color, Move, Piece, Square, Board};
 
 use crate::position::Position;
 
@@ -175,6 +175,10 @@ impl OrderingState {
         let piece_to = self.piece_to_sq[stm][piece][mv.to].value;
         let from_to = self.from_sq_to_sq[stm][mv.from][mv.to].value;
         piece_to + from_to
+    }
+
+    pub fn score(&self, board: &Board, mv: Move) -> i32 {
+        self.rank(board.piece_on(mv.from).unwrap(), mv, board.side_to_move())
     }
 
     fn killer(&self, ply: u16) -> Move {
