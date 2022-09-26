@@ -92,9 +92,9 @@ impl Searcher<'_> {
                     _ => {
                         let mut reduction = null_lmr(depth, i);
 
-                        if improving {
-                            reduction -= 1;
-                        }
+                        // if improving {
+                        reduction -= 1;
+                        // }
 
                         reduction.max(0)
                     }
