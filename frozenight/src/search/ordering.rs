@@ -2,7 +2,6 @@ use cozy_chess::{Color, Move, Piece, Square};
 
 use crate::position::Position;
 
-use super::see::static_exchange_eval;
 use super::{Searcher, INVALID_MOVE};
 
 pub const CONTINUE: bool = false;
@@ -23,10 +22,10 @@ impl Searcher<'_> {
         }
 
         // Generate moves.
-        let mut captures = Vec::with_capacity(16);
-        let mut quiets = Vec::with_capacity(64);
+        let mut moves = Vec::with_capacity(64);
         let mut underpromotions = vec![];
         let killer = self.state.history.killer(position.ply);
+        let stm = position.board.side_to_move();
 
         position.board.generate_moves(|mvs| {
             for mv in mvs {
@@ -41,71 +40,36 @@ impl Searcher<'_> {
                     continue;
                 }
 
+                let mut move_score = 0;
+
                 if position.is_capture(mv) {
-                    let victim = position.board.piece_on(mv.to).unwrap();
-                    let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
-                    captures.push((mv, static_exchange_eval(&position.board, mv) + mvv_lva));
-                } else if mv == killer {
-                    // Killer is legal; order it after neutral captures
-                    captures.push((mv, 0));
+                    let piece_to =
+                        self.state.history.capture_piece_to_sq[stm][mvs.piece][mv.to].value;
+                    move_score += piece_to;
                 } else {
-                    quiets.push((mv, mvs.piece));
+                    let piece_to = self.state.history.piece_to_sq[stm][mvs.piece][mv.to].value;
+                    let from_to = self.state.history.from_sq_to_sq[stm][mv.from][mv.to].value;
+                    move_score += (piece_to + from_to) / 2;
                 }
+                if mv == killer {
+                    move_score += 1_000_000;
+                }
+
+                moves.push((mv, move_score));
             }
             false
         });
 
-        // Iterate winning & netrual captures
-        while !captures.is_empty() {
+        // Iterate scored moves
+        while !moves.is_empty() {
             let mut index = 0;
-            for i in 1..captures.len() {
-                if captures[i].1 > captures[index].1 {
+            for i in 1..moves.len() {
+                if moves[i].1 > moves[index].1 {
                     index = i;
                 }
             }
 
-            if captures[index].1 < 0 {
-                break;
-            }
-            if search(self, captures.swap_remove(index).0)? {
-                return Some(());
-            }
-        }
-
-        // Iterate quiets
-        while !quiets.is_empty() {
-            let mut index = 0;
-            let mut rank =
-                self.state
-                    .history
-                    .rank(quiets[0].1, quiets[0].0, position.board.side_to_move());
-            for i in 1..quiets.len() {
-                let r = self.state.history.rank(
-                    quiets[i].1,
-                    quiets[i].0,
-                    position.board.side_to_move(),
-                );
-                if r > rank {
-                    index = i;
-                    rank = r;
-                }
-            }
-
-            if search(self, quiets.swap_remove(index).0)? {
-                return Some(());
-            }
-        }
-
-        // Iterate losing captures
-        while !captures.is_empty() {
-            let mut index = 0;
-            for i in 1..captures.len() {
-                if captures[i].1 > captures[index].1 {
-                    index = i;
-                }
-            }
-
-            if search(self, captures.swap_remove(index).0)? {
+            if search(self, moves.swap_remove(index).0)? {
                 return Some(());
             }
         }
@@ -122,6 +86,7 @@ impl Searcher<'_> {
 }
 
 pub struct OrderingState {
+    capture_piece_to_sq: ColorTable<PieceTable<SquareTable<HistoryCounter>>>,
     piece_to_sq: ColorTable<PieceTable<SquareTable<HistoryCounter>>>,
     from_sq_to_sq: ColorTable<SquareTable<SquareTable<HistoryCounter>>>,
     killers: [Move; 256],
@@ -130,6 +95,7 @@ pub struct OrderingState {
 impl OrderingState {
     pub fn new() -> Self {
         OrderingState {
+            capture_piece_to_sq: Default::default(),
             piece_to_sq: Default::default(),
             from_sq_to_sq: Default::default(),
             killers: [INVALID_MOVE; 256],
@@ -137,6 +103,13 @@ impl OrderingState {
     }
 
     pub fn decay(&mut self) {
+        for counter in (&mut self.capture_piece_to_sq)
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            counter.decay(64);
+        }
         for counter in (&mut self.piece_to_sq).into_iter().flatten().flatten() {
             counter.decay(64);
         }
@@ -150,7 +123,9 @@ impl OrderingState {
         let piece = pos.board.piece_on(mv.from).unwrap();
         let capture = pos.is_capture(mv);
 
-        if !capture {
+        if capture {
+            self.capture_piece_to_sq[stm][piece][mv.to].increment(depth);
+        } else {
             self.piece_to_sq[stm][piece][mv.to].increment(depth);
             self.from_sq_to_sq[stm][mv.from][mv.to].increment(depth);
 
@@ -165,16 +140,12 @@ impl OrderingState {
         let piece = pos.board.piece_on(mv.from).unwrap();
         let capture = pos.is_capture(mv);
 
-        if !capture {
+        if capture {
+            self.capture_piece_to_sq[stm][piece][mv.to].decrement();
+        } else {
             self.piece_to_sq[stm][piece][mv.to].decrement();
             self.from_sq_to_sq[stm][mv.from][mv.to].decrement();
         }
-    }
-
-    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
-        let piece_to = self.piece_to_sq[stm][piece][mv.to].value;
-        let from_to = self.from_sq_to_sq[stm][mv.from][mv.to].value;
-        piece_to + from_to
     }
 
     fn killer(&self, ply: u16) -> Move {
