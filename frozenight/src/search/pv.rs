@@ -47,7 +47,8 @@ impl Searcher<'_> {
             }
         };
 
-        let improving = position.ply >= 2 && position.improvement() > 0;
+        let improving =
+            position.ply >= 2 && position.board.checkers().is_empty() && position.improvement() > 0;
 
         self.search_moves(
             position,
