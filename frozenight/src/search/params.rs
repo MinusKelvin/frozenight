@@ -84,7 +84,7 @@ macro_rules! tweakables {
 }
 
 tweakables! {
-    RFP_MARGIN_M: 0..=5000 = 255;
+    RFP_MARGIN_M: 0..=5000 = 450;
     RFP_MARGIN_C: 0..=5000 = 11;
     RFP_MAX_DEPTH: 1..=20 = 8;
 
