@@ -45,7 +45,7 @@ impl Searcher<'_> {
             let rfp_window = Window::null(window.lb() + rfp_margin(depth));
             let eval = entry
                 .map(|e| e.eval)
-                .unwrap_or_else(|| self.qsearch(position, rfp_window));
+                .unwrap_or_else(|| position.static_eval());
             if rfp_window.fail_high(eval) {
                 return Some(eval);
             }
