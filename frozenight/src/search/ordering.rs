@@ -48,7 +48,7 @@ impl Searcher<'_> {
                     let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
                     move_score += (static_exchange_eval(&position.board, mv) + mvv_lva) * 10_000;
                     let piece_to =
-                        self.state.history.capture_piece_to_sq[stm][mvs.piece][mv.to].value;
+                        self.state.history.capture_from_sq_to_sq[stm][mv.from][mv.to].value;
                     move_score += piece_to;
                 } else {
                     let piece_to = self.state.history.piece_to_sq[stm][mvs.piece][mv.to].value;
@@ -90,7 +90,7 @@ impl Searcher<'_> {
 }
 
 pub struct OrderingState {
-    capture_piece_to_sq: ColorTable<PieceTable<SquareTable<HistoryCounter>>>,
+    capture_from_sq_to_sq: ColorTable<SquareTable<SquareTable<HistoryCounter>>>,
     piece_to_sq: ColorTable<PieceTable<SquareTable<HistoryCounter>>>,
     from_sq_to_sq: ColorTable<SquareTable<SquareTable<HistoryCounter>>>,
     killers: [Move; 256],
@@ -99,7 +99,7 @@ pub struct OrderingState {
 impl OrderingState {
     pub fn new() -> Self {
         OrderingState {
-            capture_piece_to_sq: Default::default(),
+            capture_from_sq_to_sq: Default::default(),
             piece_to_sq: Default::default(),
             from_sq_to_sq: Default::default(),
             killers: [INVALID_MOVE; 256],
@@ -107,12 +107,12 @@ impl OrderingState {
     }
 
     pub fn decay(&mut self) {
-        for counter in (&mut self.capture_piece_to_sq)
+        for counter in (&mut self.capture_from_sq_to_sq)
             .into_iter()
             .flatten()
             .flatten()
         {
-            counter.decay(64);
+            counter.decay(16);
         }
         for counter in (&mut self.piece_to_sq).into_iter().flatten().flatten() {
             counter.decay(64);
@@ -128,7 +128,7 @@ impl OrderingState {
         let capture = pos.is_capture(mv);
 
         if capture {
-            self.capture_piece_to_sq[stm][piece][mv.to].increment(depth);
+            self.capture_from_sq_to_sq[stm][mv.from][mv.to].increment(depth);
         } else {
             self.piece_to_sq[stm][piece][mv.to].increment(depth);
             self.from_sq_to_sq[stm][mv.from][mv.to].increment(depth);
@@ -145,7 +145,7 @@ impl OrderingState {
         let capture = pos.is_capture(mv);
 
         if capture {
-            self.capture_piece_to_sq[stm][piece][mv.to].decrement();
+            self.capture_from_sq_to_sq[stm][mv.from][mv.to].decrement();
         } else {
             self.piece_to_sq[stm][piece][mv.to].decrement();
             self.from_sq_to_sq[stm][mv.from][mv.to].decrement();
