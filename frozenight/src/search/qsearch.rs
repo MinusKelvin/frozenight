@@ -111,6 +111,7 @@ impl Searcher<'_> {
             }
         }
 
+        let mut yielded = Vec::with_capacity(16);
         while !moves.is_empty() {
             let mut index = 0;
             for i in 1..moves.len() {
@@ -122,6 +123,10 @@ impl Searcher<'_> {
 
             let v = -self.qsearch(&position.play_move(mv), -window);
             if window.fail_high(v) {
+                for &mv in &yielded {
+                    self.state.history.did_not_cause_cutoff(position, mv);
+                }
+                self.state.history.caused_cutoff(position, mv, 1);
                 self.shared.tt.store(
                     position,
                     TableEntry {
@@ -133,6 +138,7 @@ impl Searcher<'_> {
                 );
                 return v;
             }
+            yielded.push(mv);
             window.raise_lb(v);
             if v > best {
                 best = v;
