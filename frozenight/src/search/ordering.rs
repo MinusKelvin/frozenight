@@ -49,7 +49,8 @@ impl Searcher<'_> {
                     move_score += (static_exchange_eval(&position.board, mv) + mvv_lva) * 10_000;
                     let piece_to =
                         self.state.history.capture_piece_to_sq[stm][mvs.piece][mv.to].value;
-                    move_score += piece_to;
+                        let from_to = self.state.history.from_sq_to_sq[stm][mv.from][mv.to].value;
+                    move_score += (piece_to + from_to) / 2;
                 } else {
                     let piece_to = self.state.history.piece_to_sq[stm][mvs.piece][mv.to].value;
                     let from_to = self.state.history.from_sq_to_sq[stm][mv.from][mv.to].value;
@@ -131,12 +132,12 @@ impl OrderingState {
             self.capture_piece_to_sq[stm][piece][mv.to].increment(depth);
         } else {
             self.piece_to_sq[stm][piece][mv.to].increment(depth);
-            self.from_sq_to_sq[stm][mv.from][mv.to].increment(depth);
 
             if let Some(killer) = self.killers.get_mut(pos.ply as usize) {
                 *killer = mv;
             }
         }
+        self.from_sq_to_sq[stm][mv.from][mv.to].increment(depth);
     }
 
     pub fn did_not_cause_cutoff(&mut self, pos: &Position, mv: Move) {
@@ -148,8 +149,8 @@ impl OrderingState {
             self.capture_piece_to_sq[stm][piece][mv.to].decrement();
         } else {
             self.piece_to_sq[stm][piece][mv.to].decrement();
-            self.from_sq_to_sq[stm][mv.from][mv.to].decrement();
         }
+        self.from_sq_to_sq[stm][mv.from][mv.to].decrement();
     }
 
     fn killer(&self, ply: u16) -> Move {
