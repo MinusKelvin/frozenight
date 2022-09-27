@@ -56,7 +56,7 @@ impl Searcher<'_> {
                     move_score += (piece_to + from_to) / 2;
                 }
                 if mv == killer {
-                    move_score += 1_000_000;
+                    move_score += 2_000_000;
                 }
 
                 moves.push((mv, move_score));
