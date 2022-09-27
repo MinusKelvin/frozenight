@@ -65,7 +65,7 @@ impl Searcher<'_> {
 
                 let reduction = match () {
                     _ if extension > 0 => -extension,
-                    _ if position.is_capture(mv) => 0,
+                    _ if position.is_capture(mv) => pv_lmr(depth, i) / 2,
                     _ if !new_pos.board.checkers().is_empty() => 0,
                     _ => pv_lmr(depth, i),
                 };
