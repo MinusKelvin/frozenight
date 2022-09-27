@@ -46,7 +46,7 @@ impl Searcher<'_> {
                 if position.is_capture(mv) {
                     let victim = position.board.piece_on(mv.to).unwrap();
                     let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
-                    move_score += (static_exchange_eval(&position.board, mv) + mvv_lva) * 10_000;
+                    move_score += (static_exchange_eval(&position.board, mv) + mvv_lva) * 25_000;
                     let piece_to =
                         self.state.history.capture_piece_to_sq[stm][mvs.piece][mv.to].value;
                     move_score += piece_to;
