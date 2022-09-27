@@ -6,7 +6,6 @@ use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
 use crate::Eval;
 
-use super::see::static_exchange_eval;
 use super::window::Window;
 use super::{Searcher, INVALID_MOVE};
 
@@ -70,15 +69,9 @@ impl Searcher<'_> {
                     to,
                     promotion: promo.then(|| Piece::Queen),
                 };
-                if position.is_capture(mv) {
-                    let victim = position.board.piece_on(mv.to).unwrap();
-                    let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
-                    let see = static_exchange_eval(&position.board, mv);
-                    if see >= 0 || in_check {
-                        moves.push((mv, see + mvv_lva));
-                    }
-                } else {
-                    moves.push((mv, 0))
+                let (score, see) = self.state.history.score(position, mv, mvs.piece);
+                if see >= 0 {
+                    moves.push((mv, score));
                 }
             }
             false
@@ -93,13 +86,9 @@ impl Searcher<'_> {
                 };
                 if position.board.is_legal(mv) {
                     had_moves = true;
-                    if position.board.occupied().has(mv.to) {
-                        let see = static_exchange_eval(&position.board, mv);
-                        if see >= 0 {
-                            moves.push((mv, see));
-                        }
-                    } else {
-                        moves.push((mv, 0))
+                    let (score, see) = self.state.history.score(position, mv, Piece::King);
+                    if see >= 0 {
+                        moves.push((mv, score));
                     }
                 }
             }

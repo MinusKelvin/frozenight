@@ -25,8 +25,6 @@ impl Searcher<'_> {
         // Generate moves.
         let mut moves = Vec::with_capacity(64);
         let mut underpromotions = vec![];
-        let killer = self.state.history.killer(position.ply);
-        let stm = position.board.side_to_move();
 
         position.board.generate_moves(|mvs| {
             for mv in mvs {
@@ -41,25 +39,7 @@ impl Searcher<'_> {
                     continue;
                 }
 
-                let mut move_score = 0;
-
-                if position.is_capture(mv) {
-                    let victim = position.board.piece_on(mv.to).unwrap();
-                    let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
-                    move_score += (static_exchange_eval(&position.board, mv) + mvv_lva) * 10_000;
-                    let piece_to =
-                        self.state.history.capture_piece_to_sq[stm][mvs.piece][mv.to].value;
-                    move_score += piece_to;
-                } else {
-                    let piece_to = self.state.history.piece_to_sq[stm][mvs.piece][mv.to].value;
-                    let from_to = self.state.history.from_sq_to_sq[stm][mv.from][mv.to].value;
-                    move_score += (piece_to + from_to) / 2;
-                }
-                if mv == killer {
-                    move_score += 1_000_000;
-                }
-
-                moves.push((mv, move_score));
+                moves.push((mv, self.state.history.score(position, mv, mvs.piece).0));
             }
             false
         });
@@ -150,6 +130,30 @@ impl OrderingState {
             self.piece_to_sq[stm][piece][mv.to].decrement();
             self.from_sq_to_sq[stm][mv.from][mv.to].decrement();
         }
+    }
+
+    pub fn score(&self, position: &Position, mv: Move, piece: Piece) -> (i32, i32) {
+        let stm = position.board.side_to_move();
+        let mut move_score = 0;
+        let mut see = 0;
+
+        if position.is_capture(mv) {
+            let victim = position.board.piece_on(mv.to).unwrap();
+            let mvv_lva = 8 * victim as i32 - piece as i32 + 8;
+            see = static_exchange_eval(&position.board, mv);
+            move_score += (see + mvv_lva) * 10_000;
+            let piece_to = self.capture_piece_to_sq[stm][piece][mv.to].value;
+            move_score += piece_to;
+        } else {
+            let piece_to = self.piece_to_sq[stm][piece][mv.to].value;
+            let from_to = self.from_sq_to_sq[stm][mv.from][mv.to].value;
+            move_score += (piece_to + from_to) / 2;
+        }
+        if mv == self.killer(position.ply) {
+            move_score += 1_000_000;
+        }
+
+        (move_score, see)
     }
 
     fn killer(&self, ply: u16) -> Move {
