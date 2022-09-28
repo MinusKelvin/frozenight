@@ -47,6 +47,8 @@ impl Searcher<'_> {
             }
         };
 
+        let mut quiets = 0;
+
         self.search_moves(
             position,
             hashmove,
@@ -59,6 +61,9 @@ impl Searcher<'_> {
                 };
 
                 if i == 0 {
+                    if !position.is_capture(mv) {
+                        quiets += 1;
+                    }
                     // First move; search as PV node
                     return Some(-this.visit_pv(new_pos, -window, depth + extension - 1)?);
                 }
@@ -67,8 +72,12 @@ impl Searcher<'_> {
                     _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
-                    _ => pv_lmr(depth, i),
+                    _ => pv_lmr(depth, quiets),
                 };
+
+                if !position.is_capture(mv) {
+                    quiets += 1;
+                }
 
                 let mut v =
                     -this.visit_null(new_pos, -Window::null(window.lb()), depth - reduction - 1)?;
