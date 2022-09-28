@@ -71,25 +71,37 @@ impl Searcher<'_> {
 
         let mut yielded = Vec::with_capacity(64);
 
+        let futile = position.board.checkers().is_empty()
+            && match depth {
+                1 => window.fail_low(position.static_eval() + 500),
+                _ => false,
+            };
+
         self.search_moves(
             position,
             entry.map(|e| e.mv),
             window,
             depth,
             |this, i, mv, new_pos, window| {
+                let gives_check = !new_pos.board.checkers().is_empty();
+
                 let extension = match () {
-                    _ if !new_pos.board.checkers().is_empty() => 1,
+                    _ if gives_check => 1,
                     _ => 0,
                 };
 
                 let reduction = match () {
                     _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
-                    _ if !new_pos.board.checkers().is_empty() => 0,
+                    _ if gives_check => 0,
                     _ => null_lmr(depth, i),
                 };
 
                 if window.lb() >= -Eval::MAX_INCONCLUSIVE && depth - reduction - 1 < 0 {
+                    return Some(-Eval::MATE);
+                }
+
+                if futile && i != 0 && !gives_check && !position.is_capture(mv) {
                     return Some(-Eval::MATE);
                 }
 
