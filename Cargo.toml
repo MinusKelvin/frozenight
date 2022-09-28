@@ -9,3 +9,6 @@ members = [
 [profile.release]
 lto = true
 panic = "abort"
+
+[patch.crates-io]
+cozy-chess = { git = "https://github.com/analog-hors/cozy-chess", branch = "trng-zobrist" }
