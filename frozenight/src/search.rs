@@ -110,20 +110,32 @@ impl<'a> Searcher<'a> {
             panic!("root position (FEN: {}) has no moves", self.root);
         }
 
-        let window = match () {
-            _ if depth < 3 => Window::default(),
-            _ if around.is_conclusive() => Window::default(),
-            _ => Window::new(around - 500, around + 500),
-        };
+        let mut low_window_index = 0;
+        let mut high_window_index = 0;
+
+        const WINDOWS: [i16; 1] = [500];
+
+        if depth == 1 || around.is_conclusive() {
+            low_window_index = WINDOWS.len();
+            high_window_index = WINDOWS.len();
+        }
 
         let position = &Position::from_root(self.root.clone());
 
-        let (eval, mv) = self.pv_search(position, window, depth)?;
+        loop {
+            let lb = WINDOWS.get(low_window_index).map_or(-Eval::MATE, |&s| around - s);
+            let ub = WINDOWS.get(high_window_index).map_or(Eval::MATE, |&s| around + s);
+            let window = Window::new(lb, ub);
 
-        if window.fail_low(eval) || window.fail_high(eval) {
-            self.pv_search(position, Window::default(), depth)
-        } else {
-            Some((eval, mv))
+            let (eval, mv) = self.pv_search(position, window, depth)?;
+
+            if window.fail_low(eval) {
+                low_window_index += 1;
+            } else if window.fail_high(eval) {
+                high_window_index += 1;
+            } else {
+                return Some((eval, mv));
+            }
         }
     }
 
