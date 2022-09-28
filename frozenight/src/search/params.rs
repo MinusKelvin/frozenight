@@ -91,6 +91,7 @@ tweakables! {
     NMP_MIN_DEPTH: 1..=20 = 1;
     NMP_REDUCTION_M: 0..=128 = 77;
     NMP_REDUCTION_C: 0..=1024 = 38;
+    NMP_STATIC_MARGIN: 0..=1000 = 250;
 
     LMR_I1_M: 0..=256 = 92;
     LMR_I1_C: 0..=1024 = 15;
