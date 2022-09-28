@@ -27,6 +27,7 @@ impl Searcher<'_> {
         let mut quiets = Vec::with_capacity(64);
         let mut underpromotions = vec![];
         let killer = self.state.history.killer(position.ply);
+        let stm = position.board.side_to_move();
 
         position.board.generate_moves(|mvs| {
             for mv in mvs {
@@ -44,10 +45,12 @@ impl Searcher<'_> {
                 if position.is_capture(mv) {
                     let victim = position.board.piece_on(mv.to).unwrap();
                     let mvv_lva = 8 * victim as i32 - mvs.piece as i32 + 8;
-                    captures.push((mv, static_exchange_eval(&position.board, mv) + mvv_lva));
+                    let history = self.state.history.capture_piece_to[stm][mvs.piece][mv.to].value;
+                    let see_score = static_exchange_eval(&position.board, mv) + mvv_lva;
+                    captures.push((mv, history + see_score * 10_000));
                 } else if mv == killer {
                     // Killer is legal; order it after neutral captures
-                    captures.push((mv, 0));
+                    captures.push((mv, self.state.history.rank(mvs.piece, mv, stm)));
                 } else {
                     quiets.push((mv, mvs.piece));
                 }
@@ -75,16 +78,9 @@ impl Searcher<'_> {
         // Iterate quiets
         while !quiets.is_empty() {
             let mut index = 0;
-            let mut rank =
-                self.state
-                    .history
-                    .rank(quiets[0].1, quiets[0].0, position.board.side_to_move());
+            let mut rank = self.state.history.rank(quiets[0].1, quiets[0].0, stm);
             for i in 1..quiets.len() {
-                let r = self.state.history.rank(
-                    quiets[i].1,
-                    quiets[i].0,
-                    position.board.side_to_move(),
-                );
+                let r = self.state.history.rank(quiets[i].1, quiets[i].0, stm);
                 if r > rank {
                     index = i;
                     rank = r;
@@ -122,6 +118,7 @@ impl Searcher<'_> {
 }
 
 pub struct OrderingState {
+    capture_piece_to: ColorTable<PieceTable<SquareTable<HistoryCounter>>>,
     piece_to_sq: ColorTable<PieceTable<SquareTable<HistoryCounter>>>,
     from_sq_to_sq: ColorTable<SquareTable<SquareTable<HistoryCounter>>>,
     killers: [Move; 256],
@@ -130,6 +127,7 @@ pub struct OrderingState {
 impl OrderingState {
     pub fn new() -> Self {
         OrderingState {
+            capture_piece_to: Default::default(),
             piece_to_sq: Default::default(),
             from_sq_to_sq: Default::default(),
             killers: [INVALID_MOVE; 256],
@@ -137,6 +135,9 @@ impl OrderingState {
     }
 
     pub fn decay(&mut self) {
+        for counter in (&mut self.capture_piece_to).into_iter().flatten().flatten() {
+            counter.decay(64);
+        }
         for counter in (&mut self.piece_to_sq).into_iter().flatten().flatten() {
             counter.decay(64);
         }
@@ -150,7 +151,9 @@ impl OrderingState {
         let piece = pos.board.piece_on(mv.from).unwrap();
         let capture = pos.is_capture(mv);
 
-        if !capture {
+        if capture {
+            self.capture_piece_to[stm][piece][mv.to].increment(depth);
+        } else {
             self.piece_to_sq[stm][piece][mv.to].increment(depth);
             self.from_sq_to_sq[stm][mv.from][mv.to].increment(depth);
 
@@ -165,7 +168,9 @@ impl OrderingState {
         let piece = pos.board.piece_on(mv.from).unwrap();
         let capture = pos.is_capture(mv);
 
-        if !capture {
+        if capture {
+            self.capture_piece_to[stm][piece][mv.to].decrement();
+        } else {
             self.piece_to_sq[stm][piece][mv.to].decrement();
             self.from_sq_to_sq[stm][mv.from][mv.to].decrement();
         }
