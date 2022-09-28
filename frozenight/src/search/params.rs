@@ -92,9 +92,9 @@ tweakables! {
     NMP_REDUCTION_M: 0..=128 = 77;
     NMP_REDUCTION_C: 0..=1024 = 38;
 
-    LMR_I1_M: 0..=256 = 92;
+    LMR_I1_M: 0..=256 = 112;
     LMR_I1_C: 0..=1024 = 15;
-    LMR_I2_M: 0..=256 = 17;
+    LMR_I2_M: 0..=256 = 22;
     LMR_I2_C: 0..=1024 = 8;
     LMR_D_M: 0..=256 = 28;
     LMR_D_C: 0..=1024 = 8;
