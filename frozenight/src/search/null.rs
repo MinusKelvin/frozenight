@@ -77,6 +77,15 @@ impl Searcher<'_> {
             window,
             depth,
             |this, i, mv, new_pos, window| {
+                if i as i16 > depth * 7
+                    && !position.is_capture(mv)
+                    && new_pos.board.checkers().is_empty()
+                    && position.board.checkers().is_empty()
+                    && window.lb() > Eval::MAX_INCONCLUSIVE
+                {
+                    return Some(-Eval::MATE);
+                }
+
                 let extension = match () {
                     _ if !new_pos.board.checkers().is_empty() => 1,
                     _ => 0,
