@@ -89,7 +89,10 @@ impl Searcher<'_> {
                     _ => null_lmr(depth, i),
                 };
 
-                if window.lb() >= -Eval::MAX_INCONCLUSIVE && depth - reduction - 1 < 0 {
+                if window.lb() >= -Eval::MAX_INCONCLUSIVE
+                    && position.board.checkers().is_empty()
+                    && depth - reduction - 1 < 0
+                {
                     return Some(-Eval::MATE);
                 }
 
