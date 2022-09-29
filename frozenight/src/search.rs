@@ -113,7 +113,7 @@ impl<'a> Searcher<'a> {
         let mut low_window_index = 0;
         let mut high_window_index = 0;
 
-        const WINDOWS: [i16; 1] = [500];
+        const WINDOWS: [i16; 2] = [250, 750];
 
         if depth == 1 || around.is_conclusive() {
             low_window_index = WINDOWS.len();
