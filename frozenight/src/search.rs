@@ -113,7 +113,7 @@ impl<'a> Searcher<'a> {
         let window = match () {
             _ if depth < 3 => Window::default(),
             _ if around.is_conclusive() => Window::default(),
-            _ => Window::new(around - 500, around + 500),
+            _ => Window::new(around - 50, around + 50),
         };
 
         let position = &Position::from_root(self.root.clone());
