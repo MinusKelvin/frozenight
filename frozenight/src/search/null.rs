@@ -35,9 +35,13 @@ impl Searcher<'_> {
         };
 
         // mate distance pruning
-        let mate_score = Eval::MATE.add_time(position.ply);
-        if window.fail_low(mate_score) {
-            return Some(mate_score);
+        let winning_mate_score = Eval::MATE.add_time(position.ply);
+        if window.fail_low(winning_mate_score) {
+            return Some(winning_mate_score);
+        }
+        let losing_mate_score = -Eval::MATE.add_time(position.ply);
+        if window.fail_high(losing_mate_score) {
+            return Some(losing_mate_score);
         }
 
         // reverse futility pruning... but with qsearch
