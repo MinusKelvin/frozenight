@@ -112,7 +112,8 @@ impl<'a> Searcher<'a> {
 
         let window = match () {
             _ if depth < 3 => Window::default(),
-            _ if around.is_conclusive() => Window::default(),
+            _ if around > Eval::MAX_INCONCLUSIVE => Window::new(around - 1, Eval::MATE),
+            _ if around < -Eval::MAX_INCONCLUSIVE => Window::new(-Eval::MATE, around + 1),
             _ => Window::new(around - 500, around + 500),
         };
 
