@@ -34,12 +34,6 @@ impl Searcher<'_> {
             }
         };
 
-        // mate distance pruning
-        let mate_score = Eval::MATE.add_time(position.ply);
-        if window.fail_low(mate_score) {
-            return Some(mate_score);
-        }
-
         // reverse futility pruning... but with qsearch
         if depth <= RFP_MAX_DEPTH.get() {
             let rfp_window = Window::null(window.lb() + rfp_margin(depth));
