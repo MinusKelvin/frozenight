@@ -44,7 +44,10 @@ impl Searcher<'_> {
         if depth <= RFP_MAX_DEPTH.get() {
             let rfp_window = Window::null(window.lb() + rfp_margin(depth));
             let eval = entry
-                .map(|e| e.eval)
+                .and_then(|e| match e.kind {
+                    NodeKind::UpperBound if rfp_window.fail_high(e.eval) => None,
+                    _ => Some(e.eval),
+                })
                 .unwrap_or_else(|| self.qsearch(position, rfp_window));
             if rfp_window.fail_high(eval) {
                 return Some(eval);
