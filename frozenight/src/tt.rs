@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use bytemuck::{Pod, Zeroable};
 use cozy_chess::{Board, Move, Piece, Square};
 
-use crate::position::Position;
+use crate::position::{Position, BoardExt};
 use crate::Eval;
 
 pub struct TranspositionTable {
@@ -35,10 +35,10 @@ impl TranspositionTable {
     }
 
     pub fn get_move(&self, board: &Board) -> Option<Move> {
-        let entry = self.entry(board.hash());
+        let entry = self.entry(board.halfmove_hash());
         let data = entry.data.load(Ordering::Relaxed);
         let hxd = entry.hash.load(Ordering::Relaxed);
-        if hxd ^ data != board.hash() {
+        if hxd ^ data != board.halfmove_hash() {
             return None;
         }
         let data: TtData = bytemuck::cast(data);
@@ -46,10 +46,10 @@ impl TranspositionTable {
     }
 
     pub fn get(&self, position: &Position) -> Option<TableEntry> {
-        let entry = self.entry(position.board.hash());
+        let entry = self.entry(position.board.halfmove_hash());
         let data = entry.data.load(Ordering::Relaxed);
         let hxd = entry.hash.load(Ordering::Relaxed);
-        if hxd ^ data != position.board.hash() {
+        if hxd ^ data != position.board.halfmove_hash() {
             return None;
         }
         // marshal between usable type and stored data
@@ -78,14 +78,14 @@ impl TranspositionTable {
         unsafe {
             use std::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
             _mm_prefetch(
-                self.entry(board.hash()) as *const _ as *const _,
+                self.entry(board.halfmove_hash()) as *const _ as *const _,
                 _MM_HINT_T0,
             );
         }
     }
 
     pub fn store(&self, position: &Position, data: TableEntry) {
-        let entry = self.entry(position.board.hash());
+        let entry = self.entry(position.board.halfmove_hash());
 
         let old_data = entry.data.load(Ordering::Relaxed);
         let old_hash = entry.hash.load(Ordering::Relaxed) ^ old_data;
@@ -93,7 +93,7 @@ impl TranspositionTable {
 
         let mut replace = false;
         // always replace existing position data with PV data
-        replace |= old_hash == position.board.hash() && data.kind == NodeKind::Exact;
+        replace |= old_hash == position.board.halfmove_hash() && data.kind == NodeKind::Exact;
         // prefer deeper data
         replace |= data.depth >= old_data.depth;
         // prefer replacing stale data
@@ -121,7 +121,7 @@ impl TranspositionTable {
         entry.data.store(data, Ordering::Relaxed);
         entry
             .hash
-            .store(position.board.hash() ^ data, Ordering::Relaxed);
+            .store(position.board.halfmove_hash() ^ data, Ordering::Relaxed);
     }
 
     pub fn increment_age(&mut self, by: u8) {
