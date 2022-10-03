@@ -20,6 +20,7 @@ impl Searcher<'_> {
         if let Some(entry) = entry {
             match entry.kind {
                 _ if entry.depth < depth => {}
+                _ if position.board.halfmove_clock() > 75 => {}
                 NodeKind::Exact => return Some(entry.eval),
                 NodeKind::LowerBound => {
                     if window.fail_high(entry.eval) {

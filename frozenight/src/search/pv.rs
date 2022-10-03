@@ -18,7 +18,7 @@ impl Searcher<'_> {
         let hashmove = match self.shared.tt.get(position) {
             None => None,
             Some(entry) => {
-                if entry.depth >= depth {
+                if entry.depth >= depth && position.board.halfmove_clock() <= 75 {
                     match entry.kind {
                         NodeKind::Exact => {
                             if depth < 2 {
