@@ -45,3 +45,32 @@ impl Position {
         self.board.colors(!self.board.side_to_move()).has(mv.to)
     }
 }
+
+pub trait BoardExt {
+    fn halfmove_hash(&self) -> u64;
+}
+
+const HALFMOVE_KEYS: [u64; 25] = {
+    let mut result = [0; 25];
+    let mut i = 0;
+    let mut state = 0xeb84926524cc094cef4d44c49559c4feu128 | 1;
+    while i < 25 {
+        state = state.wrapping_mul(0x2360ED051FC65DA44385DF649FCCF645);
+        let rot = (state >> 122) as u32;
+        let xsl = (state >> 64) as u64 ^ state as u64;
+        result[i] = xsl.rotate_right(rot);
+        i += 1;
+    }
+    result
+};
+
+impl BoardExt for Board {
+    fn halfmove_hash(&self) -> u64 {
+        let hash = self.hash();
+        if self.halfmove_clock() <= 75 {
+            hash
+        } else {
+            hash ^ HALFMOVE_KEYS[self.halfmove_clock().min(100) as usize - 76]
+        }
+    }
+}

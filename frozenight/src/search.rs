@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move, Square};
 
-use crate::position::Position;
+use crate::position::{Position, BoardExt};
 use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, Frozenight, SharedState, Statistics};
 
@@ -204,7 +204,7 @@ impl<'a> Searcher<'a> {
             } else {
                 if this.multithreaded
                     && i > 0
-                    && this.shared.abdada.is_searching(new_pos.board.hash())
+                    && this.shared.abdada.is_searching(new_pos.board.halfmove_hash())
                 {
                     remaining.push((i, mv, new_pos));
                     i += 1;
@@ -213,7 +213,7 @@ impl<'a> Searcher<'a> {
 
                 this.shared.tt.prefetch(&new_pos.board);
                 let _guard = match this.multithreaded {
-                    true => this.shared.abdada.enter(new_pos.board.hash()),
+                    true => this.shared.abdada.enter(new_pos.board.halfmove_hash()),
                     false => None,
                 };
                 this.push_repetition(&new_pos.board);
@@ -241,7 +241,7 @@ impl<'a> Searcher<'a> {
         for (i, mv, new_pos) in remaining {
             self.shared.tt.prefetch(&new_pos.board);
             self.push_repetition(&new_pos.board);
-            let _guard = self.shared.abdada.enter(new_pos.board.hash());
+            let _guard = self.shared.abdada.enter(new_pos.board.halfmove_hash());
             let v = f(self, i, mv, &new_pos, window)?;
             self.pop_repetition();
 
