@@ -58,7 +58,7 @@ impl Searcher<'_> {
                     _ => 0,
                 };
 
-                if i == 0 {
+                if i == 0 || window.ub() < -Eval::MAX_INCONCLUSIVE {
                     // First move; search as PV node
                     return Some(-this.visit_pv(new_pos, -window, depth + extension - 1)?);
                 }
