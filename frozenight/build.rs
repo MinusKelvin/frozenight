@@ -34,7 +34,7 @@ fn main() {
     println!("cargo:rerun-if-changed={}", eval_file.display());
 
     let model: Nnue = serde_json::from_reader(
-        zstd::Decoder::new(BufReader::new(File::open(eval_file).unwrap())).unwrap(),
+        ruzstd::StreamingDecoder::new(BufReader::new(File::open(eval_file).unwrap())).unwrap(),
     )
     .unwrap();
 

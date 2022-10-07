@@ -13,6 +13,6 @@ bytemuck = { version = "1.7.3", features = ["derive"] }
 cozy-chess = "0.3"
 
 [build-dependencies]
+ruzstd = "0.3.0"
 serde = { version = "1.0.144", features = ["derive"] }
 serde_json = "1.0.85"
-zstd = "0.11.2"
