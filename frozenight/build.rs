@@ -26,15 +26,17 @@ fn main() {
     let eval_file = std::env::var_os("EVALFILE");
     let eval_file: &Path = eval_file
         .as_ref()
-        .map_or("frozenight/model.json".as_ref(), |s| s.as_ref());
+        .map_or("frozenight/model.json.zst".as_ref(), |s| s.as_ref());
     let eval_file = match eval_file.is_relative() {
         true => Path::new("..").join(eval_file),
         false => eval_file.into(),
     };
     println!("cargo:rerun-if-changed={}", eval_file.display());
 
-    let model: Nnue =
-        serde_json::from_reader(BufReader::new(File::open(eval_file).unwrap())).unwrap();
+    let model: Nnue = serde_json::from_reader(
+        zstd::Decoder::new(BufReader::new(File::open(eval_file).unwrap())).unwrap(),
+    )
+    .unwrap();
 
     let out_dir: PathBuf = std::env::var_os("OUT_DIR").unwrap().into();
     let mut output = BufWriter::new(File::create(out_dir.join("model.rs")).unwrap());

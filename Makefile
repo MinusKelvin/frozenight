@@ -5,7 +5,7 @@ ifndef EXE
 $(error You do not appear to be OpenBench - please use cargo instead)
 endif
 
-EVALFILE = frozenight/model.json
+EVALFILE = frozenight/model.json.zst
 EXE = Frozenight
 ifeq ($(OS),Windows_NT)
 	NAME := $(EXE).exe
