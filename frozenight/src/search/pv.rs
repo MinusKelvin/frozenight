@@ -13,7 +13,7 @@ impl Searcher<'_> {
         &mut self,
         position: &Position,
         window: Window,
-        depth: i16,
+        mut depth: i16,
     ) -> Option<(Eval, Move)> {
         let hashmove = match self.shared.tt.get(position) {
             None => None,
@@ -42,6 +42,11 @@ impl Searcher<'_> {
                     // internal iterative deepening
                     Some(self.pv_search(position, window, depth - 2)?.1)
                 } else {
+                    if entry.kind == NodeKind::Exact {
+                        if position.ply % 4 == 1 {
+                            depth += 1;
+                        }
+                    }
                     Some(entry.mv)
                 }
             }
