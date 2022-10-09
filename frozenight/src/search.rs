@@ -49,6 +49,7 @@ pub(crate) struct Searcher<'a> {
     state: &'a mut PrivateState,
     valid: bool,
     allow_abort: bool,
+    on_pv: bool,
     deadline: Option<Instant>,
     next_deadline_check: u64,
     multithreaded: bool,
@@ -89,6 +90,7 @@ impl Frozenight {
             },
             valid: true,
             allow_abort: false,
+            on_pv: false,
             rep_list: self.prehistory.clone(),
         })
     }
@@ -118,9 +120,11 @@ impl<'a> Searcher<'a> {
 
         let position = &Position::from_root(self.root.clone());
 
+        self.on_pv = true;
         let (eval, mv) = self.pv_search(position, window, depth)?;
 
         if window.fail_low(eval) || window.fail_high(eval) {
+            self.on_pv = true;
             self.pv_search(position, Window::default(), depth)
         } else {
             Some((eval, mv))
@@ -145,6 +149,7 @@ impl<'a> Searcher<'a> {
         }
 
         let result = if depth <= 0 {
+            self.on_pv = false;
             self.stats
                 .selective_depth
                 .fetch_max(position.ply as i16, Ordering::Relaxed);

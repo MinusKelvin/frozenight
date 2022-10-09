@@ -13,10 +13,13 @@ impl Searcher<'_> {
         &mut self,
         position: &Position,
         window: Window,
-        depth: i16,
+        mut depth: i16,
     ) -> Option<(Eval, Move)> {
         let hashmove = match self.shared.tt.get(position) {
-            None => None,
+            None => {
+                self.on_pv = false;
+                None
+            }
             Some(entry) => {
                 if entry.depth >= depth {
                     match entry.kind {
@@ -26,11 +29,13 @@ impl Searcher<'_> {
                             }
                         }
                         NodeKind::LowerBound => {
+                            self.on_pv = false;
                             if window.fail_high(entry.eval) {
                                 return Some((entry.eval, entry.mv));
                             }
                         }
                         NodeKind::UpperBound => {
+                            self.on_pv = false;
                             if window.fail_low(entry.eval) {
                                 return Some((entry.eval, entry.mv));
                             }
@@ -39,6 +44,7 @@ impl Searcher<'_> {
                 }
                 let tt_not_good_enough = entry.depth < depth - 2 || entry.kind != NodeKind::Exact;
                 if tt_not_good_enough && depth > 3 {
+                    self.on_pv = false;
                     // internal iterative deepening
                     Some(self.pv_search(position, window, depth - 2)?.1)
                 } else {
@@ -46,6 +52,10 @@ impl Searcher<'_> {
                 }
             }
         };
+
+        if self.on_pv && position.ply % 4 == 3 {
+            depth += 1;
+        }
 
         self.search_moves(
             position,
