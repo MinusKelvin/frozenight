@@ -13,7 +13,7 @@ impl Searcher<'_> {
         &mut self,
         position: &Position,
         window: Window,
-        depth: i16,
+        mut depth: i16,
     ) -> Option<(Eval, Move)> {
         let hashmove = match self.shared.tt.get(position) {
             None => None,
@@ -26,11 +26,13 @@ impl Searcher<'_> {
                             }
                         }
                         NodeKind::LowerBound => {
+                            self.on_pv = false;
                             if window.fail_high(entry.eval) {
                                 return Some((entry.eval, entry.mv));
                             }
                         }
                         NodeKind::UpperBound => {
+                            self.on_pv = false;
                             if window.fail_low(entry.eval) {
                                 return Some((entry.eval, entry.mv));
                             }
@@ -46,6 +48,10 @@ impl Searcher<'_> {
                 }
             }
         };
+
+        if self.on_pv && position.ply % 4 == 3 {
+            depth += 1;
+        }
 
         self.search_moves(
             position,
