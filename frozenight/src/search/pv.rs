@@ -43,7 +43,7 @@ impl Searcher<'_> {
                     Some(self.pv_search(position, window, depth - 2)?.1)
                 } else {
                     if entry.kind == NodeKind::Exact {
-                        if position.ply % 4 == 0 && position.ply as i16 * 2 < depth {
+                        if position.ply % 2 == 1 && position.ply as i16 * 2 < depth {
                             depth += 1;
                         }
                     }
