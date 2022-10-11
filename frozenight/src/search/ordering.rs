@@ -171,7 +171,7 @@ impl OrderingState {
         }
     }
 
-    fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
+    pub fn rank(&self, piece: Piece, mv: Move, stm: Color) -> i32 {
         let piece_to = self.piece_to_sq[stm][piece][mv.to].value;
         let from_to = self.from_sq_to_sq[stm][mv.from][mv.to].value;
         piece_to + from_to

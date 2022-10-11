@@ -6,7 +6,7 @@ use super::params::*;
 use super::window::Window;
 use super::Searcher;
 
-use cozy_chess::Piece;
+use cozy_chess::{Move, Piece};
 
 impl Searcher<'_> {
     pub fn visit_null(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
@@ -69,7 +69,7 @@ impl Searcher<'_> {
             }
         }
 
-        let mut yielded = Vec::with_capacity(64);
+        let mut yielded: Vec<Move> = Vec::with_capacity(64);
 
         self.search_moves(
             position,
@@ -100,8 +100,20 @@ impl Searcher<'_> {
                 }
 
                 if window.fail_high(v) {
+                    let cutoff_score = this.state.history.rank(
+                        position.board.piece_on(mv.from).unwrap(),
+                        mv,
+                        position.board.side_to_move(),
+                    );
                     for &mv in &yielded {
-                        this.state.history.did_not_cause_cutoff(position, mv);
+                        let score = this.state.history.rank(
+                            position.board.piece_on(mv.from).unwrap(),
+                            mv,
+                            position.board.side_to_move(),
+                        );
+                        if score >= cutoff_score {
+                            this.state.history.did_not_cause_cutoff(position, mv);
+                        }
                     }
                     return Some(v);
                 }
