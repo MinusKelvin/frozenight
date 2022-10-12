@@ -96,6 +96,7 @@ impl Searcher<'_> {
                 let mut v = -this.visit_null(new_pos, -window, depth - reduction - 1)?;
 
                 if window.fail_high(v) && reduction > 0 {
+                    this.state.history.caused_cutoff(position, mv, depth);
                     v = -this.visit_null(new_pos, -window, depth - 1)?;
                 }
 
