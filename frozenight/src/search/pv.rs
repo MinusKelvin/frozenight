@@ -95,7 +95,13 @@ impl Searcher<'_> {
                     return Some(v);
                 }
 
-                Some(-this.visit_pv(new_pos, -window, depth + extension - 1)?)
+                let v = -this.visit_pv(new_pos, -window, depth + extension - 1)?;
+                if window.fail_low(v) {
+                    // we won't raise history due to a cutoff here, so we should manually raise
+                    // history scores because the move had to be pv-searched
+                    this.state.history.caused_cutoff(position, mv, depth);
+                }
+                Some(v)
             },
         )
     }
