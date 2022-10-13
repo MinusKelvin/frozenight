@@ -227,10 +227,12 @@ impl<'a> Searcher<'a> {
             }
 
             if window.fail_high(v) {
+                this.state.history.caused_cutoff(position, mv, depth);
                 return Some(BREAK);
             }
 
             if window.raise_lb(v) {
+                this.state.history.caused_cutoff(position, mv, depth);
                 raised_alpha = true;
             }
 
@@ -251,16 +253,26 @@ impl<'a> Searcher<'a> {
             }
 
             if window.fail_high(v) {
+                self.state.history.caused_cutoff(position, mv, depth);
                 break;
             }
 
             if window.raise_lb(v) {
+                self.state.history.caused_cutoff(position, mv, depth);
                 raised_alpha = true;
             }
         }
 
         if window.fail_high(best_score) {
-            self.failed_high(position, depth, best_score, best_move);
+            self.shared.tt.store(
+                position,
+                TableEntry {
+                    mv: best_move,
+                    eval: best_score,
+                    depth,
+                    kind: NodeKind::LowerBound,
+                },
+            );
         } else if raised_alpha {
             self.shared.tt.store(
                 &position,
@@ -288,19 +300,6 @@ impl<'a> Searcher<'a> {
                 kind: NodeKind::UpperBound,
             },
         );
-    }
-
-    fn failed_high(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
-        self.shared.tt.store(
-            position,
-            TableEntry {
-                mv,
-                eval,
-                depth,
-                kind: NodeKind::LowerBound,
-            },
-        );
-        self.state.history.caused_cutoff(position, mv, depth);
     }
 
     fn push_repetition(&mut self, board: &Board) {
