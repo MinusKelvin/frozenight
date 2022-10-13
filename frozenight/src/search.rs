@@ -195,6 +195,8 @@ impl<'a> Searcher<'a> {
 
         self.visit_moves(position, hashmove, |this, mv| {
             let new_pos = position.play_move(mv);
+            i += 1;
+            let i = i - 1;
 
             let v;
             if let Some(eval) = oracle::oracle(&new_pos.board) {
@@ -207,7 +209,6 @@ impl<'a> Searcher<'a> {
                     && this.shared.abdada.is_searching(new_pos.board.hash())
                 {
                     remaining.push((i, mv, new_pos));
-                    i += 1;
                     return Some(CONTINUE);
                 }
 
@@ -234,7 +235,6 @@ impl<'a> Searcher<'a> {
                 raised_alpha = true;
             }
 
-            i += 1;
             Some(CONTINUE)
         })?;
 
