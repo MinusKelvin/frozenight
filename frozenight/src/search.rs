@@ -238,24 +238,26 @@ impl<'a> Searcher<'a> {
             Some(CONTINUE)
         })?;
 
-        for (i, mv, new_pos) in remaining {
-            self.shared.tt.prefetch(&new_pos.board);
-            self.push_repetition(&new_pos.board);
-            let _guard = self.shared.abdada.enter(new_pos.board.hash());
-            let v = f(self, i, mv, &new_pos, window)?;
-            self.pop_repetition();
+        if !window.fail_high(best_score) {
+            for (i, mv, new_pos) in remaining {
+                self.shared.tt.prefetch(&new_pos.board);
+                self.push_repetition(&new_pos.board);
+                let _guard = self.shared.abdada.enter(new_pos.board.hash());
+                let v = f(self, i, mv, &new_pos, window)?;
+                self.pop_repetition();
 
-            if v > best_score {
-                best_move = mv;
-                best_score = v;
-            }
+                if v > best_score {
+                    best_move = mv;
+                    best_score = v;
+                }
 
-            if window.fail_high(v) {
-                break;
-            }
+                if window.fail_high(v) {
+                    break;
+                }
 
-            if window.raise_lb(v) {
-                raised_alpha = true;
+                if window.raise_lb(v) {
+                    raised_alpha = true;
+                }
             }
         }
 
