@@ -84,21 +84,21 @@ macro_rules! tweakables {
 }
 
 tweakables! {
-    RFP_MARGIN_M: 0..=5000 = 255;
-    RFP_MARGIN_C: 0..=5000 = 11;
-    RFP_MAX_DEPTH: 1..=20 = 8;
+    RFP_MARGIN_M: 0..=5000 = 243;
+    RFP_MARGIN_C: 0..=5000 = 24;
+    RFP_MAX_DEPTH: 1..=20 = 7;
 
-    NMP_MIN_DEPTH: 1..=20 = 1;
-    NMP_REDUCTION_M: 0..=128 = 77;
-    NMP_REDUCTION_C: 0..=1024 = 38;
+    NMP_MIN_DEPTH: 1..=20 = 2;
+    NMP_REDUCTION_M: 0..=128 = 91;
+    NMP_REDUCTION_C: 0..=1024 = 44;
 
-    LMR_I1_M: 0..=256 = 92;
-    LMR_I1_C: 0..=1024 = 15;
-    LMR_I2_M: 0..=256 = 17;
-    LMR_I2_C: 0..=1024 = 8;
-    LMR_D_M: 0..=256 = 28;
-    LMR_D_C: 0..=1024 = 8;
-    PV_LMR_FACTOR: 0..=128 = 74;
+    LMR_I1_M: 0..=256 = 70;
+    LMR_I1_C: 0..=1024 = 11;
+    LMR_I2_M: 0..=256 = 11;
+    LMR_I2_C: 0..=1024 = 5;
+    LMR_D_M: 0..=256 = 51;
+    LMR_D_C: 0..=1024 = 2;
+    PV_LMR_FACTOR: 0..=128 = 95;
 }
 
 #[inline(always)]
