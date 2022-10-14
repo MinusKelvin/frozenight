@@ -92,13 +92,13 @@ tweakables! {
     NMP_REDUCTION_M: 0..=128 = 77;
     NMP_REDUCTION_C: 0..=1024 = 38;
 
-    LMR_I1_M: 0..=256 = 92;
-    LMR_I1_C: 0..=1024 = 15;
+    LMR_I1_M: 0..=256 = 96;
+    LMR_I1_C: 0..=1024 = 32;
     LMR_I2_M: 0..=256 = 17;
     LMR_I2_C: 0..=1024 = 8;
-    LMR_D_M: 0..=256 = 28;
+    LMR_D_M: 0..=256 = 34;
     LMR_D_C: 0..=1024 = 8;
-    PV_LMR_FACTOR: 0..=128 = 74;
+    PV_LMR_FACTOR: 0..=128 = 84;
 }
 
 #[inline(always)]
