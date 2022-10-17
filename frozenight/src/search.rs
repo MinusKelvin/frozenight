@@ -260,7 +260,18 @@ impl<'a> Searcher<'a> {
         }
 
         if window.fail_high(best_score) {
-            self.failed_high(position, depth, best_score, best_move);
+            self.shared.tt.store(
+                position,
+                TableEntry {
+                    mv: best_move,
+                    eval: best_score,
+                    depth,
+                    kind: NodeKind::LowerBound,
+                },
+            );
+            if Some(best_move) == hashmove {
+                self.state.history.caused_cutoff(position, best_move, depth);
+            }
         } else if raised_alpha {
             self.shared.tt.store(
                 &position,
@@ -272,35 +283,18 @@ impl<'a> Searcher<'a> {
                 },
             );
         } else {
-            self.failed_low(position, depth, best_score, best_move);
+            self.shared.tt.store(
+                position,
+                TableEntry {
+                    mv: best_move,
+                    eval: best_score,
+                    depth,
+                    kind: NodeKind::UpperBound,
+                },
+            );
         }
 
         Some((best_score, best_move))
-    }
-
-    fn failed_low(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
-        self.shared.tt.store(
-            position,
-            TableEntry {
-                mv,
-                eval,
-                depth,
-                kind: NodeKind::UpperBound,
-            },
-        );
-    }
-
-    fn failed_high(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
-        self.shared.tt.store(
-            position,
-            TableEntry {
-                mv,
-                eval,
-                depth,
-                kind: NodeKind::LowerBound,
-            },
-        );
-        self.state.history.caused_cutoff(position, mv, depth);
     }
 
     fn push_repetition(&mut self, board: &Board) {
