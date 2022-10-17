@@ -18,7 +18,7 @@ pub use eval::Eval;
 pub use threading::MtFrozenight;
 pub use time::TimeConstraint;
 
-use search::{AbdadaTable, PrivateState, Searcher, INVALID_MOVE};
+use search::{PrivateState, Searcher, INVALID_MOVE};
 use time::TimeManager;
 use tt::TranspositionTable;
 
@@ -50,14 +50,12 @@ struct Statistics {
 
 struct SharedState {
     tt: TranspositionTable,
-    abdada: AbdadaTable,
 }
 
 impl Frozenight {
     pub fn new(hash_mb: usize) -> Self {
         Self::create(Arc::new(RwLock::new(SharedState {
             tt: TranspositionTable::new(hash_mb),
-            abdada: AbdadaTable::new(),
         })))
     }
 
@@ -125,7 +123,6 @@ impl Frozenight {
             time.depth,
             time.nodes,
             &Default::default(),
-            false,
             tm.deadline(),
             |depth, searcher, best_move, eval| {
                 recent_info = SearchInfo {
@@ -149,13 +146,12 @@ impl Frozenight {
         max_depth: i16,
         max_nodes: u64,
         abort: &AtomicBool,
-        multithreaded: bool,
         deadline: Option<Instant>,
         mut depth_complete: impl FnMut(i16, &mut Searcher, Move, Eval) -> ControlFlow<()>,
     ) {
         self.stats.clear();
 
-        self.with_searcher(max_nodes, multithreaded, abort, deadline, |mut searcher| {
+        self.with_searcher(max_nodes, abort, deadline, |mut searcher| {
             let mut prev_eval = Eval::DRAW;
 
             for depth in 1..=max_depth {

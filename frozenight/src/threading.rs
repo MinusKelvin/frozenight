@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use cozy_chess::{Board, Move};
 
-use crate::search::{AbdadaTable, INVALID_MOVE};
+use crate::search::INVALID_MOVE;
 use crate::time::{TimeConstraint, TimeManager};
 use crate::tt::TranspositionTable;
 use crate::{update_position, Eval, Frozenight, SearchInfo, SharedState, Statistics};
@@ -22,7 +22,6 @@ pub struct MtFrozenight {
 enum ThreadCommand {
     SetPosition(Board, Vec<u64>),
     Go {
-        multithreaded: bool,
         max_nodes: u64,
         max_depth: i16,
         deadline: Option<Instant>,
@@ -47,7 +46,6 @@ impl MtFrozenight {
             prehistory: vec![],
             shared_state: Arc::new(RwLock::new(SharedState {
                 tt: TranspositionTable::new(hash_mb),
-                abdada: AbdadaTable::new(),
             })),
             threads: vec![],
             abort: Default::default(),
@@ -140,10 +138,8 @@ impl MtFrozenight {
             stats,
         }));
 
-        let multithreaded = self.threads.len() > 1;
         for (_, sender) in &self.threads {
             let _ = sender.send(ThreadCommand::Go {
-                multithreaded,
                 max_nodes: time.nodes,
                 max_depth: time.depth,
                 deadline: deadline.take(),
@@ -165,7 +161,6 @@ fn run_thread(mut engine: Frozenight, recv: Receiver<ThreadCommand>) {
                 engine.stats.clear();
             }
             ThreadCommand::Go {
-                multithreaded,
                 max_nodes,
                 max_depth,
                 deadline,
@@ -176,7 +171,6 @@ fn run_thread(mut engine: Frozenight, recv: Receiver<ThreadCommand>) {
                     max_depth,
                     max_nodes,
                     &abort,
-                    multithreaded,
                     deadline,
                     |depth, searcher, mv, eval| {
                         let mut state = state.lock().unwrap();

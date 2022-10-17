@@ -7,12 +7,10 @@ use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
 use crate::{Eval, Frozenight, SharedState, Statistics};
 
-pub use self::abdada::AbdadaTable;
 use self::ordering::{OrderingState, BREAK, CONTINUE};
 pub use self::params::all_parameters;
 use self::window::Window;
 
-mod abdada;
 mod null;
 mod oracle;
 mod ordering;
@@ -51,7 +49,6 @@ pub(crate) struct Searcher<'a> {
     allow_abort: bool,
     deadline: Option<Instant>,
     next_deadline_check: u64,
-    multithreaded: bool,
     rep_list: Vec<u64>,
     rep_table: [u8; 1024],
 }
@@ -60,7 +57,6 @@ impl Frozenight {
     pub(super) fn with_searcher<T>(
         &mut self,
         node_limit: u64,
-        multithreaded: bool,
         abort: &AtomicBool,
         deadline: Option<Instant>,
         f: impl FnOnce(Searcher) -> T,
@@ -77,7 +73,6 @@ impl Frozenight {
             abort,
             state: &mut self.state,
             stats: &self.stats,
-            multithreaded,
             rep_table,
             node_limit,
             deadline,
@@ -191,8 +186,6 @@ impl<'a> Searcher<'a> {
         let mut raised_alpha = false;
         let mut i = 0;
 
-        let mut remaining = vec![];
-
         self.visit_moves(position, hashmove, |this, mv| {
             let new_pos = position.play_move(mv);
             i += 1;
@@ -204,19 +197,7 @@ impl<'a> Searcher<'a> {
             } else if this.is_repetition(&new_pos.board) {
                 v = Eval::DRAW;
             } else {
-                if this.multithreaded
-                    && i > 0
-                    && this.shared.abdada.is_searching(new_pos.board.hash())
-                {
-                    remaining.push((i, mv, new_pos));
-                    return Some(CONTINUE);
-                }
-
                 this.shared.tt.prefetch(&new_pos.board);
-                let _guard = match this.multithreaded {
-                    true => this.shared.abdada.enter(new_pos.board.hash()),
-                    false => None,
-                };
                 this.push_repetition(&new_pos.board);
                 v = f(this, i, mv, &new_pos, window)?;
                 this.pop_repetition();
@@ -237,29 +218,6 @@ impl<'a> Searcher<'a> {
 
             Some(CONTINUE)
         })?;
-
-        if !window.fail_high(best_score) {
-            for (i, mv, new_pos) in remaining {
-                self.shared.tt.prefetch(&new_pos.board);
-                self.push_repetition(&new_pos.board);
-                let _guard = self.shared.abdada.enter(new_pos.board.hash());
-                let v = f(self, i, mv, &new_pos, window)?;
-                self.pop_repetition();
-
-                if v > best_score {
-                    best_move = mv;
-                    best_score = v;
-                }
-
-                if window.fail_high(v) {
-                    break;
-                }
-
-                if window.raise_lb(v) {
-                    raised_alpha = true;
-                }
-            }
-        }
 
         if window.fail_high(best_score) {
             self.failed_high(position, depth, best_score, best_move);
