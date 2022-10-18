@@ -13,9 +13,10 @@ impl Searcher<'_> {
         &mut self,
         position: &Position,
         window: Window,
+        new_pv: bool,
         mut depth: i16,
     ) -> Option<(Eval, Move)> {
-        let hashmove = match self.shared.tt.get(position) {
+        let mut hashmove = match self.shared.tt.get(position) {
             None => None,
             Some(entry) => {
                 if entry.depth >= depth {
@@ -37,20 +38,18 @@ impl Searcher<'_> {
                         }
                     }
                 }
-                let tt_not_good_enough = entry.depth < depth - 2 || entry.kind != NodeKind::Exact;
-                if tt_not_good_enough && depth > 3 {
-                    // internal iterative deepening
-                    Some(self.pv_search(position, window, depth - 2)?.1)
-                } else {
-                    if entry.kind == NodeKind::Exact {
-                        if position.ply % 4 == 0 && position.ply as i16 * 2 < depth {
-                            depth += 1;
-                        }
+                if entry.kind == NodeKind::Exact && !new_pv {
+                    if position.ply % 4 == 0 && position.ply as i16 * 2 < depth {
+                        depth += 1;
                     }
-                    Some(entry.mv)
                 }
+                Some(entry.mv)
             }
         };
+
+        if new_pv && depth > 3 {
+            hashmove = Some(self.pv_search(position, window, true, depth - 2)?.1);
+        }
 
         self.search_moves(
             position,
@@ -65,7 +64,7 @@ impl Searcher<'_> {
 
                 if i == 0 {
                     // First move; search as PV node
-                    return Some(-this.visit_pv(new_pos, -window, depth + extension - 1)?);
+                    return Some(-this.visit_pv(new_pos, -window, false, depth + extension - 1)?);
                 }
 
                 let reduction = match () {
@@ -95,14 +94,20 @@ impl Searcher<'_> {
                     return Some(v);
                 }
 
-                Some(-this.visit_pv(new_pos, -window, depth + extension - 1)?)
+                Some(-this.visit_pv(new_pos, -window, true, depth + extension - 1)?)
             },
         )
     }
 
-    fn visit_pv(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+    fn visit_pv(
+        &mut self,
+        position: &Position,
+        window: Window,
+        new_pv: bool,
+        depth: i16,
+    ) -> Option<Eval> {
         self.visit_node(position, window, depth, |this| {
-            this.pv_search(position, window, depth)
+            this.pv_search(position, window, new_pv, depth)
                 .map(|(eval, _)| eval)
         })
     }

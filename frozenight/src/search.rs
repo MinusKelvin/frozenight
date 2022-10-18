@@ -113,10 +113,10 @@ impl<'a> Searcher<'a> {
 
         let position = &Position::from_root(self.root.clone());
 
-        let (eval, mv) = self.pv_search(position, window, depth)?;
+        let (eval, mv) = self.pv_search(position, window, false, depth)?;
 
         if window.fail_low(eval) || window.fail_high(eval) {
-            self.pv_search(position, Window::default(), depth)
+            self.pv_search(position, Window::default(), false, depth)
         } else {
             Some((eval, mv))
         }
