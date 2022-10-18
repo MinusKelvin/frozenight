@@ -7,19 +7,22 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
 ## Rating Lists
 
 [CCRL 40/15][CCRL4040]:
-- Frozenight 4.0: **2957**
+- Frozenight 5.0: **3004**
+- Frozenight 4.0: 2960
 - Frozenight 3.0: 2842
 - Frozenight 2.1: 2683
 - Frozenight 2.0: 2606
 
 [CCRL Blitz][CCRL404]:
-- Frozenight 4.0: **3004**
-- Frozenight 3.0: 2893
-- Frozenight 2.1: 2677
+- Frozenight 5.0: **3086**
+- Frozenight 4.0: 3005
+- Frozenight 3.0: 2891
+- Frozenight 2.1: 2678
 - Frozenight 1.0: 2448
 
 [CCRL 40/2 FRC][CCRLFRC]:
-- Frozenight 4.0: **2998**
+- Frozenight 5.0: **3111**
+- Frozenight 4.0: 2998
 - Frozenight 3.0: 2761
 
 ## Features
@@ -27,9 +30,9 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
 - [`cozy-chess`] for move generation
 - Principal Variation Search
 - Aspiration windows
-- ABDADA-based multithreading strategy
+- LazySMP multithreading
 - NNUE evaluation
-  - 768 -> 32x2 (-> 1)x16
+  - 768 -> 256x2 (-> 1)x16
   - Network bucketing based on modified piece material values (Queen = 8)
     - This is based on game phase tuning in Koivisto done by Luecx
   - Training data generated through self-play, originally starting with a random network
@@ -38,6 +41,7 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
   - SEE ordering & pruning with MVV-LVA for ties
   - Check Evasions
 - Check Extensions
+- PV Extensions
 - Late move reductions
 - Late move pruning
 - Null move pruning
