@@ -37,18 +37,12 @@ impl Searcher<'_> {
                         }
                     }
                 }
-                let tt_not_good_enough = entry.depth < depth - 2 || entry.kind != NodeKind::Exact;
-                if tt_not_good_enough && depth > 3 {
-                    // internal iterative deepening
-                    Some(self.pv_search(position, window, depth - 2)?.1)
-                } else {
-                    if entry.kind == NodeKind::Exact {
-                        if position.ply % 4 == 0 && position.ply as i16 * 2 < depth {
-                            depth += 1;
-                        }
+                if entry.kind == NodeKind::Exact && entry.kind == NodeKind::Exact {
+                    if position.ply % 4 == 0 && position.ply as i16 * 2 < depth {
+                        depth += 1;
                     }
-                    Some(entry.mv)
                 }
+                Some(entry.mv)
             }
         };
 
