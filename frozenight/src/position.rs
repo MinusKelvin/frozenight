@@ -38,7 +38,9 @@ impl Position {
     }
 
     pub fn static_eval(&self) -> Eval {
-        self.nnue.calculate(self.board.side_to_move())
+        let raw = self.nnue.calculate(self.board.side_to_move());
+        let factor = 32 - self.board.halfmove_clock().saturating_sub(70) as i32;
+        Eval::new((raw as i32 * factor / 32) as i16)
     }
 
     pub fn is_capture(&self, mv: Move) -> bool {
