@@ -1,7 +1,5 @@
 use cozy_chess::{Board, Color, File, Move, Piece, Rank, Square};
 
-use crate::Eval;
-
 const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
 const L1_SIZE: usize = 256;
 const BUCKETS: usize = 16;
@@ -50,7 +48,7 @@ impl NnueAccumulator {
         }
     }
 
-    pub fn calculate(&self, stm: Color) -> Eval {
+    pub fn calculate(&self, stm: Color) -> i16 {
         let bucket = (self.material * BUCKETS / 76).min(BUCKETS - 1);
         let mut output = NETWORK.hidden_layer_bias[bucket];
         let (first, second) = match stm {
@@ -65,7 +63,7 @@ impl NnueAccumulator {
                 * NETWORK.hidden_layer[bucket][i + first.len()] as i32;
         }
 
-        Eval::new((output / 8) as i16)
+        (output / 8) as i16
     }
 
     pub fn play_move(&self, board: &Board, mv: Move) -> Self {
