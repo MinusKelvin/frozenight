@@ -36,27 +36,25 @@ impl TranspositionTable {
 
     pub fn get_move(&self, board: &Board) -> Option<Move> {
         let entry = self.entry(board.hash());
-        let data = entry.data.load(Ordering::Relaxed);
-        let hxd = entry.hash.load(Ordering::Relaxed);
-        if hxd ^ data != board.hash() {
+        let data = entry.v.load(Ordering::Relaxed);
+        let data: TtData = bytemuck::cast(data);
+        if data.hash != board.hash() as u16 {
             return None;
         }
-        let data: TtData = bytemuck::cast(data);
         data.unmarshall_move(board)
     }
 
     pub fn get(&self, position: &Position) -> Option<TableEntry> {
         let entry = self.entry(position.board.hash());
-        let data = entry.data.load(Ordering::Relaxed);
-        let hxd = entry.hash.load(Ordering::Relaxed);
-        if hxd ^ data != position.board.hash() {
+        let data = entry.v.load(Ordering::Relaxed);
+        let data: TtData = bytemuck::cast(data);
+        if data.hash != position.board.hash() as u16 {
             return None;
         }
         // marshal between usable type and stored data
         // also validates the data
-        let data: TtData = bytemuck::cast(data);
 
-        let kind = match data.kind {
+        let kind = match data.kind_age >> 6 {
             0 => NodeKind::Exact,
             1 => NodeKind::LowerBound,
             2 => NodeKind::UpperBound,
@@ -69,7 +67,7 @@ impl TranspositionTable {
             mv,
             kind,
             eval: data.eval.add_time(position.ply),
-            depth: data.depth,
+            depth: data.depth as i16,
         })
     }
 
@@ -87,17 +85,16 @@ impl TranspositionTable {
     pub fn store(&self, position: &Position, data: TableEntry) {
         let entry = self.entry(position.board.hash());
 
-        let old_data = entry.data.load(Ordering::Relaxed);
-        let old_hash = entry.hash.load(Ordering::Relaxed) ^ old_data;
+        let old_data = entry.v.load(Ordering::Relaxed);
         let old_data: TtData = bytemuck::cast(old_data);
 
         let mut replace = false;
         // always replace existing position data with PV data
-        replace |= old_hash == position.board.hash() && data.kind == NodeKind::Exact;
+        replace |= old_data.hash == position.board.hash() as u16 && data.kind == NodeKind::Exact;
         // prefer deeper data
-        replace |= data.depth >= old_data.depth;
+        replace |= data.depth >= old_data.depth as i16;
         // prefer replacing stale data
-        replace |= self.search_number.wrapping_sub(old_data.age) >= 2;
+        replace |= self.search_number.wrapping_sub(old_data.kind_age) & 0x3F >= 2;
 
         if !replace {
             return;
@@ -112,20 +109,17 @@ impl TranspositionTable {
             _ => unreachable!(),
         };
         let data = bytemuck::cast(TtData {
+            hash: position.board.hash() as u16,
             mv: data.mv.from as u16 | (data.mv.to as u16) << 6 | promo << 12,
             eval: data.eval.sub_time(position.ply),
-            depth: data.depth,
-            kind: data.kind as u8,
-            age: self.search_number,
+            depth: data.depth as u8,
+            kind_age: (data.kind as u8) << 6 | self.search_number,
         });
-        entry.data.store(data, Ordering::Relaxed);
-        entry
-            .hash
-            .store(position.board.hash() ^ data, Ordering::Relaxed);
+        entry.v.store(data, Ordering::Relaxed);
     }
 
     pub fn increment_age(&mut self, by: u8) {
-        self.search_number = self.search_number.wrapping_add(by);
+        self.search_number = (self.search_number + by) & 0x3F;
     }
 }
 
@@ -146,18 +140,17 @@ pub enum NodeKind {
 
 #[derive(Default)]
 struct TtEntry {
-    hash: AtomicU64,
-    data: AtomicU64,
+    v: AtomicU64,
 }
 
 #[derive(Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 struct TtData {
+    hash: u16,
     mv: u16,
     eval: Eval,
-    depth: i16,
-    kind: u8,
-    age: u8,
+    depth: u8,
+    kind_age: u8,
 }
 
 impl TtData {
