@@ -1,24 +1,31 @@
 use crate::position::Position;
-use crate::tt::NodeKind;
+use crate::tt::{NodeKind, TableEntry};
 use crate::Eval;
 
 use super::params::*;
 use super::window::Window;
 use super::Searcher;
 
-use cozy_chess::Piece;
+use cozy_chess::{Move, Piece};
 
 impl Searcher<'_> {
     pub fn visit_null(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
         self.visit_node(position, window, depth, |this| {
-            this.null_search(position, window, depth)
+            this.null_search(position, window, depth, None)
         })
     }
 
-    fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+    fn null_search(
+        &mut self,
+        position: &Position,
+        window: Window,
+        depth: i16,
+        skip: Option<Move>,
+    ) -> Option<Eval> {
         let entry = self.shared.tt.get(position);
         if let Some(entry) = entry {
             match entry.kind {
+                _ if skip.is_some() => {}
                 _ if entry.depth < depth => {}
                 NodeKind::Exact => return Some(entry.eval),
                 NodeKind::LowerBound => {
@@ -41,7 +48,7 @@ impl Searcher<'_> {
         }
 
         // reverse futility pruning... but with qsearch
-        if depth <= RFP_MAX_DEPTH.get() {
+        if depth <= RFP_MAX_DEPTH.get() && skip.is_none() {
             let rfp_window = Window::null(window.lb() + rfp_margin(depth));
             let eval = entry
                 .map(|e| e.eval)
@@ -57,6 +64,7 @@ impl Searcher<'_> {
             | position.board.pieces(Piece::Queen))
             & position.board.colors(position.board.side_to_move());
         let do_nmp = depth >= NMP_MIN_DEPTH.get()
+            && skip.is_none()
             && !our_sliders.is_empty()
             && window.fail_high(position.static_eval());
         if do_nmp {
@@ -74,11 +82,19 @@ impl Searcher<'_> {
         self.search_moves(
             position,
             entry.map(|e| e.mv),
+            skip,
             window,
             depth,
             |this, i, mv, new_pos, window| {
-                let extension = match () {
+                let extension = match entry {
                     _ if !new_pos.board.checkers().is_empty() => 1,
+                    Some(entry)
+                        if i == 0
+                            && mv == entry.mv
+                            && this.singular_search(position, depth, entry)? =>
+                    {
+                        1
+                    }
                     _ => 0,
                 };
 
@@ -112,5 +128,25 @@ impl Searcher<'_> {
             },
         )
         .map(|(e, _)| e)
+    }
+
+    pub fn singular_search(
+        &mut self,
+        position: &Position,
+        depth: i16,
+        entry: TableEntry,
+    ) -> Option<bool> {
+        if entry.kind == NodeKind::UpperBound
+            || depth <= 6
+            || entry.depth < depth - 1
+            || entry.eval.is_conclusive()
+        {
+            return Some(false);
+        }
+
+        let singular_window = Window::null(entry.eval - 25 * depth);
+        let v = self.null_search(position, singular_window, depth / 2 - 1, Some(entry.mv))?;
+
+        Some(singular_window.fail_low(v))
     }
 }
