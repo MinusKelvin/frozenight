@@ -15,50 +15,57 @@ impl Searcher<'_> {
         window: Window,
         mut depth: i16,
     ) -> Option<(Eval, Move)> {
-        let hashmove = match self.shared.tt.get(position) {
-            None => None,
-            Some(entry) => {
-                if entry.depth >= depth {
-                    match entry.kind {
-                        NodeKind::Exact => {
-                            if depth < 2 {
-                                return Some((entry.eval, entry.mv));
-                            }
-                        }
-                        NodeKind::LowerBound => {
-                            if window.fail_high(entry.eval) {
-                                return Some((entry.eval, entry.mv));
-                            }
-                        }
-                        NodeKind::UpperBound => {
-                            if window.fail_low(entry.eval) {
-                                return Some((entry.eval, entry.mv));
-                            }
-                        }
+        let entry = self.shared.tt.get(position);
+        let hashmove = if let Some(entry) = entry {
+            match entry.kind {
+                _ if entry.depth < depth => {}
+                NodeKind::Exact => {
+                    if depth < 2 {
+                        return Some((entry.eval, entry.mv));
                     }
                 }
-                if entry.kind != NodeKind::Exact && depth > 3 {
-                    // internal iterative deepening
-                    Some(self.pv_search(position, window, depth - 2)?.1)
-                } else {
-                    if entry.kind == NodeKind::Exact {
-                        if position.ply % 4 == 0 && position.ply as i16 * 2 < depth {
-                            depth += 1;
-                        }
+                NodeKind::LowerBound => {
+                    if window.fail_high(entry.eval) {
+                        return Some((entry.eval, entry.mv));
                     }
-                    Some(entry.mv)
+                }
+                NodeKind::UpperBound => {
+                    if window.fail_low(entry.eval) {
+                        return Some((entry.eval, entry.mv));
+                    }
                 }
             }
+            if entry.kind != NodeKind::Exact && depth > 3 {
+                // internal iterative deepening
+                Some(self.pv_search(position, window, depth - 2)?.1)
+            } else {
+                if entry.kind == NodeKind::Exact {
+                    if position.ply % 4 == 0 && position.ply as i16 * 2 < depth {
+                        depth += 1;
+                    }
+                }
+                Some(entry.mv)
+            }
+        } else {
+            None
         };
 
         self.search_moves(
             position,
             hashmove,
+            None,
             window,
             depth,
             |this, i, mv, new_pos, window| {
-                let extension = match () {
+                let extension = match entry {
                     _ if !new_pos.board.checkers().is_empty() => 1,
+                    Some(entry)
+                        if i == 0
+                            && mv == entry.mv
+                            && this.singular_search(position, depth, entry)? =>
+                    {
+                        1
+                    }
                     _ => 0,
                 };
 
