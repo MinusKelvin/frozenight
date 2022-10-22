@@ -177,6 +177,7 @@ impl<'a> Searcher<'a> {
         &mut self,
         position: &Position,
         hashmove: Option<Move>,
+        skip_move: Option<Move>,
         mut window: Window,
         depth: i16,
         mut f: impl FnMut(&mut Searcher, usize, Move, &Position, Window) -> Option<Eval>,
@@ -187,6 +188,9 @@ impl<'a> Searcher<'a> {
         let mut i = 0;
 
         self.visit_moves(position, hashmove, |this, mv| {
+            if Some(mv) == skip_move {
+                return Some(CONTINUE);
+            }
             let new_pos = position.play_move(mv);
             i += 1;
             let i = i - 1;
@@ -220,8 +224,19 @@ impl<'a> Searcher<'a> {
         })?;
 
         if window.fail_high(best_score) {
-            self.failed_high(position, depth, best_score, best_move);
-        } else if raised_alpha {
+            if skip_move.is_none() {
+                self.shared.tt.store(
+                    position,
+                    TableEntry {
+                        mv: best_move,
+                        eval: best_score,
+                        depth,
+                        kind: NodeKind::LowerBound,
+                    },
+                );
+            }
+            self.state.history.caused_cutoff(position, best_move, depth);
+        } else if raised_alpha && skip_move.is_none() {
             self.shared.tt.store(
                 &position,
                 TableEntry {
@@ -231,36 +246,19 @@ impl<'a> Searcher<'a> {
                     kind: NodeKind::Exact,
                 },
             );
-        } else {
-            self.failed_low(position, depth, best_score, best_move);
+        } else if skip_move.is_none() {
+            self.shared.tt.store(
+                position,
+                TableEntry {
+                    mv: best_move,
+                    eval: best_score,
+                    depth,
+                    kind: NodeKind::UpperBound,
+                },
+            );
         }
 
         Some((best_score, best_move))
-    }
-
-    fn failed_low(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
-        self.shared.tt.store(
-            position,
-            TableEntry {
-                mv,
-                eval,
-                depth,
-                kind: NodeKind::UpperBound,
-            },
-        );
-    }
-
-    fn failed_high(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
-        self.shared.tt.store(
-            position,
-            TableEntry {
-                mv,
-                eval,
-                depth,
-                kind: NodeKind::LowerBound,
-            },
-        );
-        self.state.history.caused_cutoff(position, mv, depth);
     }
 
     fn push_repetition(&mut self, board: &Board) {
