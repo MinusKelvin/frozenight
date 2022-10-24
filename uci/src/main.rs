@@ -1,7 +1,7 @@
 use std::io::{stdin, stdout, Write};
 use std::time::{Duration, Instant};
 
-use cozy_chess::{Board, Color, File, Move, Piece, Square};
+use cozy_chess::{Board, Color, File, GameStatus, Move, Piece, Square};
 use frozenight::{MtFrozenight, TimeConstraint};
 
 mod bench;
@@ -34,7 +34,7 @@ fn main() {
 
         let _: Option<()> = (|| {
             match stream.next()? {
-                "uci" => {
+                variant @ ("uci" | "ugi") => {
                     println!(
                         "id name Frozenight {} {}",
                         env!("CARGO_PKG_VERSION"),
@@ -56,7 +56,7 @@ fn main() {
                             param.max
                         );
                     }
-                    println!("uciok");
+                    println!("{}ok", variant);
                 }
                 "quit" => {
                     std::process::exit(0);
@@ -105,7 +105,7 @@ fn main() {
                         }
                     }
                 }
-                "ucinewgame" => {
+                "ucinewgame" | "uginewgame" => {
                     frozenight.new_game();
                 }
                 "position" => {
@@ -142,6 +142,28 @@ fn main() {
                         }),
                     );
                 }
+                "query" => match stream.next()? {
+                    "gameover" => println!(
+                        "response {}",
+                        frozenight.board().status() != GameStatus::Ongoing
+                    ),
+                    "p1turn" => println!(
+                        "response {}",
+                        frozenight.board().side_to_move() == Color::White
+                    ),
+                    "result" => println!(
+                        "response {}",
+                        match frozenight.board().status() {
+                            GameStatus::Won => match frozenight.board().side_to_move() {
+                                Color::White => "p2win",
+                                Color::Black => "p1win",
+                            },
+                            GameStatus::Drawn => "draw",
+                            GameStatus::Ongoing => "none",
+                        }
+                    ),
+                    _ => {}
+                },
                 "go" => {
                     let mut clock = None;
                     let mut increment = Duration::ZERO;
@@ -154,23 +176,23 @@ fn main() {
                     let stm = frozenight.board().side_to_move();
                     while let Some(param) = stream.next() {
                         match param {
-                            "wtime" if stm == Color::White => {
+                            "wtime" | "p1time" if stm == Color::White => {
                                 clock = Some(Duration::from_millis(
                                     stream.next().unwrap().parse().unwrap(),
                                 ));
                                 use_all_time = false;
                             }
-                            "btime" if stm == Color::Black => {
+                            "btime" | "p2time" if stm == Color::Black => {
                                 clock = Some(Duration::from_millis(
                                     stream.next().unwrap().parse().unwrap(),
                                 ));
                                 use_all_time = false;
                             }
-                            "winc" if stm == Color::White => {
+                            "winc" | "p1inc" if stm == Color::White => {
                                 increment =
                                     Duration::from_millis(stream.next().unwrap().parse().unwrap());
                             }
-                            "binc" if stm == Color::Black => {
+                            "binc" | "p2inc" if stm == Color::Black => {
                                 increment =
                                     Duration::from_millis(stream.next().unwrap().parse().unwrap());
                             }
