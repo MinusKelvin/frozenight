@@ -88,6 +88,10 @@ tweakables! {
     RFP_MARGIN_C: 0..=5000 = 11;
     RFP_MAX_DEPTH: 1..=20 = 8;
 
+    FP_MARGIN_M: 0..=5000 = 400;
+    FP_MARGIN_C: 0..=5000 = 0;
+    FP_MAX_DEPTH: 1..=20 = 3;
+
     NMP_MIN_DEPTH: 1..=20 = 1;
     NMP_REDUCTION_M: 0..=128 = 77;
     NMP_REDUCTION_C: 0..=1024 = 38;
@@ -104,6 +108,11 @@ tweakables! {
 #[inline(always)]
 pub fn rfp_margin(depth: i16) -> i16 {
     RFP_MARGIN_M.get() * depth + RFP_MARGIN_C.get()
+}
+
+#[inline(always)]
+pub fn fp_margin(depth: i16) -> i16 {
+    FP_MARGIN_M.get() * depth + FP_MARGIN_C.get()
 }
 
 #[inline(always)]
