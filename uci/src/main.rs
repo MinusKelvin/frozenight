@@ -226,7 +226,7 @@ fn main() {
                         move |info| {
                             let time = now.elapsed();
                             print!(
-                                "info depth {} seldepth {} nodes {} nps {} score {} time {} pv",
+                                "info depth {} seldepth {} nodes {} nps {} score {} time {} hashfull {} pv",
                                 info.depth,
                                 info.selective_depth,
                                 info.nodes,
@@ -235,7 +235,8 @@ fn main() {
                                     true => frozenight::Eval::new(250),
                                     false => info.eval,
                                 },
-                                time.as_millis()
+                                time.as_millis(),
+                                info.hashfull,
                             );
                             let mut board = board1.clone();
                             for &mv in &info.pv {

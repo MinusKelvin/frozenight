@@ -129,6 +129,7 @@ impl MtFrozenight {
                 nodes: 0,
                 depth: 0,
                 selective_depth: 0,
+                hashfull: 0,
                 best_move: INVALID_MOVE,
                 pv: vec![],
             },
@@ -193,6 +194,7 @@ fn run_thread(mut engine: Frozenight, recv: Receiver<ThreadCommand>) {
                             depth,
                             selective_depth,
                             nodes,
+                            hashfull: searcher.shared.tt.hashfull(),
                             best_move: mv,
                             pv: searcher.extract_pv(depth),
                         };

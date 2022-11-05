@@ -38,6 +38,7 @@ pub struct SearchInfo {
     pub nodes: u64,
     pub depth: i16,
     pub selective_depth: i16,
+    pub hashfull: usize,
     pub best_move: Move,
     pub pv: Vec<Move>,
 }
@@ -114,6 +115,7 @@ impl Frozenight {
             eval: Eval::DRAW,
             nodes: 0,
             depth: 0,
+            hashfull: 0,
             selective_depth: 0,
             best_move: INVALID_MOVE,
             pv: vec![],
@@ -128,6 +130,7 @@ impl Frozenight {
                 recent_info = SearchInfo {
                     eval,
                     depth,
+                    hashfull: searcher.shared.tt.hashfull(),
                     selective_depth: searcher.stats.selective_depth.load(Ordering::Relaxed),
                     nodes: searcher.stats.nodes.load(Ordering::Relaxed),
                     best_move,

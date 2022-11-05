@@ -34,6 +34,17 @@ impl TranspositionTable {
         }
     }
 
+    pub fn hashfull(&self) -> usize {
+        self.entries
+            .iter()
+            .take(1000)
+            .filter(|e| {
+                let data: TtData = bytemuck::cast(e.data.load(Ordering::Relaxed));
+                self.search_number.wrapping_sub(data.age) < 2
+            })
+            .count()
+    }
+
     pub fn get_move(&self, board: &Board) -> Option<Move> {
         let entry = self.entry(board.hash());
         let data = entry.data.load(Ordering::Relaxed);
