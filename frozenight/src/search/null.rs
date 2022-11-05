@@ -40,8 +40,10 @@ impl Searcher<'_> {
             return Some(mate_score);
         }
 
+        let eval = entry.map_or_else(|| position.static_eval(), |e| e.eval);
+
         // reverse futility pruning... but with qsearch
-        if depth <= RFP_MAX_DEPTH.get() {
+        if depth <= RFP_MAX_DEPTH.get() && window.fail_high(eval) {
             let rfp_window = Window::null(window.lb() + rfp_margin(depth));
             let eval = entry
                 .map(|e| e.eval)
@@ -58,7 +60,7 @@ impl Searcher<'_> {
             & position.board.colors(position.board.side_to_move());
         let do_nmp = depth >= NMP_MIN_DEPTH.get()
             && !our_sliders.is_empty()
-            && window.fail_high(position.static_eval());
+            && window.fail_high(eval);
         if do_nmp {
             if let Some(nm) = position.null_move() {
                 let reduction = nmp_reduction(depth);
