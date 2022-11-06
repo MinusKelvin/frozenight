@@ -15,28 +15,31 @@ shift 1
 
 let COUNT=0
 for net in "$@"; do
+    NET_NAME=`basename $net .tar.zst`
     tar --zstd -xf "$net" -C .tmp-networks
     for n in .tmp-networks/*.json; do
-        zstd -19 $n
+        NAME=$NET_NAME-`basename $n .json`
+        zstd -19 --rm $n -o .tmp-networks/$NAME.json.zst
     done
-    let i=$CUTOFF
-    while true; do
-        if [ ! -f .tmp-networks/*-$i.json.zst ]; then
-            break
-        fi
-        for ef in .tmp-networks/*-$i.json.zst; do
-            EVALFILE="$ef" cargo build --release --bin frozenight-uci
-            NAME=`basename $net .tar.zst`_`basename $ef .json.zst`
-            cp target/release/frozenight-uci .tmp-builds/$NAME
-            CUTECHESS_ARGS="$CUTECHESS_ARGS -engine name=$NAME cmd=.tmp-builds/$NAME"
-            let COUNT++
-        done
-        let i++
+done
+
+let i=$CUTOFF
+while true; do
+    if [ ! -f .tmp-networks/*-$i.json.zst ]; then
+        break
+    fi
+    for ef in .tmp-networks/*-$i.json.zst; do
+        EVALFILE="$ef" cargo build --release --bin frozenight-uci
+        NAME=`basename $ef .json.zst`
+        cp target/release/frozenight-uci .tmp-builds/$NAME
+        CUTECHESS_ARGS="$CUTECHESS_ARGS -engine name=$NAME cmd=.tmp-builds/$NAME"
+        let COUNT++
     done
-    rm .tmp-networks/*
+    let i++
 done
 
 let BY=$COUNT-1
 let "ROUNDS = (2000 + $BY-1) / $BY"
 
-nice cutechess-cli $CUTECHESS_ARGS -rounds $ROUNDS
+WINNER=$(nice cutechess-cli $CUTECHESS_ARGS -rounds $ROUNDS | tee -a /dev/stderr | awk '/^\s*1\s/ { print($2) }' )
+cp .tmp-networks/$WINNER.json.zst .
