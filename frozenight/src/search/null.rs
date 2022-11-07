@@ -52,7 +52,7 @@ impl Searcher<'_> {
         }
 
         // futility pruning... but with qsearch
-        if depth <= FP_MAX_DEPTH.get() {
+        if depth <= FP_MAX_DEPTH.get() && window.fail_low(position.static_eval()) {
             let fp_window = Window::null(window.lb() - fp_margin(depth));
             let eval = entry
                 .map(|e| e.eval)
