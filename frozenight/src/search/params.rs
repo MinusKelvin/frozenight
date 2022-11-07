@@ -88,7 +88,7 @@ tweakables! {
     RFP_MARGIN_C: 0..=5000 = 11;
     RFP_MAX_DEPTH: 1..=20 = 8;
 
-    FP_MARGIN_M: 0..=5000 = 600;
+    FP_MARGIN_M: 0..=5000 = 400;
     FP_MARGIN_C: 0..=5000 = 0;
     FP_MAX_DEPTH: 1..=20 = 3;
 
