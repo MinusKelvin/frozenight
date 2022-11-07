@@ -40,7 +40,7 @@ impl TranspositionTable {
             .take(1000)
             .filter(|e| {
                 let data: TtData = bytemuck::cast(e.data.load(Ordering::Relaxed));
-                self.search_number.wrapping_sub(data.age) < 2
+                self.search_number.wrapping_sub(data.kind_age) & 0x3F < 2
             })
             .count()
     }
@@ -67,7 +67,7 @@ impl TranspositionTable {
         // also validates the data
         let data: TtData = bytemuck::cast(data);
 
-        let kind = match data.kind {
+        let kind = match data.kind_age >> 6 {
             0 => NodeKind::Exact,
             1 => NodeKind::LowerBound,
             2 => NodeKind::UpperBound,
@@ -76,11 +76,15 @@ impl TranspositionTable {
 
         let mv = data.unmarshall_move(&position.board)?;
 
+        if data.static_eval != Eval::MATE {
+            position.restore_static_eval(data.static_eval);
+        }
+
         Some(TableEntry {
             mv,
             kind,
             eval: data.eval.add_time(position.ply),
-            depth: data.depth,
+            depth: data.depth as i16,
         })
     }
 
@@ -106,9 +110,9 @@ impl TranspositionTable {
         // always replace existing position data with PV data
         replace |= old_hash == position.board.hash() && data.kind == NodeKind::Exact;
         // prefer deeper data
-        replace |= data.depth >= old_data.depth;
+        replace |= data.depth >= old_data.depth as i16;
         // prefer replacing stale data
-        replace |= self.search_number.wrapping_sub(old_data.age) >= 2;
+        replace |= self.search_number.wrapping_sub(old_data.kind_age) & 0x3F >= 2;
 
         if !replace {
             return;
@@ -125,9 +129,9 @@ impl TranspositionTable {
         let data = bytemuck::cast(TtData {
             mv: data.mv.from as u16 | (data.mv.to as u16) << 6 | promo << 12,
             eval: data.eval.sub_time(position.ply),
-            depth: data.depth,
-            kind: data.kind as u8,
-            age: self.search_number,
+            depth: data.depth.clamp(0, 255) as u8,
+            kind_age: (data.kind as u8) << 6 | self.search_number,
+            static_eval: position.cached_static_eval().unwrap_or(Eval::MATE),
         });
         entry.data.store(data, Ordering::Relaxed);
         entry
@@ -136,7 +140,7 @@ impl TranspositionTable {
     }
 
     pub fn increment_age(&mut self, by: u8) {
-        self.search_number = self.search_number.wrapping_add(by);
+        self.search_number = (self.search_number + by) & 0x3F;
     }
 }
 
@@ -166,9 +170,9 @@ struct TtEntry {
 struct TtData {
     mv: u16,
     eval: Eval,
-    depth: i16,
-    kind: u8,
-    age: u8,
+    static_eval: Eval,
+    depth: u8,
+    kind_age: u8,
 }
 
 impl TtData {
