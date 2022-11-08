@@ -69,6 +69,9 @@ impl Searcher<'_> {
             }
         }
 
+        let futile = depth <= 3
+            && Window::null(window.lb() - 300 * depth - 200).fail_low(position.static_eval());
+
         let mut yielded = Vec::with_capacity(64);
 
         self.search_moves(
@@ -84,9 +87,18 @@ impl Searcher<'_> {
 
                 let reduction = match () {
                     _ if extension > 0 => -extension,
+                    _ if i == 0 => 0,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
-                    _ => null_lmr(depth, i),
+                    _ => {
+                        let mut r = null_lmr(depth, i);
+
+                        if futile {
+                            r += 1;
+                        }
+
+                        r.max(0)
+                    }
                 };
 
                 if window.lb() >= -Eval::MAX_INCONCLUSIVE && depth - reduction - 1 < 0 {
