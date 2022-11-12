@@ -23,6 +23,8 @@ pub(crate) struct Options {
 
     #[structopt(short = "n", long)]
     nodes: Option<u64>,
+    #[structopt(short = "N", long, requires("nodes"))]
+    nodes_ub: Option<u64>,
     #[structopt(short = "d", long)]
     depth: Option<i16>,
 
@@ -142,6 +144,11 @@ impl Options {
         engine.new_game();
         let mut board = start_pos.clone();
 
+        let nodes_count = self.nodes.map(|lb| match self.nodes_ub {
+            Some(ub) => thread_rng().gen_range(lb..=ub),
+            None => lb,
+        });
+
         let mut outcome = None;
         loop {
             match board.status() {
@@ -214,7 +221,7 @@ impl Options {
                 engine
                     .search(
                         TimeConstraint {
-                            nodes: self.nodes.unwrap_or(u64::MAX),
+                            nodes: nodes_count.unwrap_or(u64::MAX),
                             depth: self.depth.unwrap_or(250),
                             ..TimeConstraint::INFINITE
                         },
