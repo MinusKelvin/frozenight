@@ -77,7 +77,7 @@ fn main() {
                         opt.push_str(tok);
                     }
                     match &*opt {
-                        "Move Overhead" => {
+                        "Move Overhead" | "Move_Overhead" => {
                             move_overhead = Duration::from_millis(stream.next()?.parse().ok()?)
                         }
                         "Hash" => {
