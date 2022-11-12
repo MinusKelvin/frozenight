@@ -53,7 +53,11 @@ impl TimeManager {
 
                     clock.saturating_sub(time.increment) / mtg + time.increment / 2
                 })
-                .map(|amt| now + (amt.saturating_sub(time.overhead))),
+                .map(|amt| {
+                    now + amt
+                        .saturating_sub(time.overhead)
+                        .max(Duration::from_millis(1))
+                }),
         }
     }
 
