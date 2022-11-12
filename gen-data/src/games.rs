@@ -239,9 +239,11 @@ impl Options {
         game.into_iter()
             .scan(start_pos, |board, (mv, tb_outcome)| {
                 let value = PackedBoard::pack(&board, 0, tb_outcome.unwrap_or(outcome), 0);
+                let keep = board.checkers().is_empty();
                 board.play(mv);
-                Some(value)
+                Some((value, keep))
             })
+            .filter_map(|(v, keep)| keep.then_some(v))
             .collect()
     }
 }
