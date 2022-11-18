@@ -175,31 +175,28 @@ fn main() {
 
                     let stm = frozenight.board().side_to_move();
                     while let Some(param) = stream.next() {
+                        let mut grab_time = || {
+                            Duration::from_millis(
+                                stream.next().unwrap().parse::<i64>().unwrap().max(0) as u64,
+                            )
+                        };
                         match param {
                             "wtime" | "p1time" if stm == Color::White => {
-                                clock = Some(Duration::from_millis(
-                                    stream.next().unwrap().parse().unwrap(),
-                                ));
+                                clock = Some(grab_time());
                                 use_all_time = false;
                             }
                             "btime" | "p2time" if stm == Color::Black => {
-                                clock = Some(Duration::from_millis(
-                                    stream.next().unwrap().parse().unwrap(),
-                                ));
+                                clock = Some(grab_time());
                                 use_all_time = false;
                             }
                             "winc" | "p1inc" if stm == Color::White => {
-                                increment =
-                                    Duration::from_millis(stream.next().unwrap().parse().unwrap());
+                                increment = grab_time();
                             }
                             "binc" | "p2inc" if stm == Color::Black => {
-                                increment =
-                                    Duration::from_millis(stream.next().unwrap().parse().unwrap());
+                                increment = grab_time();
                             }
                             "movetime" => {
-                                clock = Some(Duration::from_millis(
-                                    stream.next().unwrap().parse().unwrap(),
-                                ));
+                                clock = Some(grab_time());
                                 use_all_time = true;
                             }
                             "movestogo" => {
