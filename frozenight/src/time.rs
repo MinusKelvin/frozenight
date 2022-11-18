@@ -41,7 +41,13 @@ impl TimeManager {
             one_reply: !time.use_all_time && time.clock.is_some() && one_reply(board),
             hard_deadline: time
                 .clock
-                .map(|clock| now + (clock / 2).saturating_sub(time.overhead)),
+                .map(|clock| {
+                    let limit = match time.increment.is_zero() {
+                        true => clock / 4,
+                        false => clock / 2,
+                    };
+                    now + limit.saturating_sub(time.overhead)
+                }),
             soft_deadline: time
                 .clock
                 .map(|clock| {
