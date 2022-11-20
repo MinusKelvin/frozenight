@@ -35,7 +35,10 @@ impl Searcher<'_> {
         }
 
         if window.fail_high(best) {
-            return best;
+            return match position.board.generate_moves(|_| true) {
+                false => Eval::DRAW,
+                true => best,
+            };
         }
         window.raise_lb(best);
 
