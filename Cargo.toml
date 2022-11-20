@@ -9,3 +9,7 @@ members = [
 [profile.release]
 lto = true
 panic = "abort"
+
+[patch.crates-io]
+cozy-chess = { git = "https://github.com/MinusKelvin/cozy-chess", branch = "no-stalemate" }
+cozy-chess-types = { git = "https://github.com/MinusKelvin/cozy-chess", branch = "no-stalemate" }

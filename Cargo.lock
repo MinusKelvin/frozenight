@@ -89,9 +89,8 @@ dependencies = [
 
 [[package]]
 name = "cozy-chess"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b57277eecca9b3669532bc061ca4b624b8e79faa70b343927fa66eabcc12aa5c"
+version = "0.3.1"
+source = "git+https://github.com/MinusKelvin/cozy-chess?branch=no-stalemate#0ca136e244b90946333899803140f94fa278e695"
 dependencies = [
  "cozy-chess-types",
 ]
@@ -99,8 +98,7 @@ dependencies = [
 [[package]]
 name = "cozy-chess-types"
 version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f4a557c6659b8705d301732f473c9a61659c740ffda3e3485e79d1d4b7a1e12"
+source = "git+https://github.com/MinusKelvin/cozy-chess?branch=no-stalemate#0ca136e244b90946333899803140f94fa278e695"
 
 [[package]]
 name = "cozy-syzygy"

@@ -118,7 +118,7 @@ impl Searcher<'_> {
             }
 
             if !had_moves {
-                return Eval::DRAW;
+                return -Eval::MATE.add_time(position.ply);
             }
         }
 
