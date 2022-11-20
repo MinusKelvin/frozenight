@@ -56,14 +56,12 @@ impl Searcher<'_> {
         }
 
         let mut moves = Vec::with_capacity(16);
-        let mut had_moves = false;
         position.board.generate_moves_for(do_for, |mut mvs| {
             let promo =
                 mvs.piece == Piece::Pawn && mvs.from.rank() == Rank::Seventh.relative_to(us);
             if !promo {
                 mvs.to &= permitted;
             }
-            had_moves = true;
             for to in mvs.to {
                 let mv = Move {
                     from: mvs.from,
@@ -92,7 +90,6 @@ impl Searcher<'_> {
                     promotion: None,
                 };
                 if position.board.is_legal(mv) {
-                    had_moves = true;
                     if position.board.occupied().has(mv.to) {
                         let see = static_exchange_eval(&position.board, mv);
                         if see >= 0 {
@@ -102,23 +99,6 @@ impl Searcher<'_> {
                         moves.push((mv, 0))
                     }
                 }
-            }
-            if !had_moves {
-                for to in get_king_moves(king) & !permitted {
-                    let mv = Move {
-                        from: king,
-                        to,
-                        promotion: None,
-                    };
-                    if position.board.is_legal(mv) {
-                        had_moves = true;
-                        break;
-                    }
-                }
-            }
-
-            if !had_moves {
-                return Eval::DRAW;
             }
         }
 
