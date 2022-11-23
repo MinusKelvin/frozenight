@@ -91,6 +91,7 @@ tweakables! {
     NMP_MIN_DEPTH: 1..=20 = 1;
     NMP_REDUCTION_M: 0..=128 = 77;
     NMP_REDUCTION_C: 0..=1024 = 38;
+    NMP_REDUCTION_MARGIN: 1..=2048 = 400;
 
     LMR_I1_M: 0..=256 = 92;
     LMR_I1_C: 0..=1024 = 15;
@@ -107,8 +108,9 @@ pub fn rfp_margin(depth: i16) -> i16 {
 }
 
 #[inline(always)]
-pub fn nmp_reduction(depth: i16) -> i16 {
-    trunc(linear(depth, NMP_REDUCTION_M.get(), NMP_REDUCTION_C.get()))
+pub fn nmp_reduction(depth: i16, eval_over_beta: i16) -> i16 {
+    let base = trunc(linear(depth, NMP_REDUCTION_M.get(), NMP_REDUCTION_C.get()));
+    base + eval_over_beta / NMP_REDUCTION_MARGIN.get()
 }
 
 #[inline(always)]
