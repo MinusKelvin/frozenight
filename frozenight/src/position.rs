@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use cozy_chess::{Board, Move};
 
 use crate::nnue::NnueAccumulator;
@@ -8,6 +10,7 @@ pub struct Position {
     pub board: Board,
     pub ply: u16,
     nnue: NnueAccumulator,
+    eval: Cell<Option<Eval>>,
 }
 
 impl Position {
@@ -16,6 +19,7 @@ impl Position {
             nnue: NnueAccumulator::new(&board),
             board,
             ply: 0,
+            eval: Cell::default(),
         }
     }
 
@@ -26,6 +30,7 @@ impl Position {
             board,
             nnue: self.nnue.play_move(&self.board, mv),
             ply: self.ply + 1,
+            eval: Cell::default(),
         }
     }
 
@@ -34,11 +39,19 @@ impl Position {
             board: self.board.null_move()?,
             nnue: self.nnue,
             ply: self.ply + 1,
+            eval: Cell::default(),
         })
     }
 
     pub fn static_eval(&self) -> Eval {
-        self.nnue.calculate(self.board.side_to_move())
+        match self.eval.get() {
+            Some(v) => v,
+            None => {
+                let v = self.nnue.calculate(self.board.side_to_move());
+                self.eval.set(Some(v));
+                v
+            }
+        }
     }
 
     pub fn is_capture(&self, mv: Move) -> bool {
