@@ -100,6 +100,11 @@ tweakables! {
     LMR_D_M: 0..=256 = 28;
     LMR_D_C: 0..=1024 = 8;
     PV_LMR_FACTOR: 0..=128 = 74;
+
+    LMP_DEPTH_1: 1..=256 = 7;
+    LMP_DEPTH_2: 1..=256 = 11;
+    LMP_DEPTH_3: 1..=256 = 19;
+    LMP_DEPTH_4: 1..=256 = 31;
 }
 
 #[inline(always)]
@@ -111,6 +116,17 @@ pub fn rfp_margin(depth: i16) -> i16 {
 pub fn nmp_reduction(depth: i16, eval_over_beta: i16) -> i16 {
     let base = trunc(linear(depth, NMP_REDUCTION_M.get(), NMP_REDUCTION_C.get()));
     base + eval_over_beta / NMP_REDUCTION_MARGIN.get()
+}
+
+#[inline(always)]
+pub fn quiets_limit(depth: i16) -> i16 {
+    match depth {
+        1 => LMP_DEPTH_1.get(),
+        2 => LMP_DEPTH_2.get(),
+        3 => LMP_DEPTH_3.get(),
+        4 => LMP_DEPTH_4.get(),
+        _ => 256
+    }
 }
 
 #[inline(always)]
