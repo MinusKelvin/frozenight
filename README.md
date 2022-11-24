@@ -7,22 +7,24 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
 ## Rating Lists
 
 [CCRL 40/15][CCRL4040]:
-- Frozenight 5.0: **3004**
-- Frozenight 4.0: 2960
+- Frozenight 5.1: **3031**
+- Frozenight 5.0: 3000
+- Frozenight 4.0: 2963
 - Frozenight 3.0: 2842
 - Frozenight 2.1: 2683
-- Frozenight 2.0: 2606
+- Frozenight 2.0: 2607
 
 [CCRL Blitz][CCRL404]:
-- Frozenight 5.0: **3086**
-- Frozenight 4.0: 3005
+- Frozenight 5.0: **3083**
+- Frozenight 4.0: 3004
 - Frozenight 3.0: 2891
-- Frozenight 2.1: 2678
+- Frozenight 2.1: 2677
 - Frozenight 1.0: 2448
 
 [CCRL 40/2 FRC][CCRLFRC]:
-- Frozenight 5.0: **3111**
-- Frozenight 4.0: 2998
+- Frozenight 5.1: **3154**
+- Frozenight 5.0: 3103
+- Frozenight 4.0: 2994
 - Frozenight 3.0: 2761
 
 ## Features
@@ -74,6 +76,6 @@ Frozenight is dual-licensed under the [MIT License](LICENSE-MIT) and [Apache Lic
 [Tantabus]: https://github.com/analog-hors/tantabus
 [Black Marlin]: https://github.com/dsekercioglu/blackmarlin
 [chess programming wiki]: https://www.chessprogramming.org/Main_Page
-[CCRL4040]: https://ccrl.chessdom.com/ccrl/4040/cgi/engine_details.cgi?print=Details&eng=Frozenight%204.0.0%2064-bit
-[CCRL404]: https://ccrl.chessdom.com/ccrl/404/cgi/engine_details.cgi?print=Details&each_game=1&eng=Frozenight%204.0.0%2064-bit
-[CCRLFRC]: https://ccrl.chessdom.com/ccrl/404FRC/cgi/engine_details.cgi?print=Details&each_game=1&eng=Frozenight%204.0.0
+[CCRL4040]: https://ccrl.chessdom.com/ccrl/4040/cgi/engine_details.cgi?eng=Frozenight%205.1.0%2064-bit
+[CCRL404]: https://ccrl.chessdom.com/ccrl/404/cgi/engine_details.cgi?eng=Frozenight%205.0.0%2064-bit
+[CCRLFRC]: https://ccrl.chessdom.com/ccrl/404FRC/cgi/engine_details.cgi?eng=Frozenight%205.1.0
