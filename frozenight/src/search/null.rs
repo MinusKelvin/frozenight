@@ -92,7 +92,10 @@ impl Searcher<'_> {
                     _ => null_lmr(depth, i),
                 };
 
-                if window.lb() >= -Eval::MAX_INCONCLUSIVE && depth - reduction - 1 < 0 {
+                if depth <= LMP_MAX_DEPTH.get()
+                    && window.lb() >= -Eval::MAX_INCONCLUSIVE
+                    && depth - reduction - 1 < 0
+                {
                     return Some(-Eval::MATE);
                 }
 

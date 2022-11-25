@@ -100,6 +100,8 @@ tweakables! {
     LMR_D_M: 0..=256 = 28;
     LMR_D_C: 0..=1024 = 8;
     PV_LMR_FACTOR: 0..=128 = 74;
+
+    LMP_MAX_DEPTH: 1..=20 = 4;
 }
 
 #[inline(always)]
