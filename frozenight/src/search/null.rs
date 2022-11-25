@@ -61,8 +61,10 @@ impl Searcher<'_> {
             && window.fail_high(position.static_eval());
         if do_nmp {
             if let Some(nm) = position.null_move() {
-                let reduction =
-                    nmp_reduction(depth, position.static_eval().raw() - window.ub().raw());
+                let reduction = nmp_reduction(
+                    depth,
+                    position.static_eval().raw() as i32 - window.ub().raw() as i32,
+                );
                 let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
                 if window.fail_high(v) {
                     return Some(v);

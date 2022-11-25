@@ -108,9 +108,9 @@ pub fn rfp_margin(depth: i16) -> i16 {
 }
 
 #[inline(always)]
-pub fn nmp_reduction(depth: i16, eval_over_beta: i16) -> i16 {
+pub fn nmp_reduction(depth: i16, eval_over_beta: i32) -> i16 {
     let base = trunc(linear(depth, NMP_REDUCTION_M.get(), NMP_REDUCTION_C.get()));
-    base + eval_over_beta / NMP_REDUCTION_MARGIN.get()
+    base + (eval_over_beta / NMP_REDUCTION_MARGIN.get() as i32) as i16
 }
 
 #[inline(always)]
