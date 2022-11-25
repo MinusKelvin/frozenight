@@ -71,6 +71,7 @@ impl Searcher<'_> {
         }
 
         let mut yielded = Vec::with_capacity(64);
+        let mut quiets = 0;
 
         self.search_moves(
             position,
@@ -78,21 +79,30 @@ impl Searcher<'_> {
             window,
             depth,
             |this, i, mv, new_pos, window| {
+                let capture = position.is_capture(mv);
+                let gives_check = !new_pos.board.checkers().is_empty();
+
+                let quiet = !capture && !gives_check;
+
+                quiets += quiet as i16;
+                if i != 0
+                    && quiet
+                    && quiets > lmp_threshold(depth)
+                    && window.lb() >= -Eval::MAX_INCONCLUSIVE
+                {
+                    return Some(-Eval::MATE);
+                }
+
                 let extension = match () {
-                    _ if !new_pos.board.checkers().is_empty() => 1,
+                    _ if gives_check => 1,
                     _ => 0,
                 };
 
                 let reduction = match () {
                     _ if extension > 0 => -extension,
-                    _ if position.is_capture(mv) => 0,
-                    _ if !new_pos.board.checkers().is_empty() => 0,
+                    _ if !quiet => 0,
                     _ => null_lmr(depth, i),
                 };
-
-                if window.lb() >= -Eval::MAX_INCONCLUSIVE && depth - reduction - 1 < 0 {
-                    return Some(-Eval::MATE);
-                }
 
                 let mut v = -this.visit_null(new_pos, -window, depth - reduction - 1)?;
 

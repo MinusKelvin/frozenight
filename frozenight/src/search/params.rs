@@ -100,6 +100,10 @@ tweakables! {
     LMR_D_M: 0..=256 = 28;
     LMR_D_C: 0..=1024 = 8;
     PV_LMR_FACTOR: 0..=128 = 74;
+
+    LMP_COEFF_A: -1024..=1024 = 500;
+    LMP_COEFF_B: -1024..=1024 = -200;
+    LMP_COEFF_C: -1024..=1024 = 800;
 }
 
 #[inline(always)]
@@ -111,6 +115,16 @@ pub fn rfp_margin(depth: i16) -> i16 {
 pub fn nmp_reduction(depth: i16, eval_over_beta: i16) -> i16 {
     let base = trunc(linear(depth, NMP_REDUCTION_M.get(), NMP_REDUCTION_C.get()));
     base + eval_over_beta / NMP_REDUCTION_MARGIN.get()
+}
+
+#[inline(always)]
+pub fn lmp_threshold(depth: i16) -> i16 {
+    trunc(quadratic(
+        depth - 1,
+        LMP_COEFF_A.get(),
+        LMP_COEFF_B.get(),
+        LMP_COEFF_C.get(),
+    ))
 }
 
 #[inline(always)]
@@ -136,6 +150,11 @@ fn linear(x: i16, m: i16, c: i16) -> i32 {
     x as i32 * m as i32 + c as i32
 }
 
+#[inline(always)]
+fn quadratic(x: i16, a: i16, b: i16, c: i16) -> i32 {
+    x as i32 * x as i32 * a as i32 + x as i32 * b as i32 + c as i32
+}
+
 fn trunc(v: i32) -> i16 {
-    (v / 128) as i16
+    (v / 128).min(i16::MAX as i32) as i16
 }
