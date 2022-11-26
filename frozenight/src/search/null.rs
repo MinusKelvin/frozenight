@@ -15,7 +15,7 @@ impl Searcher<'_> {
         })
     }
 
-    fn null_search(&mut self, position: &Position, window: Window, depth: i16) -> Option<Eval> {
+    fn null_search(&mut self, position: &Position, window: Window, mut depth: i16) -> Option<Eval> {
         let entry = self.shared.tt.get(position);
         if let Some(entry) = entry {
             match entry.kind {
@@ -68,6 +68,8 @@ impl Searcher<'_> {
                 let v = -self.visit_null(&nm, -window, depth - reduction - 1)?;
                 if window.fail_high(v) {
                     return Some(v);
+                } else if depth <= MTE_MAX_DEPTH.get() && window.fail_low(v + MTE_MARGIN.get()) {
+                    depth += 1;
                 }
             }
         }
