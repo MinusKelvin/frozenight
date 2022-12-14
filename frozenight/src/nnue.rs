@@ -52,20 +52,19 @@ impl NnueAccumulator {
 
     pub fn calculate(&self, stm: Color) -> Eval {
         let bucket = (self.material * BUCKETS / 76).min(BUCKETS - 1);
-        let mut output = NETWORK.hidden_layer_bias[bucket];
+        let mut output = NETWORK.hidden_layer_bias[bucket] * 127;
         let (first, second) = match stm {
             Color::White => (&self.white, &self.black),
             Color::Black => (&self.black, &self.white),
         };
         for i in 0..first.len() {
-            output += first[i].clamp(0, 127) as i32 * NETWORK.hidden_layer[bucket][i] as i32;
+            output += activate(first[i]) * NETWORK.hidden_layer[bucket][i] as i32;
         }
         for i in 0..second.len() {
-            output += second[i].clamp(0, 127) as i32
-                * NETWORK.hidden_layer[bucket][i + first.len()] as i32;
+            output += activate(second[i]) * NETWORK.hidden_layer[bucket][i + first.len()] as i32;
         }
 
-        Eval::new((output / 8) as i16)
+        Eval::new((output / 127 / 8) as i16)
     }
 
     pub fn play_move(&self, board: &Board, mv: Move) -> Self {
@@ -195,6 +194,12 @@ impl NnueAccumulator {
 
         result
     }
+}
+
+fn activate(v: i16) -> i32 {
+    let v = v as i32;
+    let v = v.clamp(0, 127);
+    v * v
 }
 
 fn vadd<const N: usize>(a: &mut [i16; N], b: &[i16; N]) {
