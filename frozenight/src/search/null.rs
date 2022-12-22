@@ -89,7 +89,16 @@ impl Searcher<'_> {
                     _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
-                    _ => null_lmr(depth, i),
+                    _ => {
+                        let mut red = null_lmr(depth, i);
+                        let hist = this.state.history.rank(
+                            position.board.piece_on(mv.from).unwrap(),
+                            mv,
+                            position.board.side_to_move(),
+                        );
+                        red -= (hist > 2_000_000) as i16;
+                        red.max(0)
+                    }
                 };
 
                 if window.lb() >= -Eval::MAX_INCONCLUSIVE && depth - reduction - 1 < 0 {
