@@ -13,11 +13,12 @@ impl Searcher<'_> {
         &mut self,
         position: &Position,
         hashmove: Option<Move>,
-        mut search: impl FnMut(&mut Searcher, Move) -> Option<bool>,
+        mut search: impl FnMut(&mut Searcher, Move, Option<i32>) -> Option<bool>,
     ) -> Option<()> {
         // Hashmove
         if let Some(mv) = hashmove {
-            if search(self, mv)? {
+            let see = position.is_capture(mv).then(|| static_exchange_eval(&position.board, mv));
+            if search(self, mv, see)? {
                 return Some(());
             }
         }
@@ -67,7 +68,8 @@ impl Searcher<'_> {
             if captures[index].1 < 0 {
                 break;
             }
-            if search(self, captures.swap_remove(index).0)? {
+            let (mv, score) = captures.swap_remove(index);
+            if search(self, mv, Some(score).filter(|&v| v != 0))? {
                 return Some(());
             }
         }
@@ -91,7 +93,7 @@ impl Searcher<'_> {
                 }
             }
 
-            if search(self, quiets.swap_remove(index).0)? {
+            if search(self, quiets.swap_remove(index).0, None)? {
                 return Some(());
             }
         }
@@ -105,14 +107,15 @@ impl Searcher<'_> {
                 }
             }
 
-            if search(self, captures.swap_remove(index).0)? {
+            let (mv, score) = captures.swap_remove(index);
+            if search(self, mv, Some(score))? {
                 return Some(());
             }
         }
 
         // Iterate underpromotions
         while let Some(mv) = underpromotions.pop() {
-            if search(self, mv)? {
+            if search(self, mv, None)? {
                 return Some(());
             }
         }

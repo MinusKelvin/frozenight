@@ -56,9 +56,10 @@ impl Searcher<'_> {
             hashmove,
             window,
             depth,
-            |this, i, mv, new_pos, window| {
+            |this, i, mv, see_score, new_pos, window| {
                 let extension = match () {
                     _ if !new_pos.board.checkers().is_empty() => 1,
+                    _ if matches!(see_score, Some(v) if v >= 300) => 1,
                     _ => 0,
                 };
 

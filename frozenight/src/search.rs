@@ -179,14 +179,14 @@ impl<'a> Searcher<'a> {
         hashmove: Option<Move>,
         mut window: Window,
         depth: i16,
-        mut f: impl FnMut(&mut Searcher, usize, Move, &Position, Window) -> Option<Eval>,
+        mut f: impl FnMut(&mut Searcher, usize, Move, Option<i32>, &Position, Window) -> Option<Eval>,
     ) -> Option<(Eval, Move)> {
         let mut best_move = INVALID_MOVE;
         let mut best_score = -Eval::MATE;
         let mut raised_alpha = false;
         let mut i = 0;
 
-        self.visit_moves(position, hashmove, |this, mv| {
+        self.visit_moves(position, hashmove, |this, mv, see_score| {
             let new_pos = position.play_move(mv);
             i += 1;
             let i = i - 1;
@@ -199,7 +199,7 @@ impl<'a> Searcher<'a> {
             } else {
                 this.shared.tt.prefetch(&new_pos.board);
                 this.push_repetition(&new_pos.board);
-                v = f(this, i, mv, &new_pos, window)?;
+                v = f(this, i, mv, see_score, &new_pos, window)?;
                 this.pop_repetition();
             }
 
