@@ -3,7 +3,7 @@ use cozy_chess::{
     Board, Move, Piece, Square,
 };
 
-const VALUES: [i32; Piece::NUM] = [100, 300, 325, 500, 900, 9999999];
+const VALUES: [i32; Piece::NUM] = [100, 285, 335, 500, 900, 9999999];
 
 pub fn static_exchange_eval(board: &Board, capture: Move) -> i32 {
     let occupied = board.occupied() & !capture.from.bitboard();
