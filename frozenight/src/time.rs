@@ -1,8 +1,9 @@
 use std::ops::ControlFlow;
 use std::time::{Duration, Instant};
 
-use cozy_chess::Board;
+use cozy_chess::{Board, Move};
 
+use crate::search::INVALID_MOVE;
 use crate::SearchInfo;
 
 #[derive(Copy, Clone, Debug)]
@@ -28,36 +29,55 @@ impl TimeConstraint {
     };
 }
 
+struct SoftDeadlines {
+    consistent: Instant,
+    inconsistent: Instant,
+}
+
 pub(crate) struct TimeManager {
-    soft_deadline: Option<Instant>,
     hard_deadline: Option<Instant>,
+    soft_deadline: Option<SoftDeadlines>,
+    consistent_move: Option<Move>,
     one_reply: bool,
 }
 
 impl TimeManager {
     pub fn new(board: &Board, time: TimeConstraint) -> Self {
         let now = Instant::now();
-        TimeManager {
-            one_reply: !time.use_all_time && time.clock.is_some() && one_reply(board),
-            hard_deadline: time
-                .clock
-                .map(|clock| now + (clock / 2).saturating_sub(time.overhead)),
-            soft_deadline: time
-                .clock
-                .map(|clock| {
-                    if time.use_all_time {
-                        return clock;
+        if time.use_all_time {
+            TimeManager {
+                one_reply: false,
+                hard_deadline: time
+                    .clock
+                    .map(|clock| now + clock.saturating_sub(time.overhead)),
+                soft_deadline: None,
+                consistent_move: None,
+            }
+        } else {
+            let mtg = time.moves_to_go.unwrap_or(45) + 5;
+            TimeManager {
+                one_reply: time.clock.is_some() && one_reply(board),
+                hard_deadline: time
+                    .clock
+                    .map(|clock| now + (clock / 2).saturating_sub(time.overhead)),
+                soft_deadline: time.clock.map(|clock| {
+                    let noinc = clock.saturating_sub(time.increment);
+                    let consistent = noinc / (mtg * 2) + time.increment / 4;
+                    let inconsistent = noinc * 3 / (mtg * 2) + time.increment / 2;
+
+                    let adjust = |d: Duration| {
+                        now + d
+                            .saturating_sub(time.overhead)
+                            .max(Duration::from_millis(1))
+                    };
+
+                    SoftDeadlines {
+                        consistent: adjust(consistent),
+                        inconsistent: adjust(inconsistent),
                     }
-
-                    let mtg = time.moves_to_go.unwrap_or(45) + 5;
-
-                    clock.saturating_sub(time.increment) / mtg + time.increment / 2
-                })
-                .map(|amt| {
-                    now + amt
-                        .saturating_sub(time.overhead)
-                        .max(Duration::from_millis(1))
                 }),
+                consistent_move: None,
+            }
         }
     }
 
@@ -65,11 +85,18 @@ impl TimeManager {
         self.hard_deadline
     }
 
-    pub fn update(&mut self, _info: &SearchInfo) -> ControlFlow<()> {
-        match self.soft_deadline {
+    pub fn update(&mut self, info: &SearchInfo) -> ControlFlow<()> {
+        if *self.consistent_move.get_or_insert(info.best_move) != info.best_move {
+            self.consistent_move = Some(INVALID_MOVE);
+        }
+        match &self.soft_deadline {
             _ if self.one_reply => ControlFlow::Break(()),
             None => ControlFlow::Continue(()),
-            Some(deadline) => {
+            Some(deadlines) => {
+                let deadline = match self.consistent_move == Some(info.best_move) {
+                    true => deadlines.consistent,
+                    false => deadlines.inconsistent,
+                };
                 if Instant::now() < deadline {
                     ControlFlow::Continue(())
                 } else {
