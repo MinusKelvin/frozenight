@@ -9,6 +9,7 @@ edition = "2021"
 tweakable = []
 
 [dependencies]
+arrayvec = "0.7.2"
 bytemuck = { version = "1.7.3", features = ["derive"] }
 cozy-chess = "0.3"
 

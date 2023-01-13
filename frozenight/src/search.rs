@@ -27,13 +27,13 @@ pub const INVALID_MOVE: Move = Move {
 };
 
 pub(crate) struct PrivateState {
-    history: OrderingState,
+    move_ordering: OrderingState,
 }
 
 impl Default for PrivateState {
     fn default() -> Self {
         PrivateState {
-            history: OrderingState::new(),
+            move_ordering: OrderingState::new(),
         }
     }
 }
@@ -61,7 +61,7 @@ impl Frozenight {
         deadline: Option<Instant>,
         f: impl FnOnce(Searcher) -> T,
     ) -> T {
-        self.state.history.decay();
+        self.state.move_ordering.decay();
         let mut rep_table = [0; 1024];
         for &b in &self.prehistory {
             rep_table[b as usize % 1024] += 1;
@@ -260,7 +260,7 @@ impl<'a> Searcher<'a> {
                 kind: NodeKind::LowerBound,
             },
         );
-        self.state.history.caused_cutoff(position, mv, depth);
+        self.state.move_ordering.caused_cutoff(position, mv, depth);
     }
 
     fn push_repetition(&mut self, board: &Board) {
