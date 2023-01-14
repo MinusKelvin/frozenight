@@ -9,6 +9,7 @@ use crate::Eval;
 pub struct Position {
     pub board: Board,
     pub ply: u16,
+    pub after_null: bool,
     nnue: NnueAccumulator,
     eval: Cell<Option<Eval>>,
 }
@@ -20,6 +21,7 @@ impl Position {
             board,
             ply: 0,
             eval: Cell::default(),
+            after_null: false,
         }
     }
 
@@ -31,6 +33,7 @@ impl Position {
             nnue: self.nnue.play_move(&self.board, mv),
             ply: self.ply + 1,
             eval: Cell::default(),
+            after_null: false,
         }
     }
 
@@ -40,6 +43,7 @@ impl Position {
             nnue: self.nnue,
             ply: self.ply + 1,
             eval: Cell::default(),
+            after_null: true,
         })
     }
 
