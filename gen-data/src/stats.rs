@@ -7,7 +7,7 @@ use std::{
 };
 
 use bytemuck::Zeroable;
-use cozy_chess::{Color, Piece, Square};
+use cozy_chess::{Color, Piece};
 use marlinformat::PackedBoard;
 use structopt::StructOpt;
 
@@ -19,8 +19,8 @@ pub struct Options {
 }
 
 impl Options {
-    pub(super) fn run(self, opt: CommonOptions) {
-        let input = Mutex::new(BufReader::new(File::open(self.dataset).unwrap()));
+    pub(super) fn run(self, opt: CommonOptions) -> std::io::Result<()> {
+        let input = Mutex::new(BufReader::new(File::open(self.dataset)?));
         let next = |boards: &mut Vec<_>| {
             let mut data = input.lock().unwrap();
             boards.clear();
@@ -88,6 +88,8 @@ impl Options {
         );
 
         dbg!(full_stats.into_inner().unwrap());
+
+        Ok(())
     }
 }
 

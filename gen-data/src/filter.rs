@@ -31,8 +31,8 @@ pub struct Options {
 }
 
 impl Options {
-    pub(super) fn run(self, opt: CommonOptions) {
-        let input = Mutex::new(BufReader::new(File::open(self.input).unwrap()));
+    pub(super) fn run(self, opt: CommonOptions) -> std::io::Result<()> {
+        let input = Mutex::new(BufReader::new(File::open(self.input)?));
         let next = |boards: &mut Vec<_>| {
             let mut data = input.lock().unwrap();
             boards.clear();
@@ -49,7 +49,7 @@ impl Options {
                 .create_new(true)
                 .write(true)
                 .open(self.output)
-                .unwrap(),
+                ?,
         ));
 
         opt.parallel(
@@ -90,5 +90,7 @@ impl Options {
                 ControlFlow::Continue(())
             },
         );
+
+        Ok(())
     }
 }

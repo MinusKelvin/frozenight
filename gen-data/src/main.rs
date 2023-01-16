@@ -50,11 +50,16 @@ fn main() {
     })
     .unwrap();
 
-    match options.subcommand {
+    let r = match options.subcommand {
         Subcommand::Games(opt) => opt.run(options.common),
         Subcommand::Annotate(opt) => opt.run(options.common),
         Subcommand::Stats(opt) => opt.run(options.common),
         Subcommand::Filter(opt) => opt.run(options.common),
+    };
+
+    if let Err(e) = r {
+        eprintln!("{e}");
+        std::process::exit(1);
     }
 }
 
@@ -99,4 +104,14 @@ impl CommonOptions {
         }
         tb
     }
+}
+
+fn eta(time: f64, completion: f64) -> String {
+    let eta = time / completion - time;
+    let mins = eta as i64 / 60;
+    let hours = mins / 60;
+    let days = hours / 24;
+    let hours = hours % 24;
+    let mins = mins % 60;
+    format!("{days} days {hours:02}:{mins:02}")
 }

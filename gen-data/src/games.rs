@@ -14,7 +14,7 @@ use marlinformat::PackedBoard;
 use rand::prelude::*;
 use structopt::StructOpt;
 
-use crate::CommonOptions;
+use crate::{eta, CommonOptions};
 
 #[derive(StructOpt)]
 pub(crate) struct Options {
@@ -25,7 +25,7 @@ pub(crate) struct Options {
     nodes: Option<u64>,
     #[structopt(short = "N", long, requires("nodes"))]
     nodes_ub: Option<u64>,
-    #[structopt(short = "d", long)]
+    #[structopt(short = "d", long, required_unless("nodes"))]
     depth: Option<i16>,
 
     #[structopt(parse(try_from_str = crate::parse_filter_underscore))]
@@ -33,7 +33,7 @@ pub(crate) struct Options {
 
     #[structopt(long)]
     frc: bool,
-    #[structopt(long)]
+    #[structopt(long, conflicts_with("frc"))]
     dfrc: bool,
 
     #[structopt(short = "r", long, default_value = "0.0")]
@@ -41,26 +41,10 @@ pub(crate) struct Options {
 }
 
 impl Options {
-    pub(crate) fn run(self, opt: CommonOptions) {
-        let mut error = false;
-
-        if self.frc && self.dfrc {
-            eprintln!("Only one of --frc and --dfrc can be specified");
-            error = true;
-        }
-
-        if self.nodes.is_some() == self.depth.is_some() {
-            eprintln!("Exactly one of --nodes and --depth must be specified.");
-            error = true;
-        }
-
+    pub(crate) fn run(self, opt: CommonOptions) -> std::io::Result<()> {
         if !(0.0..=1.0).contains(&self.random_move) {
-            eprintln!("Random move probability must be between 0 and 1 inclusive");
-            error = true;
-        }
-
-        if error {
-            return;
+            eprintln!("error: Random move probability must be between 0 and 1 inclusive");
+            std::process::exit(1);
         }
 
         let tb = opt.syzygy();
@@ -68,8 +52,7 @@ impl Options {
         let output = OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(&self.output)
-            .unwrap();
+            .open(&self.output)?;
         let output = Mutex::new(BufWriter::new(output));
 
         let game_counter = Arc::new(AtomicUsize::new(0));
@@ -94,12 +77,11 @@ impl Options {
                 let total = games + boards.len();
                 let completion = total as f64 / self.positions as f64;
                 let time = start.elapsed().as_secs_f64();
-                let eta = time / completion - time;
                 print!(
-                    "\r\x1b[K{:>6.2}% complete. {:.0} positions/sec. ETA: {} minutes",
+                    "\r\x1b[K{:>6.2}% complete. {:.0} positions/sec. ETA: {}",
                     completion * 100.0,
                     total as f64 / time,
-                    eta as i64 / 60,
+                    eta(time, completion)
                 );
                 stdout().flush().unwrap();
 
@@ -107,6 +89,8 @@ impl Options {
             },
         );
         println!();
+
+        Ok(())
     }
 
     fn generate_starting_position(&self) -> Board {

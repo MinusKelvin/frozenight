@@ -12,7 +12,7 @@ use frozenight::{Frozenight, TimeConstraint};
 use marlinformat::PackedBoard;
 use structopt::StructOpt;
 
-use crate::CommonOptions;
+use crate::{eta, CommonOptions};
 
 #[derive(StructOpt)]
 pub(crate) struct Options {
@@ -22,24 +22,19 @@ pub(crate) struct Options {
 
     #[structopt(short = "n", long)]
     nodes: Option<u64>,
-    #[structopt(short = "d", long)]
+    #[structopt(short = "d", long, required_unless("nodes"))]
     depth: Option<i16>,
 }
 
 impl Options {
-    pub fn run(self, opt: CommonOptions) {
-        if self.nodes.is_some() == self.depth.is_some() {
-            eprintln!("Exactly one of --nodes and --depth must be specified.");
-            return;
-        }
-
+    pub fn run(self, opt: CommonOptions) -> std::io::Result<()> {
         let start = Instant::now();
         let games = AtomicUsize::new(0);
 
-        let mut input = File::open(self.input).unwrap();
+        let mut input = File::open(self.input)?;
         let total_positions =
-            input.seek(SeekFrom::End(0)).unwrap() / std::mem::size_of::<PackedBoard>() as u64;
-        input.seek(SeekFrom::Start(0)).unwrap();
+            input.seek(SeekFrom::End(0))? / std::mem::size_of::<PackedBoard>() as u64;
+        input.seek(SeekFrom::Start(0))?;
         let input = Mutex::new(BufReader::new(input));
         let next = |boards: &mut Vec<_>| {
             let mut data = input.lock().unwrap();
@@ -56,8 +51,7 @@ impl Options {
             File::options()
                 .create_new(true)
                 .write(true)
-                .open(self.output)
-                .unwrap(),
+                .open(self.output)?,
         ));
 
         opt.parallel(
@@ -108,12 +102,10 @@ impl Options {
 
                 let completed = games.fetch_add(boards.len(), Ordering::Relaxed) + boards.len();
                 let completion = completed as f64 / total_positions as f64;
-                let time = start.elapsed().as_secs_f64();
-                let eta = time / completion - time;
                 print!(
-                    "\r\x1b[K{:>6.2}% complete. ETA: {} minutes",
+                    "\r\x1b[K{:>6.2}% complete. ETA: {}",
                     completion * 100.0,
-                    eta as i64 / 60,
+                    eta(start.elapsed().as_secs_f64(), completion),
                 );
                 stdout().flush().unwrap();
 
@@ -122,5 +114,7 @@ impl Options {
         );
 
         println!();
+
+        Ok(())
     }
 }
