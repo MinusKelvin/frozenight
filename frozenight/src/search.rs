@@ -195,7 +195,7 @@ impl<'a> Searcher<'a> {
             if let Some(eval) = oracle::oracle(&new_pos.board) {
                 v = eval;
             } else if this.is_repetition(&new_pos.board) {
-                v = Eval::DRAW;
+                v = Eval::new((this.stats.nodes.load(Ordering::Relaxed) & 15) as i16 - 7);
             } else {
                 this.shared.tt.prefetch(&new_pos.board);
                 this.push_repetition(&new_pos.board);
