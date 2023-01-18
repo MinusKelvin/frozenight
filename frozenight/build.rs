@@ -31,6 +31,7 @@ fn main() {
         true => Path::new("..").join(eval_file),
         false => eval_file.into(),
     };
+    let eval_file = eval_file.canonicalize().unwrap();
     println!("cargo:rerun-if-changed={}", eval_file.display());
 
     let model: Nnue = serde_json::from_reader(
