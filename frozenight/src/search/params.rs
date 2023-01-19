@@ -115,7 +115,7 @@ pub fn nmp_reduction(depth: i16, eval_over_beta: i32) -> i16 {
 
 #[inline(always)]
 pub fn null_lmr(depth: i16, movenum: usize) -> i16 {
-    trunc(raw_lmr(depth, movenum as i16))
+    trunc(raw_lmr(depth, movenum as i16)) + (movenum > 5) as i16
 }
 
 #[inline(always)]
