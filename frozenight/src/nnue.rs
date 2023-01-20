@@ -3,7 +3,7 @@ use cozy_chess::{Board, Color, File, Move, Piece, Rank, Square};
 use crate::Eval;
 
 const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
-const L1_SIZE: usize = 384;
+const L1_SIZE: usize = 768;
 const BUCKETS: usize = 16;
 
 static NETWORK: Nnue = include!(concat!(env!("OUT_DIR"), "/model.rs"));
