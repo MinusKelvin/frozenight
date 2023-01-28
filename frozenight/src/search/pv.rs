@@ -16,7 +16,10 @@ impl Searcher<'_> {
         mut depth: i16,
     ) -> Option<(Eval, Move)> {
         let hashmove = match self.shared.tt.get(position) {
-            None => None,
+            None => {
+                depth -= 1;
+                None
+            },
             Some(entry) => {
                 if entry.depth >= depth {
                     match entry.kind {
