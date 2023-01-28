@@ -2,27 +2,31 @@
 
 NNUE chess engine written in Rust. [Play against it on lichess.org][lichess]
 
-The current minimum supported Rust version for the UCI binary is 1.57.0.
+The current minimum supported Rust version for the UCI binary is 1.59.0.
 
 ## Rating Lists
 
 [CCRL 40/15][CCRL4040]:
-- Frozenight 5.1: **3031**
+- Frozenight 6.0: **3226**
+- Frozenight 5.1: 3027
 - Frozenight 5.0: 3000
-- Frozenight 4.0: 2963
+- Frozenight 4.0: 2964
 - Frozenight 3.0: 2842
-- Frozenight 2.1: 2683
-- Frozenight 2.0: 2607
+- Frozenight 2.1: 2680
+- Frozenight 2.0: 2614
 
 [CCRL Blitz][CCRL404]:
-- Frozenight 5.0: **3083**
-- Frozenight 4.0: 3004
+- Frozenight 6.0: **3331**
+- Frozenight 5.1: 3098
+- Frozenight 5.0: 3085
+- Frozenight 4.0: 3005
 - Frozenight 3.0: 2891
 - Frozenight 2.1: 2677
 - Frozenight 1.0: 2448
 
 [CCRL 40/2 FRC][CCRLFRC]:
-- Frozenight 5.1: **3154**
+- Frozenight 6.0: **3493**
+- Frozenight 5.1: 3148
 - Frozenight 5.0: 3103
 - Frozenight 4.0: 2994
 - Frozenight 3.0: 2761
@@ -34,7 +38,7 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
 - Aspiration windows
 - LazySMP multithreading
 - NNUE evaluation
-  - 768 -> 256x2 (-> 1)x16
+  - 768 -> 384x2 (-> 1)x16
   - Network bucketing based on modified piece material values (Queen = 8)
     - This is based on game phase tuning in Koivisto done by Luecx
   - Training data generated through self-play, originally starting with a random network
@@ -48,6 +52,7 @@ The current minimum supported Rust version for the UCI binary is 1.57.0.
 - Late move pruning
 - Null move pruning
 - Reverse futility pruning, except using qsearch instead of static eval
+- Internal Iterated Deepening
 - Transposition Table
   - Depth-preferred with aging
 - Move ordering
