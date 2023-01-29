@@ -102,9 +102,9 @@ impl TranspositionTable {
         let old_hash = entry.hash.load(Ordering::Relaxed) ^ old_data;
         let old_data: TtData = bytemuck::cast(old_data);
 
-        let mut replace = false;
-        // always replace existing position data with PV data
-        replace |= old_hash == position.board.hash() && data.kind == NodeKind::Exact;
+        let mut replace = position.board.hash() != old_hash;
+        // always replace PV data
+        replace |= data.kind == NodeKind::Exact;
         // prefer deeper data
         replace |= data.depth >= old_data.depth;
         // prefer replacing stale data
