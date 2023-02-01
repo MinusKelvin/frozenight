@@ -131,7 +131,7 @@ impl Searcher<'_> {
             }
             let mv = moves.swap_remove(index).0;
 
-            let v = -self.qsearch(&position.play_move(mv), -window);
+            let v = -self.qsearch(&position.play_move(mv, &self.shared.tt), -window);
             if window.fail_high(v) {
                 self.shared.tt.store(
                     position,

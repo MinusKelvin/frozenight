@@ -187,7 +187,7 @@ impl<'a> Searcher<'a> {
         let mut i = 0;
 
         self.visit_moves(position, hashmove, |this, mv| {
-            let new_pos = position.play_move(mv);
+            let new_pos = position.play_move(mv, &this.shared.tt);
             i += 1;
             let i = i - 1;
 
@@ -197,7 +197,6 @@ impl<'a> Searcher<'a> {
             } else if this.is_repetition(&new_pos.board) {
                 v = Eval::DRAW;
             } else {
-                this.shared.tt.prefetch(&new_pos.board);
                 this.push_repetition(&new_pos.board);
                 v = f(this, i, mv, &new_pos, window)?;
                 this.pop_repetition();

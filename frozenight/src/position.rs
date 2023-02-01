@@ -4,6 +4,7 @@ use cozy_chess::{Board, Move};
 
 use crate::nnue::NnueAccumulator;
 use crate::Eval;
+use crate::tt::TranspositionTable;
 
 #[derive(Clone)]
 pub struct Position {
@@ -23,9 +24,10 @@ impl Position {
         }
     }
 
-    pub fn play_move(&self, mv: Move) -> Position {
+    pub fn play_move(&self, mv: Move, tt: &TranspositionTable) -> Position {
         let mut board = self.board.clone();
         board.play_unchecked(mv);
+        tt.prefetch(&board);
         Position {
             board,
             nnue: self.nnue.play_move(&self.board, mv),
@@ -34,12 +36,15 @@ impl Position {
         }
     }
 
-    pub fn null_move(&self) -> Option<Position> {
-        Some(Position {
-            board: self.board.null_move()?,
-            nnue: self.nnue,
-            ply: self.ply + 1,
-            eval: Cell::default(),
+    pub fn null_move(&self, tt: &TranspositionTable) -> Option<Position> {
+        self.board.null_move().map(|board| {
+            tt.prefetch(&board);
+            Position {
+                board,
+                nnue: self.nnue,
+                ply: self.ply + 1,
+                eval: Cell::default(),
+            }
         })
     }
 

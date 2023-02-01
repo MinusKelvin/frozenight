@@ -60,7 +60,7 @@ impl Searcher<'_> {
             && !our_sliders.is_empty()
             && window.fail_high(position.static_eval());
         if do_nmp {
-            if let Some(nm) = position.null_move() {
+            if let Some(nm) = position.null_move(&self.shared.tt) {
                 let reduction = nmp_reduction(
                     depth,
                     position.static_eval().raw() as i32 - window.ub().raw() as i32,
