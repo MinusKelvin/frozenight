@@ -129,10 +129,8 @@ impl<'a> Searcher<'a> {
         depth: i16,
         f: impl FnOnce(&mut Self) -> Option<Eval>,
     ) -> Option<Eval> {
-        match position.board.status() {
-            cozy_chess::GameStatus::Drawn => return Some(Eval::DRAW),
-            cozy_chess::GameStatus::Won => return Some(-Eval::MATE.add_time(position.ply)),
-            cozy_chess::GameStatus::Ongoing => {}
+        if position.board.halfmove_clock() > 100 {
+            return Some(Eval::DRAW);
         }
 
         if self.allow_abort && self.abort.load(Ordering::Relaxed) {
@@ -182,7 +180,7 @@ impl<'a> Searcher<'a> {
         mut f: impl FnMut(&mut Searcher, usize, Move, &Position, Window) -> Option<Eval>,
     ) -> Option<(Eval, Move)> {
         let mut best_move = INVALID_MOVE;
-        let mut best_score = -Eval::MATE;
+        let mut best_score = -Eval::MATE.add_time(position.ply);
         let mut raised_alpha = false;
         let mut i = 0;
 
@@ -218,20 +216,26 @@ impl<'a> Searcher<'a> {
             Some(CONTINUE)
         })?;
 
-        if window.fail_high(best_score) {
-            self.failed_high(position, depth, best_score, best_move);
-        } else if raised_alpha {
-            self.shared.tt.store(
-                &position,
-                TableEntry {
-                    mv: best_move,
-                    eval: best_score,
-                    depth,
-                    kind: NodeKind::Exact,
-                },
-            );
-        } else {
-            self.failed_low(position, depth, best_score, best_move);
+        if i == 0 && position.board.checkers().is_empty() {
+            best_score = Eval::DRAW;
+        }
+
+        if i != 0 {
+            if window.fail_high(best_score) {
+                self.failed_high(position, depth, best_score, best_move);
+            } else if raised_alpha {
+                self.shared.tt.store(
+                    &position,
+                    TableEntry {
+                        mv: best_move,
+                        eval: best_score,
+                        depth,
+                        kind: NodeKind::Exact,
+                    },
+                );
+            } else {
+                self.failed_low(position, depth, best_score, best_move);
+            }
         }
 
         Some((best_score, best_move))
