@@ -3,22 +3,24 @@ use cozy_chess::{Board, Color, File, Move, Piece, Rank, Square};
 use crate::Eval;
 
 const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
-const L1_SIZE: usize = 384;
+const L1_ATTENTION: usize = 64;
+const L1_STANDARD: usize = 256;
+const FT_OUT: usize = L1_ATTENTION * 2 + L1_STANDARD;
 const BUCKETS: usize = 16;
 
 static NETWORK: Nnue = include!(concat!(env!("OUT_DIR"), "/model.rs"));
 
 struct Nnue {
-    input_layer: [[i16; L1_SIZE]; NUM_FEATURES],
-    input_layer_bias: [i16; L1_SIZE],
-    hidden_layer: [[i8; L1_SIZE * 2]; BUCKETS],
+    input_layer: [[i16; FT_OUT]; NUM_FEATURES],
+    input_layer_bias: [i16; FT_OUT],
+    hidden_layer: [[i8; 2 * (L1_ATTENTION + L1_STANDARD)]; BUCKETS],
     hidden_layer_bias: [i32; BUCKETS],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NnueAccumulator {
-    white: [i16; L1_SIZE],
-    black: [i16; L1_SIZE],
+    white: [i16; FT_OUT],
+    black: [i16; FT_OUT],
     material: usize,
 }
 
@@ -57,11 +59,23 @@ impl NnueAccumulator {
             Color::White => (&self.white, &self.black),
             Color::Black => (&self.black, &self.white),
         };
-        for i in 0..first.len() {
-            output += activate(first[i]) * NETWORK.hidden_layer[bucket][i] as i32;
+        for i in 0..L1_ATTENTION {
+            output += activate(first[i])
+                * activate(first[i + L1_ATTENTION])
+                * NETWORK.hidden_layer[bucket][i] as i32;
         }
-        for i in 0..second.len() {
-            output += activate(second[i]) * NETWORK.hidden_layer[bucket][i + first.len()] as i32;
+        for i in 0..L1_STANDARD {
+            output += activate(first[i + L1_ATTENTION * 2]) * 127
+                * NETWORK.hidden_layer[bucket][i + L1_ATTENTION] as i32;
+        }
+        for i in 0..L1_ATTENTION {
+            output += activate(second[i])
+                * activate(second[i + L1_ATTENTION])
+                * NETWORK.hidden_layer[bucket][i + L1_ATTENTION + L1_STANDARD] as i32;
+        }
+        for i in 0..L1_STANDARD {
+            output += activate(second[i + L1_ATTENTION * 2]) * 127
+                * NETWORK.hidden_layer[bucket][i + 2 * L1_ATTENTION + L1_STANDARD] as i32;
         }
 
         Eval::new((output / 127 / 8) as i16)
@@ -199,7 +213,7 @@ impl NnueAccumulator {
 fn activate(v: i16) -> i32 {
     let v = v as i32;
     let v = v.clamp(0, 127);
-    v * v
+    v
 }
 
 fn vadd<const N: usize>(a: &mut [i16; N], b: &[i16; N]) {
