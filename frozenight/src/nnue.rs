@@ -11,7 +11,7 @@ static NETWORK: Nnue = include!(concat!(env!("OUT_DIR"), "/model.rs"));
 struct Nnue {
     input_layer: [[i16; L1_SIZE]; NUM_FEATURES],
     input_layer_bias: [i16; L1_SIZE],
-    hidden_layer: [[i8; L1_SIZE * 2]; BUCKETS],
+    hidden_layer: [[i8; L1_SIZE]; BUCKETS],
     hidden_layer_bias: [i32; BUCKETS],
 }
 
@@ -57,11 +57,15 @@ impl NnueAccumulator {
             Color::White => (&self.white, &self.black),
             Color::Black => (&self.black, &self.white),
         };
-        for i in 0..first.len() {
-            output += activate(first[i]) * NETWORK.hidden_layer[bucket][i] as i32;
+        for i in 0..first.len() / 2 {
+            output += activate(first[i])
+                * activate(first[i + first.len() / 2])
+                * NETWORK.hidden_layer[bucket][i] as i32;
         }
-        for i in 0..second.len() {
-            output += activate(second[i]) * NETWORK.hidden_layer[bucket][i + first.len()] as i32;
+        for i in 0..second.len() / 2 {
+            output += activate(second[i])
+                * activate(second[i + second.len() / 2])
+                * NETWORK.hidden_layer[bucket][i + first.len() / 2] as i32;
         }
 
         Eval::new((output / 127 / 8) as i16)
@@ -199,7 +203,7 @@ impl NnueAccumulator {
 fn activate(v: i16) -> i32 {
     let v = v as i32;
     let v = v.clamp(0, 127);
-    v * v
+    v
 }
 
 fn vadd<const N: usize>(a: &mut [i16; N], b: &[i16; N]) {
