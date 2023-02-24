@@ -11,8 +11,12 @@ static NETWORK: Nnue = include!(concat!(env!("OUT_DIR"), "/model.rs"));
 struct Nnue {
     input_layer: [[i16; L1_SIZE]; NUM_FEATURES],
     input_layer_bias: [i16; L1_SIZE],
-    hidden_layer: [[i8; L1_SIZE * 2]; BUCKETS],
-    hidden_layer_bias: [i32; BUCKETS],
+    hidden_layer_a: [[i8; L1_SIZE * 2]; BUCKETS],
+    hidden_layer_a_bias: [i32; BUCKETS],
+    hidden_layer_b: [[i8; L1_SIZE * 2]; BUCKETS],
+    hidden_layer_b_bias: [i32; BUCKETS],
+    hidden_layer_c: [[i8; L1_SIZE * 2]; BUCKETS],
+    hidden_layer_c_bias: [i32; BUCKETS],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,17 +56,27 @@ impl NnueAccumulator {
 
     pub fn calculate(&self, stm: Color) -> Eval {
         let bucket = (self.material * BUCKETS / 76).min(BUCKETS - 1);
-        let mut output = NETWORK.hidden_layer_bias[bucket] * 127;
+        let mut a = NETWORK.hidden_layer_a_bias[bucket] * 127;
+        let mut b = NETWORK.hidden_layer_b_bias[bucket] * 127;
+        let mut c = NETWORK.hidden_layer_c_bias[bucket] * 127;
         let (first, second) = match stm {
             Color::White => (&self.white, &self.black),
             Color::Black => (&self.black, &self.white),
         };
         for i in 0..first.len() {
-            output += activate(first[i]) * NETWORK.hidden_layer[bucket][i] as i32;
+            let activated = activate(first[i]);
+            a += activated * NETWORK.hidden_layer_a[bucket][i] as i32;
+            b += activated * NETWORK.hidden_layer_b[bucket][i] as i32;
+            c += activated * activated * NETWORK.hidden_layer_c[bucket][i] as i32;
         }
         for i in 0..second.len() {
-            output += activate(second[i]) * NETWORK.hidden_layer[bucket][i + first.len()] as i32;
+            let activated = activate(second[i]);
+            a += activated * NETWORK.hidden_layer_a[bucket][i + first.len()] as i32;
+            b += activated * NETWORK.hidden_layer_b[bucket][i + first.len()] as i32;
+            c += activated * activated * NETWORK.hidden_layer_c[bucket][i + first.len()] as i32;
         }
+
+        let output = a * b / 64 + c;
 
         Eval::new((output / 127 / 8) as i16)
     }

@@ -13,10 +13,18 @@ pub struct Nnue {
     input_layer: A<A<i16>>,
     #[serde(rename = "ft.bias")]
     input_layer_bias: A<i16>,
-    #[serde(rename = "out.weight")]
-    hidden_layer: A<A<i8>>,
-    #[serde(rename = "out.bias")]
-    hidden_layer_bias: A<i32>,
+    #[serde(rename = "out_a.weight")]
+    hidden_layer_a: A<A<i8>>,
+    #[serde(rename = "out_a.bias")]
+    hidden_layer_a_bias: A<i32>,
+    #[serde(rename = "out_b.weight")]
+    hidden_layer_b: A<A<i8>>,
+    #[serde(rename = "out_b.bias")]
+    hidden_layer_b_bias: A<i32>,
+    #[serde(rename = "out_c.weight")]
+    hidden_layer_c: A<A<i8>>,
+    #[serde(rename = "out_c.bias")]
+    hidden_layer_c_bias: A<i32>,
 }
 
 fn main() {
@@ -59,8 +67,11 @@ impl std::fmt::Display for Nnue {
     fn fmt(&self, to: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             to,
-            "Nnue {{input_layer:{},input_layer_bias:{},hidden_layer:{},hidden_layer_bias:{}}}",
-            self.input_layer, self.input_layer_bias, self.hidden_layer, self.hidden_layer_bias
+            "Nnue {{input_layer:{},input_layer_bias:{},hidden_layer_a:{},hidden_layer_a_bias:{},hidden_layer_b:{},hidden_layer_b_bias:{},hidden_layer_c:{},hidden_layer_c_bias:{}}}",
+            self.input_layer, self.input_layer_bias,
+            self.hidden_layer_a, self.hidden_layer_a_bias,
+            self.hidden_layer_b, self.hidden_layer_b_bias,
+            self.hidden_layer_c, self.hidden_layer_c_bias
         )
     }
 }
