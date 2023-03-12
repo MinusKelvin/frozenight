@@ -36,6 +36,10 @@ impl Window {
         raised
     }
 
+    pub fn inside(&self, v: Eval) -> bool {
+        self.lb < v && v < self.ub
+    }
+
     pub fn new(lb: Eval, ub: Eval) -> Self {
         assert!(lb < ub);
         Window { lb, ub }

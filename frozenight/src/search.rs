@@ -4,19 +4,16 @@ use std::time::{Duration, Instant};
 use cozy_chess::{Board, Move, Square};
 
 use crate::position::Position;
-use crate::tt::{NodeKind, TableEntry};
+use crate::search::negamax::Pv;
 use crate::{Eval, Frozenight, SharedState, Statistics};
 
-use self::ordering::{OrderingState, BREAK, CONTINUE};
 pub use self::params::all_parameters;
 use self::window::Window;
 
-mod null;
+mod negamax;
 mod oracle;
 mod ordering;
 mod params;
-mod pv;
-mod qsearch;
 mod see;
 mod window;
 
@@ -26,15 +23,11 @@ pub const INVALID_MOVE: Move = Move {
     promotion: None,
 };
 
-pub(crate) struct PrivateState {
-    history: OrderingState,
-}
+pub(crate) struct PrivateState {}
 
 impl Default for PrivateState {
     fn default() -> Self {
-        PrivateState {
-            history: OrderingState::new(),
-        }
+        PrivateState {}
     }
 }
 
@@ -61,7 +54,6 @@ impl Frozenight {
         deadline: Option<Instant>,
         f: impl FnOnce(Searcher) -> T,
     ) -> T {
-        self.state.history.decay();
         let mut rep_table = [0; 1024];
         for &b in &self.prehistory {
             rep_table[b as usize % 1024] += 1;
@@ -105,161 +97,11 @@ impl<'a> Searcher<'a> {
             panic!("root position (FEN: {}) has no moves", self.root);
         }
 
-        let window = match () {
-            _ if depth < 3 => Window::default(),
-            _ if around.is_conclusive() => Window::default(),
-            _ => Window::new(around - 500, around + 500),
-        };
-
         let position = &Position::from_root(self.root.clone());
 
-        let (eval, mv) = self.pv_search(position, window, depth)?;
+        let (eval, mv) = self.negamax(Pv, position, Window::default(), depth)?;
 
-        if window.fail_low(eval) || window.fail_high(eval) {
-            self.pv_search(position, Window::default(), depth)
-        } else {
-            Some((eval, mv))
-        }
-    }
-
-    fn visit_node(
-        &mut self,
-        position: &Position,
-        window: Window,
-        depth: i16,
-        f: impl FnOnce(&mut Self) -> Option<Eval>,
-    ) -> Option<Eval> {
-        match position.board.status() {
-            cozy_chess::GameStatus::Drawn => return Some(Eval::DRAW),
-            cozy_chess::GameStatus::Won => return Some(-Eval::MATE.add_time(position.ply)),
-            cozy_chess::GameStatus::Ongoing => {}
-        }
-
-        if self.allow_abort && self.abort.load(Ordering::Relaxed) {
-            return None;
-        }
-
-        let result = if depth <= 0 {
-            self.stats
-                .selective_depth
-                .fetch_max(position.ply as i16, Ordering::Relaxed);
-            self.qsearch(position, window)
-        } else {
-            let nodes = self.stats.nodes.fetch_add(1, Ordering::Relaxed);
-            if self.allow_abort {
-                if nodes >= self.node_limit {
-                    return None;
-                }
-                if let Some(deadline) = self.deadline {
-                    if nodes > self.next_deadline_check {
-                        let now = Instant::now();
-                        if now >= deadline {
-                            return None;
-                        }
-                        self.next_deadline_check =
-                            nodes + estimate_nodes_to_deadline(deadline - now);
-                    }
-                }
-            }
-            f(self)?
-        };
-
-        // Sanity check that conclusive scores are valid
-        #[cfg(debug_assertions)]
-        if let Some(plys) = result.plys_to_conclusion() {
-            debug_assert!(plys.abs() >= position.ply as i16);
-        }
-
-        Some(result)
-    }
-
-    fn search_moves(
-        &mut self,
-        position: &Position,
-        hashmove: Option<Move>,
-        mut window: Window,
-        depth: i16,
-        mut f: impl FnMut(&mut Searcher, usize, Move, &Position, Window) -> Option<Eval>,
-    ) -> Option<(Eval, Move)> {
-        let mut best_move = INVALID_MOVE;
-        let mut best_score = -Eval::MATE;
-        let mut raised_alpha = false;
-        let mut i = 0;
-
-        self.visit_moves(position, hashmove, |this, mv| {
-            let new_pos = position.play_move(mv, &this.shared.tt);
-            i += 1;
-            let i = i - 1;
-
-            let v;
-            if let Some(eval) = oracle::oracle(&new_pos.board) {
-                v = eval;
-            } else if this.is_repetition(&new_pos.board) {
-                v = Eval::DRAW;
-            } else {
-                this.push_repetition(&new_pos.board);
-                v = f(this, i, mv, &new_pos, window)?;
-                this.pop_repetition();
-            }
-
-            if v > best_score {
-                best_move = mv;
-                best_score = v;
-            }
-
-            if window.fail_high(v) {
-                return Some(BREAK);
-            }
-
-            if window.raise_lb(v) {
-                raised_alpha = true;
-            }
-
-            Some(CONTINUE)
-        })?;
-
-        if window.fail_high(best_score) {
-            self.failed_high(position, depth, best_score, best_move);
-        } else if raised_alpha {
-            self.shared.tt.store(
-                &position,
-                TableEntry {
-                    mv: best_move,
-                    eval: best_score,
-                    depth,
-                    kind: NodeKind::Exact,
-                },
-            );
-        } else {
-            self.failed_low(position, depth, best_score, best_move);
-        }
-
-        Some((best_score, best_move))
-    }
-
-    fn failed_low(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
-        self.shared.tt.store(
-            position,
-            TableEntry {
-                mv,
-                eval,
-                depth,
-                kind: NodeKind::UpperBound,
-            },
-        );
-    }
-
-    fn failed_high(&mut self, position: &Position, depth: i16, eval: Eval, mv: Move) {
-        self.shared.tt.store(
-            position,
-            TableEntry {
-                mv,
-                eval,
-                depth,
-                kind: NodeKind::LowerBound,
-            },
-        );
-        self.state.history.caused_cutoff(position, mv, depth);
+        Some((eval, mv.expect("Search did not find a move at the root")))
     }
 
     fn push_repetition(&mut self, board: &Board) {
