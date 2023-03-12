@@ -33,7 +33,7 @@ impl Searcher<'_> {
         }
 
         if depth == 0 {
-            return Some((pos.static_eval(), None));
+            return self.qsearch(st, pos, window);
         }
 
         let tt = self.tt.get(pos);

@@ -15,6 +15,7 @@ mod negamax;
 mod oracle;
 mod ordering;
 mod params;
+mod qsearch;
 mod see;
 mod window;
 
