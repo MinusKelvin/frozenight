@@ -98,22 +98,6 @@ impl TranspositionTable {
     pub fn store(&self, position: &Position, data: TableEntry) {
         let entry = self.entry(position.board.hash());
 
-        let old_data = entry.data.load(Ordering::Relaxed);
-        let old_hash = entry.hash.load(Ordering::Relaxed) ^ old_data;
-        let old_data: TtData = bytemuck::cast(old_data);
-
-        let mut replace = false;
-        // always replace existing position data with PV data
-        replace |= old_hash == position.board.hash() && data.kind == NodeKind::Exact;
-        // prefer deeper data
-        replace |= data.depth >= old_data.depth;
-        // prefer replacing stale data
-        replace |= self.search_number.wrapping_sub(old_data.age) >= 2;
-
-        if !replace {
-            return;
-        }
-
         let promo = match data.mv.promotion {
             None => 0,
             Some(Piece::Knight) => 1,

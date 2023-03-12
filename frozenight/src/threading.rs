@@ -9,12 +9,12 @@ use cozy_chess::{Board, Move};
 use crate::search::INVALID_MOVE;
 use crate::time::{TimeConstraint, TimeManager};
 use crate::tt::TranspositionTable;
-use crate::{update_position, Eval, Frozenight, SearchInfo, SharedState, Statistics};
+use crate::{update_position, Eval, Frozenight, SearchInfo, Statistics};
 
 pub struct MtFrozenight {
     board: Board,
     prehistory: Vec<u64>,
-    shared_state: Arc<RwLock<SharedState>>,
+    shared_state: Arc<RwLock<TranspositionTable>>,
     threads: Vec<(Arc<Statistics>, Sender<ThreadCommand>)>,
     abort: Arc<AtomicBool>,
 }
@@ -44,9 +44,7 @@ impl MtFrozenight {
         let mut this = MtFrozenight {
             board: Default::default(),
             prehistory: vec![],
-            shared_state: Arc::new(RwLock::new(SharedState {
-                tt: TranspositionTable::new(hash_mb),
-            })),
+            shared_state: Arc::new(RwLock::new(TranspositionTable::new(hash_mb))),
             threads: vec![],
             abort: Default::default(),
         };
@@ -74,11 +72,11 @@ impl MtFrozenight {
 
     pub fn set_hash(&mut self, hash_mb: usize) {
         self.abort();
-        let mut state = self.shared_state.write().unwrap();
+        let mut tt = self.shared_state.write().unwrap();
         // put dummy value in to drop potentially large previous TT allocation
-        state.tt = TranspositionTable::new(1);
+        *tt = TranspositionTable::new(1);
         // then create potentially large new TT allocation
-        state.tt = TranspositionTable::new(hash_mb);
+        *tt = TranspositionTable::new(hash_mb);
     }
 
     pub fn set_position(&mut self, position: Board, moves: impl Iterator<Item = Move>) {
@@ -86,7 +84,7 @@ impl MtFrozenight {
         let mut new = position;
         let age_inc = update_position(&mut new, &mut self.prehistory, &self.board, moves);
         self.board = new;
-        self.shared_state.write().unwrap().tt.increment_age(age_inc);
+        self.shared_state.write().unwrap().increment_age(age_inc);
 
         for (_, thread) in &self.threads {
             let _ = thread.send(ThreadCommand::SetPosition(
@@ -194,7 +192,7 @@ fn run_thread(mut engine: Frozenight, recv: Receiver<ThreadCommand>) {
                             depth,
                             selective_depth,
                             nodes,
-                            hashfull: searcher.shared.tt.hashfull(),
+                            hashfull: searcher.tt.hashfull(),
                             best_move: mv,
                             pv: searcher.extract_pv(depth),
                         };

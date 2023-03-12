@@ -4,6 +4,7 @@ use std::time::Instant;
 use cozy_chess::Move;
 
 use crate::position::Position;
+use crate::tt::{NodeKind, TableEntry};
 use crate::Eval;
 
 use super::ordering::MovePicker;
@@ -35,13 +36,25 @@ impl Searcher<'_> {
             return Some((pos.static_eval(), None));
         }
 
-        let mut move_picker = MovePicker::new(pos, None);
+        let tt = self.tt.get(pos);
+        if let Some(tt) = tt {
+            let bound_allows_cutoff = match tt.kind {
+                NodeKind::Exact => true,
+                NodeKind::LowerBound => window.fail_high(tt.eval),
+                NodeKind::UpperBound => window.fail_low(tt.eval),
+            };
+            if tt.depth >= depth && bound_allows_cutoff {
+                return Some((tt.eval, Some(tt.mv)));
+            }
+        }
+
+        let mut move_picker = MovePicker::new(pos, tt.map(|tt| tt.mv));
         let mut best = -Eval::MATE.add_time(pos.ply);
         let mut best_mv = None;
         let mut raised_alpha = false;
 
         while let Some((i, mv)) = move_picker.pick_move() {
-            let new_pos = &pos.play_move(mv, &self.shared.tt);
+            let new_pos = &pos.play_move(mv, &self.tt);
 
             let mut v;
 
@@ -69,6 +82,22 @@ impl Searcher<'_> {
 
         if best_mv.is_none() && pos.board.checkers().is_empty() {
             return Some((Eval::DRAW, best_mv));
+        }
+
+        if let Some(best_mv) = best_mv {
+            self.tt.store(
+                pos,
+                TableEntry {
+                    mv: best_mv,
+                    eval: best,
+                    depth,
+                    kind: match () {
+                        _ if window.fail_high(best) => NodeKind::LowerBound,
+                        _ if raised_alpha => NodeKind::Exact,
+                        _ => NodeKind::UpperBound,
+                    },
+                },
+            );
         }
 
         return Some((best, best_mv));

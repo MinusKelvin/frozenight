@@ -5,7 +5,8 @@ use cozy_chess::{Board, Move, Square};
 
 use crate::position::Position;
 use crate::search::negamax::Pv;
-use crate::{Eval, Frozenight, SharedState, Statistics};
+use crate::tt::TranspositionTable;
+use crate::{Eval, Frozenight, Statistics};
 
 pub use self::params::all_parameters;
 use self::window::Window;
@@ -34,7 +35,7 @@ impl Default for PrivateState {
 pub(crate) struct Searcher<'a> {
     pub root: &'a Board,
     pub stats: &'a Statistics,
-    pub shared: &'a SharedState,
+    pub tt: &'a TranspositionTable,
     pub node_limit: u64,
     pub abort: &'a AtomicBool,
     state: &'a mut PrivateState,
@@ -58,10 +59,10 @@ impl Frozenight {
         for &b in &self.prehistory {
             rep_table[b as usize % 1024] += 1;
         }
-        let shared = self.shared_state.read().unwrap();
+        let tt = self.tt.read().unwrap();
         f(Searcher {
             root: &self.board,
-            shared: &shared,
+            tt: &tt,
             abort,
             state: &mut self.state,
             stats: &self.stats,
@@ -130,7 +131,7 @@ impl<'a> Searcher<'a> {
     pub fn extract_pv(&mut self, depth: i16) -> Vec<Move> {
         let mut board = self.root.clone();
         let mut pv = Vec::with_capacity(16);
-        while let Some(mv) = self.shared.tt.get_move(&board) {
+        while let Some(mv) = self.tt.get_move(&board) {
             pv.push(mv);
             board.play_unchecked(mv);
             if pv.len() > depth as usize {

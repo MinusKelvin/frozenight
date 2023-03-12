@@ -27,7 +27,7 @@ pub use search::all_parameters;
 pub struct Frozenight {
     board: Board,
     prehistory: Vec<u64>,
-    shared_state: Arc<RwLock<SharedState>>,
+    tt: Arc<RwLock<TranspositionTable>>,
     stats: Arc<Statistics>,
     state: PrivateState,
 }
@@ -49,22 +49,18 @@ struct Statistics {
     nodes: AtomicU64,
 }
 
-struct SharedState {
-    tt: TranspositionTable,
-}
-
 impl Frozenight {
     pub fn new(hash_mb: usize) -> Self {
-        Self::create(Arc::new(RwLock::new(SharedState {
-            tt: TranspositionTable::new(hash_mb),
-        })))
+        Self::create(Arc::new(RwLock::new(
+            TranspositionTable::new(hash_mb),
+        )))
     }
 
-    fn create(shared_state: Arc<RwLock<SharedState>>) -> Self {
+    fn create(tt: Arc<RwLock<TranspositionTable>>) -> Self {
         Frozenight {
             board: Default::default(),
             prehistory: vec![],
-            shared_state,
+            tt,
             stats: Default::default(),
             state: Default::default(),
         }
@@ -76,11 +72,10 @@ impl Frozenight {
 
     pub fn new_game(&mut self) {
         self.state = Default::default();
-        Arc::get_mut(&mut self.shared_state)
+        Arc::get_mut(&mut self.tt)
             .unwrap()
             .get_mut()
             .unwrap()
-            .tt
             .increment_age(2);
     }
 
@@ -88,22 +83,21 @@ impl Frozenight {
         let mut new = position;
         let age_inc = update_position(&mut new, &mut self.prehistory, &self.board, moves);
         self.board = new;
-        Arc::get_mut(&mut self.shared_state)
+        Arc::get_mut(&mut self.tt)
             .unwrap()
             .get_mut()
             .unwrap()
-            .tt
             .increment_age(age_inc);
     }
 
     pub fn set_hash(&mut self, hash_mb: usize) {
-        let mut shared = Arc::get_mut(&mut self.shared_state)
+        let mut tt = Arc::get_mut(&mut self.tt)
             .unwrap()
             .get_mut()
             .unwrap();
         // drop the existing TT before allocating the new one
-        shared.tt = TranspositionTable::new(1);
-        shared.tt = TranspositionTable::new(hash_mb);
+        *tt = TranspositionTable::new(1);
+        *tt = TranspositionTable::new(hash_mb);
     }
 
     pub fn search(
@@ -130,7 +124,7 @@ impl Frozenight {
                 recent_info = SearchInfo {
                     eval,
                     depth,
-                    hashfull: searcher.shared.tt.hashfull(),
+                    hashfull: searcher.tt.hashfull(),
                     selective_depth: searcher.stats.selective_depth.load(Ordering::Relaxed),
                     nodes: searcher.stats.nodes.load(Ordering::Relaxed),
                     best_move,

@@ -14,23 +14,35 @@ pub struct MovePicker<'a> {
 
 impl<'a> MovePicker<'a> {
     pub fn new(pos: &'a Position, hashmv: Option<Move>) -> Self {
-        let mut moves = Vec::with_capacity(64);
-
-        pos.board.generate_moves(|mvs| {
-            moves.extend(mvs);
-            false
-        });
-
         MovePicker {
             pos,
             hashmv,
-            moves,
+            moves: Vec::with_capacity(64),
             next: 0,
         }
     }
 
     pub fn pick_move(&mut self) -> Option<(usize, Move)> {
         let i = self.next;
+        match self.hashmv {
+            Some(mv) if i == 0 => {
+                self.next += 1;
+                return Some((i, mv));
+            }
+            _ if self.moves.is_empty() => {
+                self.moves.extend(self.hashmv);
+                self.pos.board.generate_moves(|mvs| {
+                    for mv in mvs {
+                        if Some(mv) != self.hashmv {
+                            self.moves.push(mv);
+                        }
+                    }
+                    false
+                });
+            }
+            _ => {}
+        }
+
         let &mv = self.moves.get(i)?;
         self.next += 1;
         Some((i, mv))
