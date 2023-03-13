@@ -64,7 +64,11 @@ impl Searcher<'_> {
             return Some((eval, None));
         }
 
-        if !search.pv() && pos.board.checkers().is_empty() && depth >= NMP_MIN_DEPTH.get() {
+        if !search.pv()
+            && pos.board.checkers().is_empty()
+            && depth >= NMP_MIN_DEPTH.get()
+            && window.fail_high(eval)
+        {
             let new_pos = &pos.null_move(self.tt).unwrap();
             let reduction = fp_mul(depth, NMP_DEPTH_FACTOR.get()) + NMP_BASE_REDUCTION.get();
             let zw = Window::null(window.ub() - 1);
