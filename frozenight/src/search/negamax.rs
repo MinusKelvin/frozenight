@@ -90,7 +90,11 @@ impl Searcher<'_> {
                 if i == 0 {
                     v = -self.negamax(search, new_pos, -window, depth - 1)?.0;
                 } else {
-                    let reduction = base_lmr(i, depth);
+                    let mut reduction = base_lmr(i, depth);
+
+                    if reduction < 0 || matches!(score, MoveScore::Capture(_)) {
+                        reduction = 0;
+                    }
 
                     let zw = Window::null(window.lb());
                     v = -self
