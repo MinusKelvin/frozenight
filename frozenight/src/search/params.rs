@@ -87,8 +87,17 @@ tweakables! {
     NMP_MIN_DEPTH: 1..=20 = 1;
     NMP_DEPTH_FACTOR: 0..=1000 = 333;
     NMP_BASE_REDUCTION: 0..=20 = 1;
+
+    LMR_MOVE_FACTOR: 0..=2000 = 100;
+    LMR_DEPTH_FACTOR: 0..=2000 = 70;
 }
 
 pub fn fp_mul(a: i16, b: i16) -> i16 {
     (a as i32 * b as i32 / 1000) as i16
+}
+
+pub fn base_lmr(i: usize, depth: i16) -> i16 {
+    let base =
+        i as i32 * LMR_MOVE_FACTOR.get() as i32 + depth as i32 * LMR_DEPTH_FACTOR.get() as i32;
+    (base / 1000) as i16
 }

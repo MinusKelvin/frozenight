@@ -7,7 +7,7 @@ use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
 use crate::Eval;
 
-use super::ordering::MovePicker;
+use super::ordering::{MovePicker, MoveScore};
 use super::params::*;
 use super::window::Window;
 use super::{estimate_nodes_to_deadline, Searcher};
@@ -54,7 +54,9 @@ impl Searcher<'_> {
             let reduction = fp_mul(depth, NMP_DEPTH_FACTOR.get()) + NMP_BASE_REDUCTION.get();
             let zw = Window::null(window.ub() - 1);
 
-            let v = -self.negamax(ZeroWidth, new_pos, -zw, depth - reduction - 1)?.0;
+            let v = -self
+                .negamax(ZeroWidth, new_pos, -zw, depth - reduction - 1)?
+                .0;
 
             if zw.fail_high(v) {
                 return Some((v, None));
@@ -66,7 +68,7 @@ impl Searcher<'_> {
         let mut best_mv = None;
         let mut raised_alpha = false;
 
-        while let Some((i, mv)) = move_picker.pick_move(self.state) {
+        while let Some((i, mv, score)) = move_picker.pick_move(self.state) {
             let new_pos = &pos.play_move(mv, self.tt);
 
             let mut v;
@@ -79,8 +81,14 @@ impl Searcher<'_> {
                 if i == 0 {
                     v = -self.negamax(search, new_pos, -window, depth - 1)?.0;
                 } else {
+                    let reduction = base_lmr(i, depth);
+
                     let zw = Window::null(window.lb());
-                    v = -self.negamax(ZeroWidth, new_pos, -zw, depth - 1)?.0;
+                    v = -self.negamax(ZeroWidth, new_pos, -zw, depth - reduction - 1)?.0;
+
+                    if reduction > 0 && zw.fail_high(v) {
+                        v = -self.negamax(ZeroWidth, new_pos, -zw, depth - 1)?.0;
+                    }
 
                     if window.inside(v) {
                         v = -self.negamax(search, new_pos, -window, depth - 1)?.0;

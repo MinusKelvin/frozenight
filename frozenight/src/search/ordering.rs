@@ -31,12 +31,12 @@ impl<'a> MovePicker<'a> {
         }
     }
 
-    pub(crate) fn pick_move(&mut self, state: &PrivateState) -> Option<(usize, Move)> {
+    pub(crate) fn pick_move(&mut self, state: &PrivateState) -> Option<(usize, Move, MoveScore)> {
         let i = self.next;
         match self.hashmv {
             Some(mv) if i == 0 => {
                 self.next += 1;
-                return Some((i, mv));
+                return Some((i, mv, MoveScore::Hash));
             }
             _ if self.moves.is_empty() => {
                 if let Some(mv) = self.hashmv {
@@ -70,7 +70,7 @@ impl<'a> MovePicker<'a> {
             .max_by_key(|&(_, &(_, s))| s)?;
         self.moves[i..].swap(0, j);
         self.next += 1;
-        Some((i, mv))
+        Some((i, mv, score))
     }
 }
 
