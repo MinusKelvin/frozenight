@@ -46,3 +46,5 @@ tables! {
     PieceTable: Piece;
     SquareTable: Square;
 }
+
+pub type HistoryTable<T> = ColorTable<PieceTable<SquareTable<T>>>;

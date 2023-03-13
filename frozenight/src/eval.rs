@@ -46,7 +46,8 @@ impl Eval {
     }
 
     /// If this eval is conclusive, decreases the score by the indicated number of plys.
-    pub fn add_time(self, plys: u16) -> Self {
+    pub fn add_time(self, plys: i16) -> Self {
+        debug_assert!(plys >= 0);
         if self < -Self::MAX_INCONCLUSIVE {
             Eval(self.0 + plys as i16)
         } else if self > Self::MAX_INCONCLUSIVE {
@@ -57,7 +58,8 @@ impl Eval {
     }
 
     /// If this eval is conclusive, increases the score by the indicated number of plys.
-    pub fn sub_time(self, plys: u16) -> Self {
+    pub fn sub_time(self, plys: i16) -> Self {
+        debug_assert!(plys >= 0);
         if self < -Self::MAX_INCONCLUSIVE {
             debug_assert!(self.0 - plys as i16 > -Eval::MATE.0);
             Eval(self.0 - plys as i16)

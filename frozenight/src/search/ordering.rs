@@ -54,7 +54,14 @@ impl<'a> MovePicker<'a> {
                                 self.pos.board.piece_on(mv.to).unwrap() as i16 * 8
                                     - mvs.piece as i16,
                             ),
-                            _ => MoveScore::Quiet(state.history[stm][mvs.piece][mv.to]),
+                            _ => {
+                                let mut history = state.history[stm][mvs.piece][mv.to];
+                                if let Some((c_piece, c_mv)) = state.stack(self.pos.ply - 1).mv {
+                                    history += state.continuation_history[!stm][c_piece][c_mv.to]
+                                        [stm][mvs.piece][mv.to];
+                                }
+                                MoveScore::Quiet(history)
+                            }
                         };
                         self.moves.push((mv, score));
                     }
@@ -87,10 +94,25 @@ impl Searcher<'_> {
 
             let piece = picker.pos.board.piece_on(mv.from).unwrap();
             history_dec(&mut self.state.history[stm][piece][mv.to], change);
+
+            if let Some((c_piece, c_mv)) = self.state.stack(picker.pos.ply).mv {
+                history_dec(
+                    &mut self.state.continuation_history[!stm][c_piece][c_mv.to][stm][piece][mv.to],
+                    change,
+                );
+            }
         }
 
         let piece = picker.pos.board.piece_on(cutoff_move.from).unwrap();
         history_inc(&mut self.state.history[stm][piece][cutoff_move.to], change);
+
+        if let Some((c_piece, c_mv)) = self.state.stack(picker.pos.ply).mv {
+            history_inc(
+                &mut self.state.continuation_history[!stm][c_piece][c_mv.to][stm][piece]
+                    [cutoff_move.to],
+                change,
+            );
+        }
     }
 }
 

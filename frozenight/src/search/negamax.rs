@@ -60,6 +60,8 @@ impl Searcher<'_> {
 
         if !search.pv() && pos.board.checkers().is_empty() && depth >= NMP_MIN_DEPTH.get() {
             let new_pos = &pos.null_move(self.tt).unwrap();
+            self.state.stack_mut(pos.ply).mv = None;
+
             let reduction = fp_mul(depth, NMP_DEPTH_FACTOR.get()) + NMP_BASE_REDUCTION.get();
             let zw = Window::null(window.ub() - 1);
 
@@ -79,6 +81,7 @@ impl Searcher<'_> {
 
         while let Some((i, mv, score)) = move_picker.pick_move(self.state) {
             let new_pos = &pos.play_move(mv, self.tt);
+            self.state.stack_mut(pos.ply).mv = Some((pos.board.piece_on(mv.from).unwrap(), mv));
 
             let mut v;
 

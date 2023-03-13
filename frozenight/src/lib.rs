@@ -29,7 +29,7 @@ pub struct Frozenight {
     prehistory: Vec<u64>,
     tt: Arc<RwLock<TranspositionTable>>,
     stats: Arc<Statistics>,
-    state: PrivateState,
+    state: Box<PrivateState>,
 }
 
 #[derive(Clone, Debug)]

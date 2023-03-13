@@ -9,7 +9,7 @@ use crate::tt::TranspositionTable;
 #[derive(Clone)]
 pub struct Position {
     pub board: Board,
-    pub ply: u16,
+    pub ply: i16,
     nnue: NnueAccumulator,
     eval: Cell<Option<Eval>>,
 }

@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use cozy_chess::{Board, Move, Square};
+use cozy_chess::{Board, Move, Piece, Square};
 
 use crate::position::Position;
 use crate::search::negamax::Pv;
@@ -9,7 +9,7 @@ use crate::tt::TranspositionTable;
 use crate::{Eval, Frozenight, Statistics};
 
 pub use self::params::all_parameters;
-use self::table::{ColorTable, PieceTable, SquareTable};
+use self::table::HistoryTable;
 use self::window::Window;
 
 mod negamax;
@@ -28,14 +28,33 @@ pub const INVALID_MOVE: Move = Move {
 };
 
 pub(crate) struct PrivateState {
-    history: ColorTable<PieceTable<SquareTable<i16>>>,
+    history: HistoryTable<i16>,
+    continuation_history: HistoryTable<HistoryTable<i16>>,
+    search_stack: [StackState; 512],
+}
+
+#[derive(Default, Copy, Clone)]
+struct StackState {
+    mv: Option<(Piece, Move)>,
 }
 
 impl Default for PrivateState {
     fn default() -> Self {
         PrivateState {
             history: Default::default(),
+            continuation_history: Default::default(),
+            search_stack: [Default::default(); 512],
         }
+    }
+}
+
+impl PrivateState {
+    fn stack(&self, ply: i16) -> &StackState {
+        &self.search_stack[(ply + 2) as usize]
+    }
+
+    fn stack_mut(&mut self, ply: i16) -> &mut StackState {
+        &mut self.search_stack[(ply + 2) as usize]
     }
 }
 
