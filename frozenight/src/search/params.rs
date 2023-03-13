@@ -84,4 +84,11 @@ macro_rules! tweakables {
 }
 
 tweakables! {
+    NMP_MIN_DEPTH: 1..=20 = 1;
+    NMP_DEPTH_FACTOR: 0..=1000 = 333;
+    NMP_BASE_REDUCTION: 0..=20 = 1;
+}
+
+pub fn fp_mul(a: i16, b: i16) -> i16 {
+    (a as i32 * b as i32 / 1000) as i16
 }

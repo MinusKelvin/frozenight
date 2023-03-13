@@ -8,19 +8,20 @@ use crate::tt::{NodeKind, TableEntry};
 use crate::Eval;
 
 use super::ordering::MovePicker;
+use super::params::*;
 use super::window::Window;
 use super::{estimate_nodes_to_deadline, Searcher};
 
 impl Searcher<'_> {
     pub(crate) fn negamax(
         &mut self,
-        st: impl SearchType,
+        search: impl SearchType,
         pos: &Position,
         mut window: Window,
         depth: i16,
     ) -> Option<(Eval, Option<Move>)> {
-        if depth == 0 {
-            return self.qsearch(st, pos, window);
+        if depth <= 0 {
+            return self.qsearch(search, pos, window);
         }
 
         let n = self.stats.nodes.fetch_add(1, Ordering::Relaxed);
@@ -48,6 +49,18 @@ impl Searcher<'_> {
             }
         }
 
+        if !search.pv() && pos.board.checkers().is_empty() && depth >= NMP_MIN_DEPTH.get() {
+            let new_pos = &pos.null_move(self.tt).unwrap();
+            let reduction = fp_mul(depth, NMP_DEPTH_FACTOR.get()) + NMP_BASE_REDUCTION.get();
+            let zw = Window::null(window.ub() - 1);
+
+            let v = -self.negamax(ZeroWidth, new_pos, -zw, depth - reduction - 1)?.0;
+
+            if zw.fail_high(v) {
+                return Some((v, None));
+            }
+        }
+
         let mut move_picker = MovePicker::new(pos, tt.map(|tt| tt.mv));
         let mut best = -Eval::MATE.add_time(pos.ply);
         let mut best_mv = None;
@@ -64,13 +77,13 @@ impl Searcher<'_> {
                 self.push_repetition(&new_pos.board);
 
                 if i == 0 {
-                    v = -self.negamax(st, new_pos, -window, depth - 1)?.0;
+                    v = -self.negamax(search, new_pos, -window, depth - 1)?.0;
                 } else {
                     let zw = Window::null(window.lb());
                     v = -self.negamax(ZeroWidth, new_pos, -zw, depth - 1)?.0;
 
                     if window.inside(v) {
-                        v = -self.negamax(st, new_pos, -window, depth - 1)?.0;
+                        v = -self.negamax(search, new_pos, -window, depth - 1)?.0;
                     }
                 }
 
