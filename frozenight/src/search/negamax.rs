@@ -49,6 +49,15 @@ impl Searcher<'_> {
             }
         }
 
+        let eval = pos.static_eval();
+
+        if !search.pv()
+            && depth <= RFP_MAX_DEPTH.get()
+            && Window::null(window.ub() + depth * RFP_MARGIN.get()).fail_high(eval)
+        {
+            return Some((eval, None));
+        }
+
         if !search.pv() && pos.board.checkers().is_empty() && depth >= NMP_MIN_DEPTH.get() {
             let new_pos = &pos.null_move(self.tt).unwrap();
             let reduction = fp_mul(depth, NMP_DEPTH_FACTOR.get()) + NMP_BASE_REDUCTION.get();
@@ -84,7 +93,9 @@ impl Searcher<'_> {
                     let reduction = base_lmr(i, depth);
 
                     let zw = Window::null(window.lb());
-                    v = -self.negamax(ZeroWidth, new_pos, -zw, depth - reduction - 1)?.0;
+                    v = -self
+                        .negamax(ZeroWidth, new_pos, -zw, depth - reduction - 1)?
+                        .0;
 
                     if reduction > 0 && zw.fail_high(v) {
                         v = -self.negamax(ZeroWidth, new_pos, -zw, depth - 1)?.0;
