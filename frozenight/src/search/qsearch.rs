@@ -6,6 +6,7 @@ use crate::position::Position;
 use crate::Eval;
 
 use super::negamax::SearchType;
+use super::see::static_exchange_eval;
 use super::window::Window;
 use super::Searcher;
 
@@ -31,10 +32,13 @@ impl Searcher<'_> {
         pos.board.generate_moves(|mut mvs| {
             mvs.to &= pos.board.colors(!pos.board.side_to_move());
             for mv in mvs {
-                moves.push((
-                    mv,
-                    pos.board.piece_on(mv.to).unwrap() as i16 * 8 - mvs.piece as i16,
-                ));
+                let see = static_exchange_eval(&pos.board, mv);
+                if see >= 0 {
+                    moves.push((
+                        mv,
+                        pos.board.piece_on(mv.to).unwrap() as i16 * 8 - mvs.piece as i16,
+                    ));
+                }
             }
             false
         });
