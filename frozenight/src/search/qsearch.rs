@@ -2,12 +2,12 @@ use std::sync::atomic::Ordering;
 
 use cozy_chess::Move;
 
-use crate::Eval;
 use crate::position::Position;
+use crate::Eval;
 
-use super::Searcher;
 use super::negamax::SearchType;
 use super::window::Window;
+use super::Searcher;
 
 impl Searcher<'_> {
     pub(crate) fn qsearch(
@@ -30,11 +30,22 @@ impl Searcher<'_> {
         let mut moves = Vec::with_capacity(64);
         pos.board.generate_moves(|mut mvs| {
             mvs.to &= pos.board.colors(!pos.board.side_to_move());
-            moves.extend(mvs);
+            for mv in mvs {
+                moves.push((
+                    mv,
+                    pos.board.piece_on(mv.to).unwrap() as i16 * 8 - mvs.piece as i16,
+                ));
+            }
             false
         });
 
-        for mv in moves {
+        while let Some((i, &(mv, score))) = moves
+            .iter()
+            .enumerate()
+            .max_by_key(|&(_, &(_, score))| score)
+        {
+            moves.swap_remove(i);
+
             let new_pos = &pos.play_move(mv, self.tt);
 
             let v = -self.qsearch(st, new_pos, -window)?.0;
