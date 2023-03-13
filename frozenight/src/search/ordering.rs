@@ -51,7 +51,8 @@ impl<'a> MovePicker<'a> {
                         let score = match () {
                             _ if Some(mv) == self.hashmv => continue,
                             _ if capture_targets.has(mv.to) => MoveScore::Capture(
-                                self.pos.board.piece_on(mv.to).unwrap() as i16 * 8
+                                static_exchange_eval(&self.pos.board, mv)
+                                    + self.pos.board.piece_on(mv.to).unwrap() as i16 * 8
                                     - mvs.piece as i16,
                             ),
                             _ => MoveScore::Quiet(state.history[stm][mvs.piece][mv.to]),
