@@ -55,7 +55,10 @@ impl Searcher<'_> {
             hashmv = self.negamax(search, pos, window, depth - 2)?.1;
         }
 
-        let eval = pos.static_eval();
+        let eval = tt
+            .map(|tt| tt.eval)
+            .filter(|e| !e.is_conclusive())
+            .unwrap_or_else(|| pos.static_eval());
 
         if !search.pv()
             && depth <= RFP_MAX_DEPTH.get()
