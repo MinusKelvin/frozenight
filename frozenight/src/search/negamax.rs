@@ -19,6 +19,10 @@ impl Searcher<'_> {
         mut window: Window,
         depth: i16,
     ) -> Option<(Eval, Option<Move>)> {
+        if depth == 0 {
+            return self.qsearch(st, pos, window);
+        }
+
         let n = self.stats.nodes.fetch_add(1, Ordering::Relaxed);
         if self.allow_abort {
             if n >= self.node_limit {
@@ -30,10 +34,6 @@ impl Searcher<'_> {
                     self.next_deadline_check = n + estimate_nodes_to_deadline(to_deadline);
                 }
             }
-        }
-
-        if depth == 0 {
-            return self.qsearch(st, pos, window);
         }
 
         let tt = self.tt.get(pos);
