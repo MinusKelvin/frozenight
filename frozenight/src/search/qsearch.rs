@@ -36,7 +36,7 @@ impl Searcher<'_> {
                 if see >= 0 {
                     moves.push((
                         mv,
-                        pos.board.piece_on(mv.to).unwrap() as i16 * 8 - mvs.piece as i16,
+                        see + pos.board.piece_on(mv.to).unwrap() as i16 * 8 - mvs.piece as i16,
                     ));
                 }
             }
