@@ -38,7 +38,9 @@ impl Searcher<'_> {
         }
 
         let tt = self.tt.get(pos);
+        let mut hashmv = None;
         if let Some(tt) = tt {
+            hashmv = Some(tt.mv);
             let bound_allows_cutoff = match tt.kind {
                 NodeKind::Exact => true,
                 NodeKind::LowerBound => window.fail_high(tt.eval),
@@ -47,6 +49,10 @@ impl Searcher<'_> {
             if tt.depth >= depth && bound_allows_cutoff {
                 return Some((tt.eval, Some(tt.mv)));
             }
+        }
+
+        if search.pv() && tt.map_or(true, |tt| tt.kind != NodeKind::Exact) {
+            hashmv = self.negamax(search, pos, window, depth - 2)?.1;
         }
 
         let eval = pos.static_eval();
@@ -72,7 +78,7 @@ impl Searcher<'_> {
             }
         }
 
-        let mut move_picker = MovePicker::new(pos, tt.map(|tt| tt.mv));
+        let mut move_picker = MovePicker::new(pos, hashmv);
         let mut best = -Eval::MATE.add_time(pos.ply);
         let mut best_mv = None;
         let mut raised_alpha = false;
