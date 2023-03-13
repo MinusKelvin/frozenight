@@ -8,8 +8,15 @@ use super::{Searcher, INVALID_MOVE};
 pub struct MovePicker<'a> {
     pos: &'a Position,
     hashmv: Option<Move>,
-    moves: Vec<Move>,
+    moves: Vec<(Move, MoveScore)>,
     next: usize,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MoveScore {
+    Quiet,
+    Capture,
+    Hash,
 }
 
 impl<'a> MovePicker<'a> {
@@ -30,12 +37,20 @@ impl<'a> MovePicker<'a> {
                 return Some((i, mv));
             }
             _ if self.moves.is_empty() => {
-                self.moves.extend(self.hashmv);
+                if let Some(mv) = self.hashmv {
+                    self.moves.push((mv, MoveScore::Hash));
+                }
+                let capture_targets = self.pos.board.colors(!self.pos.board.side_to_move());
                 self.pos.board.generate_moves(|mvs| {
                     for mv in mvs {
-                        if Some(mv) != self.hashmv {
-                            self.moves.push(mv);
-                        }
+                        let score = match () {
+                            _ if Some(mv) == self.hashmv => continue,
+                            _ if capture_targets.has(mv.to) => {
+                                MoveScore::Capture
+                            }
+                            _ => MoveScore::Quiet,
+                        };
+                        self.moves.push((mv, score));
                     }
                     false
                 });
@@ -43,13 +58,14 @@ impl<'a> MovePicker<'a> {
             _ => {}
         }
 
-        let &mv = self.moves.get(i)?;
+        let (j, &(mv, score)) = self.moves[i..].iter().enumerate().max_by_key(|&(_, &(_, s))| s)?;
+        self.moves[i..].swap(0, j);
         self.next += 1;
         Some((i, mv))
     }
 
-    pub fn yielded(&mut self) -> &[Move] {
-        &self.moves[..self.next]
+    pub fn yielded(&mut self) -> impl Iterator<Item = Move> + '_ {
+        self.moves[..self.next].iter().map(|&(mv, _)| mv)
     }
 }
 

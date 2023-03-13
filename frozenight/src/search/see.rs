@@ -3,9 +3,9 @@ use cozy_chess::{
     Board, Move, Piece, Square,
 };
 
-const VALUES: [i32; Piece::NUM] = [100, 300, 325, 500, 900, 9999999];
+const VALUES: [i16; Piece::NUM] = [100, 300, 325, 500, 900, 30000];
 
-pub fn static_exchange_eval(board: &Board, capture: Move) -> i32 {
+pub fn static_exchange_eval(board: &Board, capture: Move) -> i16 {
     let occupied = board.occupied() & !capture.from.bitboard();
     VALUES[board.piece_on(capture.to).unwrap() as usize]
         - see_impl(
@@ -16,7 +16,7 @@ pub fn static_exchange_eval(board: &Board, capture: Move) -> i32 {
         )
 }
 
-fn see_impl(board: &Board, sq: Square, mut piece: Piece, mut occupied: BitBoard) -> i32 {
+fn see_impl(board: &Board, sq: Square, mut piece: Piece, mut occupied: BitBoard) -> i16 {
     let mut stm = board.side_to_move();
     let mut bishop_attacks = get_bishop_moves(sq, occupied);
     let mut rook_attacks = get_rook_moves(sq, occupied);
