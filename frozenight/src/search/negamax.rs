@@ -63,7 +63,16 @@ impl Searcher<'_> {
             } else {
                 self.push_repetition(&new_pos.board);
 
-                v = -self.negamax(st, new_pos, -window, depth - 1)?.0;
+                if i == 0 {
+                    v = -self.negamax(st, new_pos, -window, depth - 1)?.0;
+                } else {
+                    let zw = Window::null(window.lb());
+                    v = -self.negamax(ZeroWidth, new_pos, -zw, depth - 1)?.0;
+
+                    if window.inside(v) {
+                        v = -self.negamax(st, new_pos, -window, depth - 1)?.0;
+                    }
+                }
 
                 self.pop_repetition();
             }
