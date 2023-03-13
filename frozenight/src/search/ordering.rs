@@ -15,7 +15,7 @@ pub struct MovePicker<'a> {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MoveScore {
     Quiet,
-    Capture,
+    Capture(i16),
     Hash,
 }
 
@@ -45,9 +45,10 @@ impl<'a> MovePicker<'a> {
                     for mv in mvs {
                         let score = match () {
                             _ if Some(mv) == self.hashmv => continue,
-                            _ if capture_targets.has(mv.to) => {
-                                MoveScore::Capture
-                            }
+                            _ if capture_targets.has(mv.to) => MoveScore::Capture(
+                                self.pos.board.piece_on(mv.to).unwrap() as i16 * 8
+                                    - mvs.piece as i16,
+                            ),
                             _ => MoveScore::Quiet,
                         };
                         self.moves.push((mv, score));
@@ -58,7 +59,10 @@ impl<'a> MovePicker<'a> {
             _ => {}
         }
 
-        let (j, &(mv, score)) = self.moves[i..].iter().enumerate().max_by_key(|&(_, &(_, s))| s)?;
+        let (j, &(mv, score)) = self.moves[i..]
+            .iter()
+            .enumerate()
+            .max_by_key(|&(_, &(_, s))| s)?;
         self.moves[i..].swap(0, j);
         self.next += 1;
         Some((i, mv))
