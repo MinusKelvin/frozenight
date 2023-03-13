@@ -3,7 +3,9 @@ use cozy_chess::{Color, Move, Piece, Square};
 use crate::position::Position;
 
 use super::see::static_exchange_eval;
-use super::{Searcher, INVALID_MOVE};
+use super::{PrivateState, Searcher, INVALID_MOVE};
+
+const MAX_HISTORY: i32 = 4096;
 
 pub struct MovePicker<'a> {
     pos: &'a Position,
@@ -14,7 +16,7 @@ pub struct MovePicker<'a> {
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MoveScore {
-    Quiet,
+    Quiet(i16),
     Capture(i16),
     Hash,
 }
@@ -29,7 +31,7 @@ impl<'a> MovePicker<'a> {
         }
     }
 
-    pub fn pick_move(&mut self) -> Option<(usize, Move)> {
+    pub(crate) fn pick_move(&mut self, state: &PrivateState) -> Option<(usize, Move)> {
         let i = self.next;
         match self.hashmv {
             Some(mv) if i == 0 => {
@@ -40,7 +42,10 @@ impl<'a> MovePicker<'a> {
                 if let Some(mv) = self.hashmv {
                     self.moves.push((mv, MoveScore::Hash));
                 }
-                let capture_targets = self.pos.board.colors(!self.pos.board.side_to_move());
+
+                let stm = self.pos.board.side_to_move();
+                let capture_targets = self.pos.board.colors(!stm);
+
                 self.pos.board.generate_moves(|mvs| {
                     for mv in mvs {
                         let score = match () {
@@ -49,7 +54,7 @@ impl<'a> MovePicker<'a> {
                                 self.pos.board.piece_on(mv.to).unwrap() as i16 * 8
                                     - mvs.piece as i16,
                             ),
-                            _ => MoveScore::Quiet,
+                            _ => MoveScore::Quiet(state.history[stm][mvs.piece][mv.to]),
                         };
                         self.moves.push((mv, score));
                     }
@@ -67,55 +72,32 @@ impl<'a> MovePicker<'a> {
         self.next += 1;
         Some((i, mv))
     }
+}
 
-    pub fn yielded(&mut self) -> impl Iterator<Item = Move> + '_ {
-        self.moves[..self.next].iter().map(|&(mv, _)| mv)
+impl Searcher<'_> {
+    pub fn update_history(&mut self, picker: MovePicker, cutoff_move: Move, depth: i16) {
+        let change = depth as i32 * depth as i32;
+        let stm = picker.pos.board.side_to_move();
+        let capture_targets = picker.pos.board.colors(!stm);
+
+        for &(mv, _) in &picker.moves[..picker.next - 1] {
+            if capture_targets.has(mv.to) {
+                continue;
+            }
+
+            let piece = picker.pos.board.piece_on(mv.from).unwrap();
+            history_dec(&mut self.state.history[stm][piece][mv.to], change);
+        }
+
+        let piece = picker.pos.board.piece_on(cutoff_move.from).unwrap();
+        history_inc(&mut self.state.history[stm][piece][cutoff_move.to], change);
     }
 }
 
-macro_rules! tables {
-    ($($table:ident: $enum:ty;)*) => {
-        $(
-            #[derive(Copy, Clone, Debug)]
-            struct $table<T>([T; <$enum>::NUM]);
-
-            impl<T, I: Into<$enum>> std::ops::Index<I> for $table<T> {
-                type Output = T;
-
-                #[inline(always)]
-                fn index(&self, index: I) -> &T {
-                    &self.0[index.into() as usize]
-                }
-            }
-
-            impl<T, I: Into<$enum>> std::ops::IndexMut<I> for $table<T> {
-                #[inline(always)]
-                fn index_mut(&mut self, index: I) -> &mut T {
-                    &mut self.0[index.into() as usize]
-                }
-            }
-
-            impl<T: Default> Default for $table<T> {
-                fn default() -> Self {
-                    Self([(); <$enum>::NUM].map(|_| Default::default()))
-                }
-            }
-
-            impl<'a, T> IntoIterator for &'a mut $table<T> {
-                type Item = &'a mut T;
-                type IntoIter = std::slice::IterMut<'a, T>;
-
-                #[inline(always)]
-                fn into_iter(self) -> Self::IntoIter {
-                    self.0.iter_mut()
-                }
-            }
-        )*
-    };
+fn history_inc(hist: &mut i16, change: i32) {
+    *hist += (change - change * *hist as i32 / MAX_HISTORY) as i16;
 }
 
-tables! {
-    ColorTable: Color;
-    PieceTable: Piece;
-    SquareTable: Square;
+fn history_dec(hist: &mut i16, change: i32) {
+    *hist -= (change + change * *hist as i32 / MAX_HISTORY) as i16;
 }

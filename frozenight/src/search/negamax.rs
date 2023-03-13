@@ -53,8 +53,8 @@ impl Searcher<'_> {
         let mut best_mv = None;
         let mut raised_alpha = false;
 
-        while let Some((i, mv)) = move_picker.pick_move() {
-            let new_pos = &pos.play_move(mv, &self.tt);
+        while let Some((i, mv)) = move_picker.pick_move(self.state) {
+            let new_pos = &pos.play_move(mv, self.tt);
 
             let mut v;
 
@@ -74,6 +74,7 @@ impl Searcher<'_> {
             }
 
             if window.fail_high(v) {
+                self.update_history(move_picker, mv, depth);
                 break;
             }
 

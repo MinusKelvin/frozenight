@@ -9,6 +9,7 @@ use crate::tt::TranspositionTable;
 use crate::{Eval, Frozenight, Statistics};
 
 pub use self::params::all_parameters;
+use self::table::{ColorTable, PieceTable, SquareTable};
 use self::window::Window;
 
 mod negamax;
@@ -17,6 +18,7 @@ mod ordering;
 mod params;
 mod qsearch;
 mod see;
+mod table;
 mod window;
 
 pub const INVALID_MOVE: Move = Move {
@@ -25,11 +27,15 @@ pub const INVALID_MOVE: Move = Move {
     promotion: None,
 };
 
-pub(crate) struct PrivateState {}
+pub(crate) struct PrivateState {
+    history: ColorTable<PieceTable<SquareTable<i16>>>,
+}
 
 impl Default for PrivateState {
     fn default() -> Self {
-        PrivateState {}
+        PrivateState {
+            history: Default::default(),
+        }
     }
 }
 
