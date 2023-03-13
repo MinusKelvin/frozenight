@@ -87,14 +87,20 @@ impl Searcher<'_> {
             } else {
                 self.push_repetition(&new_pos.board);
 
+                let ext = !new_pos.board.checkers().is_empty() as i16;
+
                 if i == 0 {
-                    v = -self.negamax(search, new_pos, -window, depth - 1)?.0;
+                    v = -self.negamax(search, new_pos, -window, depth + ext - 1)?.0;
                 } else {
-                    let reduction = base_lmr(i, depth);
+                    let mut reduction = base_lmr(i, depth);
+
+                    if ext > 0 {
+                        reduction = 0;
+                    }
 
                     let zw = Window::null(window.lb());
                     v = -self
-                        .negamax(ZeroWidth, new_pos, -zw, depth - reduction - 1)?
+                        .negamax(ZeroWidth, new_pos, -zw, depth + ext - reduction - 1)?
                         .0;
 
                     if reduction > 0 && zw.fail_high(v) {
@@ -102,7 +108,7 @@ impl Searcher<'_> {
                     }
 
                     if window.inside(v) {
-                        v = -self.negamax(search, new_pos, -window, depth - 1)?.0;
+                        v = -self.negamax(search, new_pos, -window, depth + ext - 1)?.0;
                     }
                 }
 
