@@ -92,6 +92,11 @@ impl Searcher<'_> {
         let mut raised_alpha = false;
 
         while let Some((i, mv, score)) = move_picker.pick_move(&self.state) {
+            if pos.board.halfmove_clock() == 100 {
+                // not checkmate because we have a move
+                return Some((Eval::DRAW, None));
+            }
+
             let new_pos = &pos.play_move(mv, self.tt);
 
             let mut v;
