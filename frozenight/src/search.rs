@@ -1,7 +1,7 @@
 use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
-use cozy_chess::{Board, Move, Square};
+use cozy_chess::{Board, Move, Piece, Square};
 
 use crate::position::Position;
 use crate::search::negamax::Pv;
@@ -9,7 +9,7 @@ use crate::tt::TranspositionTable;
 use crate::{Eval, Frozenight, Statistics};
 
 pub use self::params::all_parameters;
-use self::table::{ColorTable, PieceTable, SquareTable};
+use self::table::{ColorTable, HistoryTable};
 use self::window::Window;
 
 mod negamax;
@@ -28,13 +28,19 @@ pub const INVALID_MOVE: Move = Move {
 };
 
 struct PrivateState {
-    history: ColorTable<PieceTable<SquareTable<i16>>>,
+    history: Box<HistoryTable<i16>>,
+    cont_hist: Box<HistoryTable<HistoryTable<i16>>>,
+    null_move_conthist: Box<ColorTable<HistoryTable<i16>>>,
+    move_stack: Box<[Option<(Piece, Square)>; 512]>,
 }
 
 impl Default for PrivateState {
     fn default() -> Self {
         PrivateState {
-            history: Default::default(),
+            history: bytemuck::allocation::zeroed_box(),
+            cont_hist: bytemuck::allocation::zeroed_box(),
+            null_move_conthist: bytemuck::allocation::zeroed_box(),
+            move_stack: Box::new([None; 512]),
         }
     }
 }
@@ -45,7 +51,7 @@ pub(crate) struct Searcher<'a> {
     pub tt: &'a TranspositionTable,
     pub node_limit: u64,
     pub abort: &'a AtomicBool,
-    state: Box<PrivateState>,
+    state: PrivateState,
     valid: bool,
     allow_abort: bool,
     deadline: Option<Instant>,

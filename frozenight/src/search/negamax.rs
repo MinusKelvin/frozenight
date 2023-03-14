@@ -76,6 +76,7 @@ impl Searcher<'_> {
             let reduction = fp_mul(depth, NMP_DEPTH_FACTOR.get()) + NMP_BASE_REDUCTION.get();
             let zw = Window::null(window.ub() - 1);
 
+            self.state.move_stack[pos.ply as usize] = None;
             let v = -self
                 .negamax(ZeroWidth, new_pos, -zw, depth - reduction - 1)?
                 .0;
@@ -99,6 +100,8 @@ impl Searcher<'_> {
                 v = Eval::DRAW;
             } else {
                 self.push_repetition(&new_pos.board);
+                self.state.move_stack[pos.ply as usize] =
+                    Some((pos.board.piece_on(mv.from).unwrap(), mv.to));
 
                 let ext = !new_pos.board.checkers().is_empty() as i16;
 

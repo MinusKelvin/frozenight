@@ -9,7 +9,7 @@ edition = "2021"
 tweakable = []
 
 [dependencies]
-bytemuck = { version = "1.7.3", features = ["derive"] }
+bytemuck = { version = "1.7.3", features = ["derive", "extern_crate_alloc"] }
 cozy-chess = "0.3"
 
 [build-dependencies]
