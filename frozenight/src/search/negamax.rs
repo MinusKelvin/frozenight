@@ -109,7 +109,11 @@ impl Searcher<'_> {
 
                     reduction += (i as i16 > LMR_EXTRA.get()) as i16;
 
-                    if ext > 0 {
+                    if let MoveScore::Quiet(h) = score {
+                        reduction -= h / 200;
+                    }
+
+                    if reduction < 0 || ext > 0 {
                         reduction = 0;
                     }
 
