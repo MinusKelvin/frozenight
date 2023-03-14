@@ -90,7 +90,7 @@ impl Searcher<'_> {
         let mut best_mv = None;
         let mut raised_alpha = false;
 
-        while let Some((i, mv, score)) = move_picker.pick_move(self.state) {
+        while let Some((i, mv, score)) = move_picker.pick_move(&self.state) {
             let new_pos = &pos.play_move(mv, self.tt);
 
             let mut v;
