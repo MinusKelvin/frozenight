@@ -93,6 +93,8 @@ tweakables! {
 
     RFP_MAX_DEPTH: 0..=10 = 3;
     RFP_MARGIN: 1..=1000 = 350;
+
+    DELTA_PRUNING_MARGIN: 0..=10000 = 1000;
 }
 
 pub fn fp_mul(a: i16, b: i16) -> i16 {
