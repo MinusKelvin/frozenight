@@ -32,7 +32,12 @@ impl Searcher<'_> {
             }
         }
 
-        let mut best = pos.static_eval();
+        let in_check = pos.board.checkers().is_empty();
+
+        let mut best = match in_check {
+            true => pos.static_eval(),
+            false => -Eval::MATE.add_time(pos.ply),
+        };
         let mut best_mv = None;
         let mut raised_alpha = false;
 
@@ -43,10 +48,12 @@ impl Searcher<'_> {
 
         let mut moves = Vec::with_capacity(64);
         pos.board.generate_moves(|mut mvs| {
-            mvs.to &= pos.board.colors(!pos.board.side_to_move());
+            if !in_check {
+                mvs.to &= pos.board.colors(!pos.board.side_to_move());
+            }
             for mv in mvs {
                 let see = static_exchange_eval(&pos.board, mv);
-                if see >= 0 {
+                if !in_check && see >= 0 {
                     moves.push((
                         mv,
                         (Some(mv) == tt.map(|tt| tt.mv)) as i16 * 1000
