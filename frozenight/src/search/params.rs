@@ -90,6 +90,7 @@ tweakables! {
 
     LMR_MOVE_FACTOR: 0..=2000 = 100;
     LMR_DEPTH_FACTOR: 0..=2000 = 70;
+    LMR_EXTRA: 0..=50 = 3;
 
     RFP_MAX_DEPTH: 0..=10 = 3;
     RFP_MARGIN: 1..=1000 = 350;

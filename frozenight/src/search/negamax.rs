@@ -107,6 +107,8 @@ impl Searcher<'_> {
                 } else {
                     let mut reduction = base_lmr(i, depth);
 
+                    reduction += (i as i16 > LMR_EXTRA.get()) as i16;
+
                     if ext > 0 {
                         reduction = 0;
                     }
