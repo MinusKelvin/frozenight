@@ -59,6 +59,9 @@ impl<'a> MovePicker<'a> {
                                 if let Some(table) = state.counter_hist_table(self.pos) {
                                     score += table[stm][mvs.piece][mv.to];
                                 }
+                                if let Some(table) = state.followup_hist_table(self.pos) {
+                                    score += table[stm][mvs.piece][mv.to];
+                                }
                                 MoveScore::Quiet(score)
                             }
                         };
@@ -100,12 +103,20 @@ impl Searcher<'_> {
             if let Some(table) = self.state.counter_hist_table_mut(picker.pos) {
                 history_dec(&mut table[stm][piece][mv.to], change);
             }
+
+            if let Some(table) = self.state.followup_hist_table_mut(picker.pos) {
+                history_dec(&mut table[stm][piece][mv.to], change);
+            }
         }
 
         let piece = picker.pos.board.piece_on(cutoff_move.from).unwrap();
         history_inc(&mut self.state.history[stm][piece][cutoff_move.to], change);
 
         if let Some(table) = self.state.counter_hist_table_mut(picker.pos) {
+            history_inc(&mut table[stm][piece][cutoff_move.to], change);
+        }
+
+        if let Some(table) = self.state.followup_hist_table_mut(picker.pos) {
             history_inc(&mut table[stm][piece][cutoff_move.to], change);
         }
     }
@@ -131,6 +142,28 @@ impl PrivateState {
         match self.move_stack[pos.ply as usize - 1] {
             Some((p, s)) => Some(&mut self.cont_hist[!stm][p][s]),
             None => Some(&mut self.null_move_conthist[!stm]),
+        }
+    }
+
+    fn followup_hist_table(&self, pos: &Position) -> Option<&HistoryTable<i16>> {
+        if pos.ply <= 1 {
+            return None;
+        }
+        let stm = pos.board.side_to_move();
+        match self.move_stack[pos.ply as usize - 2] {
+            Some((p, s)) => Some(&self.cont_hist[stm][p][s]),
+            None => Some(&self.null_move_conthist[stm]),
+        }
+    }
+
+    fn followup_hist_table_mut(&mut self, pos: &Position) -> Option<&mut HistoryTable<i16>> {
+        if pos.ply <= 1 {
+            return None;
+        }
+        let stm = pos.board.side_to_move();
+        match self.move_stack[pos.ply as usize - 2] {
+            Some((p, s)) => Some(&mut self.cont_hist[stm][p][s]),
+            None => Some(&mut self.null_move_conthist[stm]),
         }
     }
 }
