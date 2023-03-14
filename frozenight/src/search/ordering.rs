@@ -80,6 +80,10 @@ impl Searcher<'_> {
         let stm = picker.pos.board.side_to_move();
         let capture_targets = picker.pos.board.colors(!stm);
 
+        if capture_targets.has(cutoff_move.to) {
+            return;
+        }
+
         for &(mv, _) in &picker.moves[..picker.next - 1] {
             if capture_targets.has(mv.to) {
                 continue;
