@@ -94,6 +94,8 @@ tweakables! {
 
     RFP_MAX_DEPTH: 0..=10 = 3;
     RFP_MARGIN: 1..=1000 = 350;
+
+    HRED_DIVISOR: 1..=5000 = 200;
 }
 
 pub fn fp_mul(a: i16, b: i16) -> i16 {

@@ -26,7 +26,7 @@ impl Searcher<'_> {
 
         let n = self.stats.nodes.fetch_add(1, Ordering::Relaxed);
         if self.allow_abort {
-            if n >= self.node_limit {
+            if n >= self.node_limit || self.abort.load(Ordering::Relaxed) {
                 return None;
             }
             if let Some(deadline) = self.deadline {

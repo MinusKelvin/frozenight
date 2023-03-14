@@ -18,7 +18,7 @@ pub use eval::Eval;
 pub use threading::MtFrozenight;
 pub use time::TimeConstraint;
 
-use search::{PrivateState, Searcher, INVALID_MOVE};
+use search::{Searcher, INVALID_MOVE};
 use time::TimeManager;
 use tt::TranspositionTable;
 
@@ -29,7 +29,6 @@ pub struct Frozenight {
     prehistory: Vec<u64>,
     tt: Arc<RwLock<TranspositionTable>>,
     stats: Arc<Statistics>,
-    state: PrivateState,
 }
 
 #[derive(Clone, Debug)]
@@ -62,7 +61,6 @@ impl Frozenight {
             prehistory: vec![],
             tt,
             stats: Default::default(),
-            state: Default::default(),
         }
     }
 
@@ -71,7 +69,6 @@ impl Frozenight {
     }
 
     pub fn new_game(&mut self) {
-        self.state = Default::default();
         Arc::get_mut(&mut self.tt)
             .unwrap()
             .get_mut()
@@ -91,7 +88,7 @@ impl Frozenight {
     }
 
     pub fn set_hash(&mut self, hash_mb: usize) {
-        let mut tt = Arc::get_mut(&mut self.tt)
+        let tt = Arc::get_mut(&mut self.tt)
             .unwrap()
             .get_mut()
             .unwrap();

@@ -1,9 +1,8 @@
-use cozy_chess::{Color, Move, Piece, Square};
+use cozy_chess::Move;
 
 use crate::position::Position;
 
-use super::see::static_exchange_eval;
-use super::{PrivateState, Searcher, INVALID_MOVE};
+use super::{PrivateState, Searcher};
 
 const MAX_HISTORY: i32 = 4096;
 
@@ -31,7 +30,7 @@ impl<'a> MovePicker<'a> {
         }
     }
 
-    pub(crate) fn pick_move(&mut self, state: &PrivateState) -> Option<(usize, Move, MoveScore)> {
+    pub(super) fn pick_move(&mut self, state: &PrivateState) -> Option<(usize, Move, MoveScore)> {
         let i = self.next;
         match self.hashmv {
             Some(mv) if i == 0 => {
@@ -78,14 +77,13 @@ impl Searcher<'_> {
     pub fn update_history(&mut self, picker: MovePicker, cutoff_move: Move, depth: i16) {
         let change = depth as i32 * depth as i32;
         let stm = picker.pos.board.side_to_move();
-        let capture_targets = picker.pos.board.colors(!stm);
 
-        if capture_targets.has(cutoff_move.to) {
+        if picker.pos.is_capture(cutoff_move) {
             return;
         }
 
         for &(mv, _) in &picker.moves[..picker.next - 1] {
-            if capture_targets.has(mv.to) {
+            if picker.pos.is_capture(mv) {
                 continue;
             }
 

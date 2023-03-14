@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
 use cozy_chess::{Board, Move, Square};
@@ -27,7 +27,7 @@ pub const INVALID_MOVE: Move = Move {
     promotion: None,
 };
 
-pub(crate) struct PrivateState {
+struct PrivateState {
     history: ColorTable<PieceTable<SquareTable<i16>>>,
 }
 
