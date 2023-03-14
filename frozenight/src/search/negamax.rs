@@ -7,6 +7,7 @@ use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
 use crate::Eval;
 
+use super::oracle::oracle;
 use super::ordering::{MovePicker, MoveScore};
 use super::params::*;
 use super::window::Window;
@@ -101,7 +102,9 @@ impl Searcher<'_> {
 
             let mut v;
 
-            if self.is_repetition(&new_pos.board) {
+            if let Some(outcome) = oracle(&new_pos.board) {
+                v = outcome;
+            } else if self.is_repetition(&new_pos.board) {
                 v = Eval::DRAW;
             } else {
                 self.push_repetition(&new_pos.board);
