@@ -7,6 +7,7 @@ use crate::tt::{NodeKind, TableEntry};
 use crate::Eval;
 
 use super::negamax::SearchType;
+use super::oracle::oracle;
 use super::see::static_exchange_eval;
 use super::window::Window;
 use super::Searcher;
@@ -67,7 +68,12 @@ impl Searcher<'_> {
 
             let new_pos = &pos.play_move(mv, self.tt);
 
-            let v = -self.qsearch(st, new_pos, -window)?.0;
+            let v;
+            if let Some(known) = oracle(&new_pos.board) {
+                v = known;
+            } else {
+                v = -self.qsearch(st, new_pos, -window)?.0;
+            }
 
             if v > best {
                 best = v;
