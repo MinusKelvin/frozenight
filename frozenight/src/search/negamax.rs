@@ -91,11 +91,26 @@ impl Searcher<'_> {
         let mut best = -Eval::MATE.add_time(pos.ply);
         let mut best_mv = None;
         let mut raised_alpha = false;
+        let mut quiets_remaining = match depth {
+            1 => LMP_DEPTH_1.get(),
+            2 => LMP_DEPTH_2.get(),
+            3 => LMP_DEPTH_3.get(),
+            _ => 999,
+        };
 
         while let Some((i, mv, score)) = move_picker.pick_move(&self.state) {
             if pos.board.halfmove_clock() == 100 {
                 // not checkmate because we have a move
                 return Some((Eval::DRAW, None));
+            }
+
+            let quiet = !pos.is_capture(mv);
+
+            if quiet {
+                if quiets_remaining <= 0 && !best.is_conclusive() {
+                    continue;
+                }
+                quiets_remaining -= 1;
             }
 
             let new_pos = &pos.play_move(mv, self.tt);

@@ -96,6 +96,10 @@ tweakables! {
     RFP_MARGIN: 1..=1000 = 350;
 
     HRED_DIVISOR: 1..=5000 = 400;
+
+    LMP_DEPTH_1: 1..=300 = 7;
+    LMP_DEPTH_2: 1..=300 = 8;
+    LMP_DEPTH_3: 1..=300 = 17;
 }
 
 pub fn fp_mul(a: i16, b: i16) -> i16 {
