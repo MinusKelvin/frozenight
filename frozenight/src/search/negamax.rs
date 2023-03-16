@@ -93,6 +93,7 @@ impl Searcher<'_> {
         let mut best_mv = None;
         let mut raised_alpha = false;
         let mut quiets_remaining = match depth {
+            _ if search.pv() => 999,
             1 => LMP_DEPTH_1.get(),
             2 => LMP_DEPTH_2.get(),
             3 => LMP_DEPTH_3.get(),
