@@ -125,8 +125,11 @@ impl Searcher<'_> {
                 v = Eval::DRAW;
             } else {
                 self.push_repetition(&new_pos.board);
-                self.state.move_stack[pos.ply as usize] =
-                    Some((pos.board.piece_on(mv.from).unwrap(), mv.to));
+                self.state.move_stack[pos.ply as usize] = Some((
+                    pos.board.piece_on(mv.from).unwrap(),
+                    mv.to,
+                    pos.is_capture(mv),
+                ));
 
                 let ext = !new_pos.board.checkers().is_empty() as i16;
 

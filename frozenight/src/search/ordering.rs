@@ -129,7 +129,7 @@ impl PrivateState {
         }
         let stm = pos.board.side_to_move();
         match self.move_stack[pos.ply as usize - 1] {
-            Some((p, s)) => Some(&self.cont_hist[!stm][p][s]),
+            Some((p, s, c)) => Some(&self.cont_hist[c as usize][!stm][p][s]),
             None => Some(&self.null_move_conthist[!stm]),
         }
     }
@@ -140,7 +140,7 @@ impl PrivateState {
         }
         let stm = pos.board.side_to_move();
         match self.move_stack[pos.ply as usize - 1] {
-            Some((p, s)) => Some(&mut self.cont_hist[!stm][p][s]),
+            Some((p, s, c)) => Some(&mut self.cont_hist[c as usize][!stm][p][s]),
             None => Some(&mut self.null_move_conthist[!stm]),
         }
     }
@@ -151,7 +151,7 @@ impl PrivateState {
         }
         let stm = pos.board.side_to_move();
         match self.move_stack[pos.ply as usize - 2] {
-            Some((p, s)) => Some(&self.cont_hist[stm][p][s]),
+            Some((p, s, c)) => Some(&self.cont_hist[c as usize][stm][p][s]),
             None => Some(&self.null_move_conthist[stm]),
         }
     }
@@ -162,7 +162,7 @@ impl PrivateState {
         }
         let stm = pos.board.side_to_move();
         match self.move_stack[pos.ply as usize - 2] {
-            Some((p, s)) => Some(&mut self.cont_hist[stm][p][s]),
+            Some((p, s, c)) => Some(&mut self.cont_hist[c as usize][stm][p][s]),
             None => Some(&mut self.null_move_conthist[stm]),
         }
     }

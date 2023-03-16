@@ -29,9 +29,9 @@ pub const INVALID_MOVE: Move = Move {
 
 struct PrivateState {
     history: Box<HistoryTable<i16>>,
-    cont_hist: Box<HistoryTable<HistoryTable<i16>>>,
+    cont_hist: Box<[HistoryTable<HistoryTable<i16>>; 2]>,
     null_move_conthist: Box<ColorTable<HistoryTable<i16>>>,
-    move_stack: Box<[Option<(Piece, Square)>; 512]>,
+    move_stack: Box<[Option<(Piece, Square, bool)>; 512]>,
 }
 
 impl Default for PrivateState {
