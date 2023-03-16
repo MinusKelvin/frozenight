@@ -106,7 +106,9 @@ impl Searcher<'_> {
                 return Some((Eval::DRAW, None));
             }
 
-            let quiet = !pos.is_capture(mv);
+            let new_pos = &pos.play_move(mv, self.tt);
+
+            let quiet = !pos.is_capture(mv) && new_pos.board.checkers().is_empty();
 
             if quiet {
                 if quiets_remaining <= 0 && !best.is_conclusive() {
@@ -114,8 +116,6 @@ impl Searcher<'_> {
                 }
                 quiets_remaining -= 1;
             }
-
-            let new_pos = &pos.play_move(mv, self.tt);
 
             let mut v;
 
