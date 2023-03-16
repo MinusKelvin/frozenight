@@ -63,6 +63,7 @@ impl Searcher<'_> {
 
         if !search.pv()
             && depth <= RFP_MAX_DEPTH.get()
+            && pos.board.checkers().is_empty()
             && Window::null(window.ub() + depth * RFP_MARGIN.get()).fail_high(eval)
         {
             return Some((eval, None));
