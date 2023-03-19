@@ -85,21 +85,21 @@ macro_rules! tweakables {
 
 tweakables! {
     NMP_MIN_DEPTH: 1..=20 = 1;
-    NMP_DEPTH_FACTOR: 0..=1000 = 333;
-    NMP_BASE_REDUCTION: 0..=20 = 1;
+    NMP_DEPTH_FACTOR: 0..=1000 = 377;
+    NMP_BASE_REDUCTION: 0..=20 = 2;
 
-    LMR_MOVE_FACTOR: 0..=2000 = 100;
-    LMR_DEPTH_FACTOR: 0..=2000 = 70;
+    LMR_MOVE_FACTOR: 0..=2000 = 75;
+    LMR_DEPTH_FACTOR: 0..=2000 = 125;
     LMR_EXTRA: 0..=50 = 3;
 
-    RFP_MAX_DEPTH: 0..=10 = 3;
-    RFP_MARGIN: 1..=1000 = 350;
+    RFP_MAX_DEPTH: 0..=10 = 4;
+    RFP_MARGIN: 1..=1000 = 320;
 
-    HRED_DIVISOR: 1..=5000 = 400;
+    HRED_DIVISOR: 1..=5000 = 425;
 
     LMP_DEPTH_1: 1..=300 = 7;
-    LMP_DEPTH_2: 1..=300 = 8;
-    LMP_DEPTH_3: 1..=300 = 17;
+    LMP_DEPTH_2: 1..=300 = 7;
+    LMP_DEPTH_3: 1..=300 = 15;
 }
 
 pub fn fp_mul(a: i16, b: i16) -> i16 {
