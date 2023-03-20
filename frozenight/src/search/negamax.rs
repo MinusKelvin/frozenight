@@ -145,6 +145,10 @@ impl Searcher<'_> {
                         reduction = 0;
                     }
 
+                    if !quiet {
+                        reduction /= 2;
+                    }
+
                     let zw = Window::null(window.lb());
                     v = -self
                         .negamax(ZeroWidth, new_pos, -zw, depth + ext - reduction - 1)?
