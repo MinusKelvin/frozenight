@@ -79,7 +79,7 @@ impl Searcher<'_> {
             entry.map(|e| e.mv),
             window,
             depth,
-            |this, i, mv, new_pos, window| {
+            |this, i, mv, hist, new_pos, window| {
                 let extension = match () {
                     _ if !new_pos.board.checkers().is_empty() => 1,
                     _ => 0,
@@ -89,7 +89,7 @@ impl Searcher<'_> {
                     _ if extension > 0 => -extension,
                     _ if position.is_capture(mv) => 0,
                     _ if !new_pos.board.checkers().is_empty() => 0,
-                    _ => null_lmr(depth, i),
+                    _ => 0.max(null_lmr(depth, i) - hist.map_or(0, |h| h / 2_000_000) as i16),
                 };
 
                 if window.lb() >= -Eval::MAX_INCONCLUSIVE && depth - reduction - 1 < 0 {
