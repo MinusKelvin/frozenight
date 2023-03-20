@@ -141,7 +141,7 @@ impl Searcher<'_> {
                         reduction -= h / HRED_DIVISOR.get();
                     }
 
-                    if reduction < 0 || ext > 0 {
+                    if reduction < 0 || ext > 0 || !pos.board.checkers().is_empty() {
                         reduction = 0;
                     }
 
