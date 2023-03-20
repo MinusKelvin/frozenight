@@ -49,3 +49,4 @@ tables! {
 }
 
 pub type HistoryTable<T> = ColorTable<PieceTable<SquareTable<T>>>;
+pub type ButterflyTable<T> = ColorTable<SquareTable<SquareTable<T>>>;

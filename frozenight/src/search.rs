@@ -9,7 +9,7 @@ use crate::tt::TranspositionTable;
 use crate::{Eval, Frozenight, Statistics};
 
 pub use self::params::all_parameters;
-use self::table::{ColorTable, HistoryTable};
+use self::table::{ColorTable, HistoryTable, ButterflyTable};
 use self::window::Window;
 
 mod negamax;
@@ -29,6 +29,7 @@ pub const INVALID_MOVE: Move = Move {
 
 struct PrivateState {
     history: Box<HistoryTable<i16>>,
+    history2: Box<ButterflyTable<i16>>,
     cont_hist: Box<HistoryTable<HistoryTable<i16>>>,
     null_move_conthist: Box<ColorTable<HistoryTable<i16>>>,
     move_stack: Box<[Option<(Piece, Square)>; 512]>,
@@ -38,6 +39,7 @@ impl Default for PrivateState {
     fn default() -> Self {
         PrivateState {
             history: bytemuck::allocation::zeroed_box(),
+            history2: bytemuck::allocation::zeroed_box(),
             cont_hist: bytemuck::allocation::zeroed_box(),
             null_move_conthist: bytemuck::allocation::zeroed_box(),
             move_stack: Box::new([None; 512]),

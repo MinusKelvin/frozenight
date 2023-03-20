@@ -2,8 +2,8 @@ use cozy_chess::Move;
 
 use crate::position::Position;
 
-use super::{PrivateState, Searcher};
 use super::table::HistoryTable;
+use super::{PrivateState, Searcher};
 
 const MAX_HISTORY: i32 = 4096;
 
@@ -55,7 +55,8 @@ impl<'a> MovePicker<'a> {
                                     - mvs.piece as i16,
                             ),
                             _ => {
-                                let mut score = state.history[stm][mvs.piece][mv.to];
+                                let mut score = state.history[stm][mvs.piece][mv.to]
+                                    + state.history2[stm][mv.from][mv.to];
                                 if let Some(table) = state.counter_hist_table(self.pos) {
                                     score += table[stm][mvs.piece][mv.to];
                                 }
@@ -99,6 +100,7 @@ impl Searcher<'_> {
 
             let piece = picker.pos.board.piece_on(mv.from).unwrap();
             history_dec(&mut self.state.history[stm][piece][mv.to], change);
+            history_dec(&mut self.state.history2[stm][mv.from][mv.to], change);
 
             if let Some(table) = self.state.counter_hist_table_mut(picker.pos) {
                 history_dec(&mut table[stm][piece][mv.to], change);
@@ -111,6 +113,10 @@ impl Searcher<'_> {
 
         let piece = picker.pos.board.piece_on(cutoff_move.from).unwrap();
         history_inc(&mut self.state.history[stm][piece][cutoff_move.to], change);
+        history_inc(
+            &mut self.state.history2[stm][cutoff_move.from][cutoff_move.to],
+            change,
+        );
 
         if let Some(table) = self.state.counter_hist_table_mut(picker.pos) {
             history_inc(&mut table[stm][piece][cutoff_move.to], change);
