@@ -1,4 +1,4 @@
-use cozy_chess::Move;
+use cozy_chess::{Move, Piece};
 
 use crate::position::Position;
 
@@ -17,8 +17,10 @@ pub struct MovePicker<'a> {
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MoveScore {
+    Underpromo(i16),
     BadCapture(i16),
     Quiet(i16),
+    QueenPromo(i16),
     GoodCapture(i16),
     Hash,
 }
@@ -52,7 +54,9 @@ impl<'a> MovePicker<'a> {
                     for mv in mvs {
                         let score = match () {
                             _ if Some(mv) == self.hashmv => continue,
-                            _ if capture_targets.has(mv.to) => {
+                            _ if capture_targets.has(mv.to)
+                                && matches!(mv.promotion, None | Some(Piece::Queen)) =>
+                            {
                                 let see = static_exchange_eval(&self.pos.board, mv);
                                 let score = self.pos.board.piece_on(mv.to).unwrap() as i16 * 8
                                     - mvs.piece as i16;
@@ -70,7 +74,11 @@ impl<'a> MovePicker<'a> {
                                 if let Some(table) = state.followup_hist_table(self.pos) {
                                     score += table[stm][mvs.piece][mv.to];
                                 }
-                                MoveScore::Quiet(score)
+                                match mv.promotion {
+                                    Some(Piece::Queen) => MoveScore::QueenPromo(score),
+                                    Some(_) => MoveScore::Underpromo(score),
+                                    None => MoveScore::Quiet(score),
+                                }
                             }
                         };
                         self.moves.push((mv, score));
