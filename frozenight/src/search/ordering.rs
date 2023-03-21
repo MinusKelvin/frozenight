@@ -18,7 +18,8 @@ pub struct MovePicker<'a> {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MoveScore {
     BadCapture(i16),
-    Quiet(i16),
+    BadQuiet(i16),
+    GoodQuiet(i16),
     GoodCapture(i16),
     Hash,
 }
@@ -70,7 +71,12 @@ impl<'a> MovePicker<'a> {
                                 if let Some(table) = state.followup_hist_table(self.pos) {
                                     score += table[stm][mvs.piece][mv.to];
                                 }
-                                MoveScore::Quiet(score)
+                                let see = static_exchange_eval(&self.pos.board, mv);
+                                if see >= 0 {
+                                    MoveScore::GoodQuiet(score)
+                                } else {
+                                    MoveScore::BadQuiet(score)
+                                }
                             }
                         };
                         self.moves.push((mv, score));

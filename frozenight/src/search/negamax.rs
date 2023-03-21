@@ -137,7 +137,7 @@ impl Searcher<'_> {
 
                     reduction += (i as i16 > LMR_EXTRA.get()) as i16;
 
-                    if let MoveScore::Quiet(h) = score {
+                    if let MoveScore::GoodQuiet(h) | MoveScore::BadQuiet(h) = score {
                         reduction -= h / HRED_DIVISOR.get();
                     }
 

@@ -7,7 +7,7 @@ const VALUES: [i16; Piece::NUM] = [100, 300, 325, 500, 900, 30000];
 
 pub fn static_exchange_eval(board: &Board, capture: Move) -> i16 {
     let occupied = board.occupied() & !capture.from.bitboard();
-    VALUES[board.piece_on(capture.to).unwrap() as usize]
+    board.piece_on(capture.to).map_or(0, |p| VALUES[p as usize])
         - see_impl(
             board,
             capture.to,
