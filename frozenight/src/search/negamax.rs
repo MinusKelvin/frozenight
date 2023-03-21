@@ -141,12 +141,8 @@ impl Searcher<'_> {
                         reduction -= h / HRED_DIVISOR.get();
                     }
 
-                    if reduction < 0 || ext > 0 {
+                    if reduction < 0 || ext > 0 || !quiet {
                         reduction = 0;
-                    }
-
-                    if !quiet {
-                        reduction /= 2;
                     }
 
                     let zw = Window::null(window.lb());
