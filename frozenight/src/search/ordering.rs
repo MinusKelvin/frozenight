@@ -77,15 +77,13 @@ impl<'a> MovePicker<'a> {
                     }
                     false
                 });
+
+                self.moves.sort_unstable_by_key(|&(_, s)| std::cmp::Reverse(s));
             }
             _ => {}
         }
 
-        let (j, &(mv, score)) = self.moves[i..]
-            .iter()
-            .enumerate()
-            .max_by_key(|&(_, &(_, s))| s)?;
-        self.moves[i..].swap(0, j);
+        let &(mv, score) = self.moves.get(i)?;
         self.next += 1;
         Some((i, mv, score))
     }
