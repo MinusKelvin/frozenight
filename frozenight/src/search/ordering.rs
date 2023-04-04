@@ -81,13 +81,20 @@ impl<'a> MovePicker<'a> {
             _ => {}
         }
 
-        let (j, &(mv, score)) = self.moves[i..]
-            .iter()
-            .enumerate()
-            .max_by_key(|&(_, &(_, s))| s)?;
-        self.moves[i..].swap(0, j);
+        if i >= self.moves.len() {
+            return None;
+        }
+
+        let mut best_index = i;
+        for j in i+1..self.moves.len() {
+            if self.moves[j].1 >= self.moves[best_index].1 {
+                best_index = j;
+            }
+        }
+
+        self.moves.swap(i, best_index);
         self.next += 1;
-        Some((i, mv, score))
+        Some((i, self.moves[i].0, self.moves[i].1))
     }
 }
 
