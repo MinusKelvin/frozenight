@@ -4,6 +4,7 @@ use crate::Eval;
 
 const NUM_FEATURES: usize = Color::NUM * Piece::NUM * Square::NUM;
 const L1_SIZE: usize = 384;
+const L2_SIZE: usize = 8;
 const BUCKETS: usize = 16;
 
 static NETWORK: Nnue = include!(concat!(env!("OUT_DIR"), "/model.rs"));
@@ -11,8 +12,14 @@ static NETWORK: Nnue = include!(concat!(env!("OUT_DIR"), "/model.rs"));
 struct Nnue {
     input_layer: [[i16; L1_SIZE]; NUM_FEATURES],
     input_layer_bias: [i16; L1_SIZE],
-    hidden_layer: [[i8; L1_SIZE * 2]; BUCKETS],
-    hidden_layer_bias: [i32; BUCKETS],
+    backend: [LayerStack; BUCKETS],
+}
+
+struct LayerStack {
+    hidden_layer: [[i8; L1_SIZE * 2]; L2_SIZE],
+    hidden_layer_bias: [i32; L2_SIZE],
+    output_layer: [i8; L2_SIZE],
+    output_layer_bias: i32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,16 +59,27 @@ impl NnueAccumulator {
 
     pub fn calculate(&self, stm: Color) -> Eval {
         let bucket = (self.material * BUCKETS / 76).min(BUCKETS - 1);
-        let mut output = NETWORK.hidden_layer_bias[bucket] * 127;
         let (first, second) = match stm {
             Color::White => (&self.white, &self.black),
             Color::Black => (&self.black, &self.white),
         };
-        for i in 0..first.len() {
-            output += activate(first[i]) * NETWORK.hidden_layer[bucket][i] as i32;
+
+        let mut hidden = NETWORK.backend[bucket].hidden_layer_bias;
+        for j in 0..L2_SIZE {
+            let mut v = NETWORK.backend[bucket].hidden_layer_bias[j];
+            for i in 0..first.len() {
+                v += activate(first[i]) * NETWORK.backend[bucket].hidden_layer[j][i] as i32;
+            }
+            for i in 0..second.len() {
+                v += activate(second[i])
+                    * NETWORK.backend[bucket].hidden_layer[j][i + first.len()] as i32;
+            }
+            hidden[j] = v / 127 / 64;
         }
-        for i in 0..second.len() {
-            output += activate(second[i]) * NETWORK.hidden_layer[bucket][i + first.len()] as i32;
+
+        let mut output = NETWORK.backend[bucket].output_layer_bias;
+        for i in 0..hidden.len() {
+            output += activate(hidden[i] as i16) * NETWORK.backend[bucket].output_layer[i] as i32;
         }
 
         Eval::new((output / 127 / 8) as i16)
@@ -208,6 +226,12 @@ fn vadd<const N: usize>(a: &mut [i16; N], b: &[i16; N]) {
 
 fn vsub<const N: usize>(a: &mut [i16; N], b: &[i16; N]) {
     a.iter_mut().zip(b.iter()).for_each(|(a, &b)| *a -= b);
+}
+
+fn vfma<const N: usize>(a: &mut [i32; N], b: &[i8; N], c: i32) {
+    a.iter_mut()
+        .zip(b.iter())
+        .for_each(|(a, &b)| *a += b as i32 * c);
 }
 
 fn feature(color: Color, piece: Piece, sq: Square) -> usize {
