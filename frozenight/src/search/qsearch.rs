@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 
-use cozy_chess::{get_king_moves, BitBoard, Move, Piece, Rank};
+use cozy_chess::{get_king_moves, BitBoard, Move, Piece, Rank, Square};
 
 use crate::position::Position;
 use crate::tt::{NodeKind, TableEntry};
@@ -61,6 +61,16 @@ impl Searcher<'_> {
             let promo =
                 mvs.piece == Piece::Pawn && mvs.from.rank() == Rank::Seventh.relative_to(us);
             if !promo {
+                let permitted = match position.board.en_passant() {
+                    Some(file) if mvs.piece == Piece::Pawn => {
+                        permitted
+                            | Square::new(
+                                file,
+                                Rank::Sixth.relative_to(position.board.side_to_move()),
+                            ).bitboard()
+                    }
+                    _ => permitted,
+                };
                 mvs.to &= permitted;
             }
             had_moves = true;
